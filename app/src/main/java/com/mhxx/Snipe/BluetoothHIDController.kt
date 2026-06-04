@@ -269,59 +269,78 @@ class BluetoothHIDController(private val context: Context) {
     }
 
     /**
-     * 🔧 修正: Nintendo Switch用 HID Descriptor
+     * ✅ Fix3: リリースレポートを hidExecutor 上でスリープ後に送信する。
+     * Handler(mainLooper) に投げると UI スレッドの遅延でリリースが遅れたり、
+     * 順序が前後する場合があるため、Bluetooth 専用スレッドで完結させる。
+     */
+    fun scheduleRelease(releaseReport: ByteArray, delayMs: Long) {
+        hidExecutor.execute {
+            try {
+                Thread.sleep(delayMs)
+            } catch (_: InterruptedException) {}
+            sendControllerInput(releaseReport)
+        }
+    }
+
+    /**
+     * Nintendo Switch用 HID Descriptor
      * 18ボタン (フェース/ショルダー/システム/十字キー) + 左右スティック
      *
      * レポート構造 (7バイト):
      *   Byte 0 : ボタン  1-8  (B, A, Y, X, L, R, ZL, ZR)
      *   Byte 1 : ボタン  9-16 (MINUS, PLUS, L3, R3, HOME, CAPTURE, DPAD_UP, DPAD_DOWN)
      *   Byte 2 : ボタン 17-18 + パディング6bit (DPAD_LEFT, DPAD_RIGHT)
-     *   Byte 3 : 左スティック X (-127〜127)
-     *   Byte 4 : 左スティック Y (-127〜127)
-     *   Byte 5 : 右スティック X (-127〜127)
-     *   Byte 6 : 右スティック Y (-127〜127)
+     *   Byte 3 : 左スティック X (0〜255, 中立=128)
+     *   Byte 4 : 左スティック Y (0〜255, 中立=128)
+     *   Byte 5 : 右スティック X (0〜255, 中立=128)
+     *   Byte 6 : 右スティック Y (0〜255, 中立=128)
+     *
+     * ✅ Fix1: スティック Input を 0x06(Relative) → 0x02(Absolute) に修正
+     *    Relative だと Switch がゲームパッドと認識せず全入力が無視される
+     * ✅ Fix2: スティック値域を signed(-127〜127) → unsigned(0〜255) に修正
+     *    Switch HID は 0-255 unsigned, 中立=128 を期待する
      */
     private fun buildHidDescriptor(): ByteArray {
         return byteArrayOf(
-            0x05, 0x01,                 // Usage Page (Generic Desktop)
-            0x09, 0x05,                 // Usage (Gamepad)
-            0xa1.toByte(), 0x01,        // Collection (Application)
+            0x05, 0x01,                         // Usage Page (Generic Desktop)
+            0x09, 0x05,                         // Usage (Gamepad)
+            0xa1.toByte(), 0x01,                // Collection (Application)
 
             // --- ボタン 18個 ---
-            0x15, 0x00,                 // Logical Minimum (0)
-            0x25, 0x01,                 // Logical Maximum (1)
-            0x75, 0x01,                 // Report Size (1)
-            0x95.toByte(), 0x12,        // Report Count (18)
-            0x05, 0x09,                 // Usage Page (Button)
-            0x19, 0x01,                 // Usage Minimum (1)
-            0x29, 0x12,                 // Usage Maximum (18)
-            0x81.toByte(), 0x02,        // Input (Data, Variable, Absolute)
+            0x15, 0x00,                         // Logical Minimum (0)
+            0x25, 0x01,                         // Logical Maximum (1)
+            0x75, 0x01,                         // Report Size (1)
+            0x95.toByte(), 0x12,                // Report Count (18)
+            0x05, 0x09,                         // Usage Page (Button)
+            0x19, 0x01,                         // Usage Minimum (1)
+            0x29, 0x12,                         // Usage Maximum (18)
+            0x81.toByte(), 0x02,                // Input (Data, Variable, Absolute)
 
             // --- パディング 6ビット (3バイト境界に揃える) ---
             0x75, 0x01,
             0x95.toByte(), 0x06,
-            0x81.toByte(), 0x03,        // Input (Constant)
+            0x81.toByte(), 0x03,                // Input (Constant)
 
-            // --- 左スティック X/Y ---
-            0x05, 0x01,                 // Usage Page (Generic Desktop)
-            0x09, 0x30,                 // Usage (X)
-            0x09, 0x31,                 // Usage (Y)
-            0x15, 0x81.toByte(),        // Logical Minimum (-127)
-            0x25, 0x7f,                 // Logical Maximum (127)
-            0x75, 0x08,                 // Report Size (8)
-            0x95.toByte(), 0x02,        // Report Count (2)
-            0x81.toByte(), 0x06,        // Input (Data, Variable, Relative)
+            // --- 左スティック X/Y (unsigned 0-255, center=128) ---
+            0x05, 0x01,                         // Usage Page (Generic Desktop)
+            0x09, 0x30,                         // Usage (X)
+            0x09, 0x31,                         // Usage (Y)
+            0x15, 0x00,                         // Logical Minimum (0)       ✅ Fix2
+            0x26, 0xff.toByte(), 0x00,          // Logical Maximum (255)     ✅ Fix2
+            0x75, 0x08,                         // Report Size (8)
+            0x95.toByte(), 0x02,                // Report Count (2)
+            0x81.toByte(), 0x02,                // Input (Data, Variable, Absolute) ✅ Fix1
 
-            // --- 右スティック Z/Rz ---
-            0x09, 0x32,                 // Usage (Z)
-            0x09, 0x35,                 // Usage (Rz)
-            0x15, 0x81.toByte(),        // Logical Minimum (-127)
-            0x25, 0x7f,                 // Logical Maximum (127)
-            0x75, 0x08,                 // Report Size (8)
-            0x95.toByte(), 0x02,        // Report Count (2)
-            0x81.toByte(), 0x06,        // Input (Data, Variable, Relative)
+            // --- 右スティック Z/Rz (unsigned 0-255, center=128) ---
+            0x09, 0x32,                         // Usage (Z)
+            0x09, 0x35,                         // Usage (Rz)
+            0x15, 0x00,                         // Logical Minimum (0)       ✅ Fix2
+            0x26, 0xff.toByte(), 0x00,          // Logical Maximum (255)     ✅ Fix2
+            0x75, 0x08,                         // Report Size (8)
+            0x95.toByte(), 0x02,                // Report Count (2)
+            0x81.toByte(), 0x02,                // Input (Data, Variable, Absolute) ✅ Fix1
 
-            0xc0.toByte()               // End Collection
+            0xc0.toByte()                       // End Collection
         )
     }
 

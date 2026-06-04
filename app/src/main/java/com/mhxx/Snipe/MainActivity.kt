@@ -10,8 +10,6 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.provider.DocumentsContract
 import android.util.Base64
 import android.util.Log
@@ -84,7 +82,11 @@ class MainActivity : AppCompatActivity() {
     )
 
     /**
-     * 🔧 追加: HIDレポートバイト列を生成
+     * HIDレポートバイト列を生成
+     *
+     * スティック引数は -127〜127 の範囲で受け取り、
+     * HIDディスクリプタに合わせた 0〜255 (中立=128) に変換する。
+     * ✅ Fix2: signed(-127〜127) → unsigned(0〜255, center=128) に変換
      */
     private fun buildHidReport(
         buttons: Set<String> = emptySet(),
@@ -100,12 +102,16 @@ class MainActivity : AppCompatActivity() {
                 else     -> b2 = b2 or (1 shl (bit - 16))
             }
         }
+        // -127〜127 → 0〜255 (center=128) に変換
+        fun toUnsigned(v: Int): Byte =
+            (v.coerceIn(-127, 127) + 128).coerceIn(0, 255).toByte()
+
         return byteArrayOf(
             b0.toByte(), b1.toByte(), b2.toByte(),
-            lx.coerceIn(-127, 127).toByte(),
-            ly.coerceIn(-127, 127).toByte(),
-            rx.coerceIn(-127, 127).toByte(),
-            ry.coerceIn(-127, 127).toByte()
+            toUnsigned(lx),
+            toUnsigned(ly),
+            toUnsigned(rx),
+            toUnsigned(ry)
         )
     }
 
@@ -491,24 +497,26 @@ class MainActivity : AppCompatActivity() {
         }
 
         /**
-         * 🔧 追加: ボタン名指定でプレス (pressCtrlBtn から呼ばれる)
+         * ボタン名指定でプレス (pressCtrlBtn から呼ばれる)
          * @param button  ボタン名 (例: "A", "B", "DPAD_UP", "HOME" ...)
          * @param duration プレス保持時間 [ms]
+         *
+         * ✅ Fix3: release をメインスレッドではなく hidExecutor で送ることで
+         *         press→release の順序が保証される（スレッド競合回避）
          */
         @JavascriptInterface
         fun pressButton(button: String, duration: Int) {
             Log.d("Bridge", "pressButton: $button for ${duration}ms")
-            val pressReport = buildHidReport(setOf(button))
+            val pressReport   = buildHidReport(setOf(button))
             val releaseReport = buildHidReport()
+            val holdMs = duration.toLong().coerceAtLeast(16L)
 
             bluetoothHIDController.sendControllerInput(pressReport)
-            Handler(Looper.getMainLooper()).postDelayed({
-                bluetoothHIDController.sendControllerInput(releaseReport)
-            }, duration.toLong().coerceAtLeast(1L))
+            bluetoothHIDController.scheduleRelease(releaseReport, holdMs)
         }
 
         /**
-         * 🔧 追加: 複数ボタン同時プレス (pressMultiBtn から呼ばれる)
+         * 複数ボタン同時プレス (pressMultiBtn から呼ばれる)
          * @param buttonsJson JSON配列文字列 (例: '["A","B"]')
          * @param duration    プレス保持時間 [ms]
          */
@@ -519,20 +527,19 @@ class MainActivity : AppCompatActivity() {
                 val buttons = (0 until arr.length()).map { arr.getString(it) }.toSet()
                 Log.d("Bridge", "pressButtons: $buttons for ${duration}ms")
 
-                val pressReport = buildHidReport(buttons)
+                val pressReport   = buildHidReport(buttons)
                 val releaseReport = buildHidReport()
+                val holdMs = duration.toLong().coerceAtLeast(16L)
 
                 bluetoothHIDController.sendControllerInput(pressReport)
-                Handler(Looper.getMainLooper()).postDelayed({
-                    bluetoothHIDController.sendControllerInput(releaseReport)
-                }, duration.toLong().coerceAtLeast(1L))
+                bluetoothHIDController.scheduleRelease(releaseReport, holdMs)
             } catch (e: Exception) {
                 Log.e("Bridge", "pressButtons error: ${e.message}", e)
             }
         }
 
         /**
-         * 🔧 追加: スティック傾け (tiltStick / アナログパッド から呼ばれる)
+         * スティック傾け (tiltStick / アナログパッド から呼ばれる)
          * @param side     "L" または "R"
          * @param x        X軸 (-1.0〜1.0)
          * @param y        Y軸 (-1.0〜1.0)
@@ -547,13 +554,12 @@ class MainActivity : AppCompatActivity() {
             val rx = if (side.uppercase() == "R") (x * 127).toInt() else 0
             val ry = if (side.uppercase() == "R") (y * 127).toInt() else 0
 
-            val tiltReport   = buildHidReport(lx = lx, ly = ly, rx = rx, ry = ry)
+            val tiltReport    = buildHidReport(lx = lx, ly = ly, rx = rx, ry = ry)
             val releaseReport = buildHidReport()
+            val holdMs = duration.toLong().coerceAtLeast(16L)
 
             bluetoothHIDController.sendControllerInput(tiltReport)
-            Handler(Looper.getMainLooper()).postDelayed({
-                bluetoothHIDController.sendControllerInput(releaseReport)
-            }, duration.toLong().coerceAtLeast(1L))
+            bluetoothHIDController.scheduleRelease(releaseReport, holdMs)
         }
 
         // ---------- Arduino ----------
