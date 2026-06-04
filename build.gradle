@@ -1,0 +1,9 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.mhxx.snipe'
+    compileSdk 34
+    minSdk 26
+}
