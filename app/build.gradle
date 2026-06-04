@@ -9,7 +9,7 @@ android {
 
     defaultConfig {
         applicationId "com.mhxx.snipe.integrated"
-        minSdk 26          // Android 8.0以上（ML Kit Japanese + Bluetooth対応）
+        minSdk 28          // Android 9.0以上（BluetoothHidDevice API 28要件）
         targetSdk 34
         versionCode 2
         versionName "2.0-integrated"
