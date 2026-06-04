@@ -10,6 +10,8 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.DocumentsContract
 import android.util.Base64
 import android.util.Log
@@ -30,7 +32,10 @@ import java.io.FileOutputStream
 
 /**
  * MHXX お守りスナイプツール - 統合版
- * 🔧 修正版: クラッシュ修正 + ランタイム権限 + PiP対応 + フォアグラウンドサービス
+ * 🔧 修正版v2:
+ *   - AndroidBridge 名前修正 (Android → AndroidBridge + 両方登録)
+ *   - pressButton / pressButtons / tiltStick メソッド追加
+ *   - HIDレポート構築ヘルパー追加
  */
 class MainActivity : AppCompatActivity() {
 
@@ -43,7 +48,6 @@ class MainActivity : AppCompatActivity() {
     private val PROGRAM_IMPORT_RC = 1002
     private val PERMISSION_REQUEST_CODE = 2001
 
-    // 🔧 追加: 必要な権限リスト
     private val REQUIRED_PERMISSIONS = mutableListOf(
         Manifest.permission.BLUETOOTH_CONNECT,
         Manifest.permission.BLUETOOTH_SCAN,
@@ -54,11 +58,61 @@ class MainActivity : AppCompatActivity() {
         }
     }.toTypedArray()
 
+    // =====================================================================
+    // 🔧 修正: ボタン名 → HIDビット番号マッピング
+    // HIDレポート構造 (7バイト):
+    //   Byte 0 : ボタン 0- 7 (B, A, Y, X, L, R, ZL, ZR)
+    //   Byte 1 : ボタン 8-15 (MINUS, PLUS, L_STICK, R_STICK, HOME, CAPTURE, DPAD_UP, DPAD_DOWN)
+    //   Byte 2 : ボタン16-17 + パディング (DPAD_LEFT, DPAD_RIGHT)
+    //   Byte 3 : 左スティック X (-127~127)
+    //   Byte 4 : 左スティック Y (-127~127)
+    //   Byte 5 : 右スティック X (-127~127)
+    //   Byte 6 : 右スティック Y (-127~127)
+    // =====================================================================
+    private val BUTTON_MAP = mapOf(
+        // フェースボタン
+        "B"          to 0,  "A"       to 1,  "Y"       to 2,  "X"       to 3,
+        // ショルダー
+        "L"          to 4,  "R"       to 5,  "ZL"      to 6,  "ZR"      to 7,
+        // システム
+        "MINUS"      to 8,  "PLUS"    to 9,
+        "L_STICK"    to 10, "R_STICK" to 11,
+        "HOME"       to 12, "CAPTURE" to 13,
+        // 十字キー
+        "DPAD_UP"    to 14, "DPAD_DOWN"  to 15,
+        "DPAD_LEFT"  to 16, "DPAD_RIGHT" to 17
+    )
+
+    /**
+     * 🔧 追加: HIDレポートバイト列を生成
+     */
+    private fun buildHidReport(
+        buttons: Set<String> = emptySet(),
+        lx: Int = 0, ly: Int = 0,
+        rx: Int = 0, ry: Int = 0
+    ): ByteArray {
+        var b0 = 0; var b1 = 0; var b2 = 0
+        for (btn in buttons) {
+            val bit = BUTTON_MAP[btn.uppercase().trim()] ?: continue
+            when {
+                bit < 8  -> b0 = b0 or (1 shl bit)
+                bit < 16 -> b1 = b1 or (1 shl (bit - 8))
+                else     -> b2 = b2 or (1 shl (bit - 16))
+            }
+        }
+        return byteArrayOf(
+            b0.toByte(), b1.toByte(), b2.toByte(),
+            lx.coerceIn(-127, 127).toByte(),
+            ly.coerceIn(-127, 127).toByte(),
+            rx.coerceIn(-127, 127).toByte(),
+            ry.coerceIn(-127, 127).toByte()
+        )
+    }
+
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 初期化
         bluetoothHIDController = BluetoothHIDController(this)
         arduinoManager = ArduinoAutomationManager(this)
 
@@ -78,7 +132,12 @@ class MainActivity : AppCompatActivity() {
                 displayZoomControls = false
             }
 
-            addJavascriptInterface(IntegratedBridge(), "Android")
+            val bridge = IntegratedBridge()
+            // 🔧 修正: "Android" と "AndroidBridge" の両方に登録
+            // - snipe_integrated.html の直接呼び出し (Android.xxx) に対応
+            // - _parentAb() 経由の呼び出し (AndroidBridge.xxx) に対応
+            addJavascriptInterface(bridge, "Android")
+            addJavascriptInterface(bridge, "AndroidBridge")
 
             webChromeClient = object : WebChromeClient() {
                 override fun onConsoleMessage(msg: ConsoleMessage): Boolean {
@@ -116,7 +175,6 @@ class MainActivity : AppCompatActivity() {
         setupBluetoothListener()
         setupArduinoListener()
 
-        // 🔧 追加: 権限チェック → フォアグラウンドサービス開始
         if (hasAllPermissions()) {
             SnipeForegroundService.start(this)
         } else {
@@ -124,7 +182,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // ============ 🔧 追加: ランタイム権限処理 ============
+    // ============ ランタイム権限 ============
 
     private fun hasAllPermissions(): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -132,7 +190,7 @@ class MainActivity : AppCompatActivity() {
                 ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
             }
         } else {
-            true  // Android 11以下はマニフェスト権限のみでOK
+            true
         }
     }
 
@@ -143,7 +201,6 @@ class MainActivity : AppCompatActivity() {
             }
 
             if (deniedPermissions.isNotEmpty()) {
-                // 権限の説明ダイアログ
                 val needsRationale = deniedPermissions.any {
                     ActivityCompat.shouldShowRequestPermissionRationale(this, it)
                 }
@@ -178,11 +235,9 @@ class MainActivity : AppCompatActivity() {
             val allGranted = grantResults.isNotEmpty() &&
                     grantResults.all { it == PackageManager.PERMISSION_GRANTED }
             if (allGranted) {
-                Log.d("MainActivity", "All permissions granted")
                 SnipeForegroundService.start(this)
                 Toast.makeText(this, "Bluetooth権限が許可されました", Toast.LENGTH_SHORT).show()
             } else {
-                Log.w("MainActivity", "Some permissions denied")
                 Toast.makeText(
                     this,
                     "一部の権限が拒否されました。Switch接続に問題が発生する可能性があります。",
@@ -192,11 +247,8 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // ============ 🔧 追加: PictureInPicture (PiP) 対応 ============
+    // ============ PiP対応 ============
 
-    /**
-     * ホームボタン押下など、他アプリ起動時に自動でPiPモードに入る
-     */
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
         enterPipMode()
@@ -208,14 +260,12 @@ class MainActivity : AppCompatActivity() {
                 val params = PictureInPictureParams.Builder()
                     .setAspectRatio(Rational(16, 9))
                     .apply {
-                        // Android 12以上: 自動PiP有効化
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                             setAutoEnterEnabled(true)
                         }
                     }
                     .build()
                 enterPictureInPictureMode(params)
-                Log.d("MainActivity", "Entered PiP mode")
             } catch (e: Exception) {
                 Log.e("MainActivity", "PiP failed: ${e.message}", e)
             }
@@ -227,11 +277,6 @@ class MainActivity : AppCompatActivity() {
         newConfig: android.content.res.Configuration
     ) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
-        if (isInPictureInPictureMode) {
-            Log.d("MainActivity", "PiP mode ON")
-        } else {
-            Log.d("MainActivity", "PiP mode OFF - restored to full screen")
-        }
     }
 
     // ============ Bluetooth / Arduino セットアップ ============
@@ -244,18 +289,14 @@ class MainActivity : AppCompatActivity() {
                     "device" to device.address,
                     "name" to (runCatching { device.name }.getOrDefault("Unknown"))
                 ))
-                Log.d("BT", "Connected: ${device.address}")
             }
 
             override fun onDisconnected() {
                 sendToJS("bluetoothStatus", mapOf("status" to "disconnected"))
-                Log.d("BT", "Disconnected")
             }
 
             override fun onError(message: String) {
                 sendToJS("bluetoothError", mapOf("message" to message))
-                Log.e("BT", "Error: $message")
-                // エラーをUIにも表示
                 runOnUiThread {
                     Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
                 }
@@ -263,7 +304,6 @@ class MainActivity : AppCompatActivity() {
 
             override fun onStateChanged(state: String) {
                 sendToJS("bluetoothState", mapOf("state" to state))
-                Log.d("BT", "State: $state")
             }
         })
     }
@@ -300,9 +340,6 @@ class MainActivity : AppCompatActivity() {
         webView.evaluateJavascript(js, null)
     }
 
-    /**
-     * 🔧 修正: JSONを安全にJavaScriptへ送信
-     */
     private fun sendToJS(functionName: String, data: Map<String, Any?>) {
         try {
             val json = JSONObject(data as Map<String, *>)
@@ -359,7 +396,6 @@ class MainActivity : AppCompatActivity() {
             }
             arduinoManager.importProgram(tempFile, fileName)
         } catch (e: Exception) {
-            Log.e("ArduinoImport", "Error: ${e.message}", e)
             sendToJS("arduinoEvent", mapOf("type" to "importError", "message" to (e.message ?: "Unknown error")))
         }
     }
@@ -371,14 +407,15 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         bluetoothHIDController.cleanup()
         arduinoManager.cleanup()
-        // アプリ終了時のみサービス停止（PiPやバックグラウンドでは維持）
         if (!isChangingConfigurations) {
             SnipeForegroundService.stop(this)
         }
         super.onDestroy()
     }
 
-    // ============ JavaScript ブリッジ ============
+    // =====================================================================
+    // JavaScript ブリッジ
+    // =====================================================================
 
     inner class IntegratedBridge {
 
@@ -437,6 +474,10 @@ class MainActivity : AppCompatActivity() {
             bluetoothHIDController.disconnect()
         }
 
+        /**
+         * 生バイト列で送信 (既存の手動HEX入力フォームから)
+         * buttonData: JSON文字列 {"data":"0,0,0,0,0,0,0"}
+         */
         @JavascriptInterface
         fun sendControllerInput(buttonData: String) {
             try {
@@ -445,8 +486,74 @@ class MainActivity : AppCompatActivity() {
                 val bytes = data.split(",").map { it.trim().toInt().toByte() }.toByteArray()
                 bluetoothHIDController.sendControllerInput(bytes)
             } catch (e: Exception) {
-                Log.e("Bridge", "Input error: ${e.message}", e)
+                Log.e("Bridge", "sendControllerInput error: ${e.message}", e)
             }
+        }
+
+        /**
+         * 🔧 追加: ボタン名指定でプレス (pressCtrlBtn から呼ばれる)
+         * @param button  ボタン名 (例: "A", "B", "DPAD_UP", "HOME" ...)
+         * @param duration プレス保持時間 [ms]
+         */
+        @JavascriptInterface
+        fun pressButton(button: String, duration: Int) {
+            Log.d("Bridge", "pressButton: $button for ${duration}ms")
+            val pressReport = buildHidReport(setOf(button))
+            val releaseReport = buildHidReport()
+
+            bluetoothHIDController.sendControllerInput(pressReport)
+            Handler(Looper.getMainLooper()).postDelayed({
+                bluetoothHIDController.sendControllerInput(releaseReport)
+            }, duration.toLong().coerceAtLeast(1L))
+        }
+
+        /**
+         * 🔧 追加: 複数ボタン同時プレス (pressMultiBtn から呼ばれる)
+         * @param buttonsJson JSON配列文字列 (例: '["A","B"]')
+         * @param duration    プレス保持時間 [ms]
+         */
+        @JavascriptInterface
+        fun pressButtons(buttonsJson: String, duration: Int) {
+            try {
+                val arr = JSONArray(buttonsJson)
+                val buttons = (0 until arr.length()).map { arr.getString(it) }.toSet()
+                Log.d("Bridge", "pressButtons: $buttons for ${duration}ms")
+
+                val pressReport = buildHidReport(buttons)
+                val releaseReport = buildHidReport()
+
+                bluetoothHIDController.sendControllerInput(pressReport)
+                Handler(Looper.getMainLooper()).postDelayed({
+                    bluetoothHIDController.sendControllerInput(releaseReport)
+                }, duration.toLong().coerceAtLeast(1L))
+            } catch (e: Exception) {
+                Log.e("Bridge", "pressButtons error: ${e.message}", e)
+            }
+        }
+
+        /**
+         * 🔧 追加: スティック傾け (tiltStick / アナログパッド から呼ばれる)
+         * @param side     "L" または "R"
+         * @param x        X軸 (-1.0〜1.0)
+         * @param y        Y軸 (-1.0〜1.0)
+         * @param duration 保持時間 [ms]
+         */
+        @JavascriptInterface
+        fun tiltStick(side: String, x: Double, y: Double, duration: Int) {
+            Log.d("Bridge", "tiltStick: side=$side x=$x y=$y for ${duration}ms")
+
+            val lx = if (side.uppercase() == "L") (x * 127).toInt() else 0
+            val ly = if (side.uppercase() == "L") (y * 127).toInt() else 0
+            val rx = if (side.uppercase() == "R") (x * 127).toInt() else 0
+            val ry = if (side.uppercase() == "R") (y * 127).toInt() else 0
+
+            val tiltReport   = buildHidReport(lx = lx, ly = ly, rx = rx, ry = ry)
+            val releaseReport = buildHidReport()
+
+            bluetoothHIDController.sendControllerInput(tiltReport)
+            Handler(Looper.getMainLooper()).postDelayed({
+                bluetoothHIDController.sendControllerInput(releaseReport)
+            }, duration.toLong().coerceAtLeast(1L))
         }
 
         // ---------- Arduino ----------

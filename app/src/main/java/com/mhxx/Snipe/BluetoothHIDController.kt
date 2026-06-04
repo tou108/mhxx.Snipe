@@ -13,7 +13,7 @@ import java.util.concurrent.Executors
 
 /**
  * Nintendo Switch用 Bluetooth HID コントローラー
- * 🔧 修正版: クラッシュ修正 + 接続ロジック修正
+ * 🔧 修正版v2: HIDディスクリプタ拡張 (18ボタン + 両スティック)
  */
 class BluetoothHIDController(private val context: Context) {
 
@@ -27,7 +27,6 @@ class BluetoothHIDController(private val context: Context) {
         private const val QOS_LATENCY = 16667
         private const val QOS_DELAY_VARIATION = 16667
 
-        // 🔧 追加: MACアドレスの正規表現
         private val MAC_REGEX = Regex("^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$")
     }
 
@@ -35,7 +34,7 @@ class BluetoothHIDController(private val context: Context) {
     private var bluetoothHidDevice: BluetoothHidDevice? = null
     private var hidExecutor: ExecutorService = Executors.newSingleThreadExecutor()
     private var connectedDevice: BluetoothDevice? = null
-    private var targetDevice: BluetoothDevice? = null   // 🔧 追加: 接続先デバイスを保持
+    private var targetDevice: BluetoothDevice? = null
     private var controllerListener: ControllerListener? = null
     private var appRegistered = false
     private var serviceConnected = false
@@ -57,25 +56,14 @@ class BluetoothHIDController(private val context: Context) {
         this.controllerListener = listener
     }
 
-    /**
-     * 🔧 追加: MACアドレスのバリデーション
-     */
     private fun isValidMacAddress(mac: String): Boolean {
         return MAC_REGEX.matches(mac)
     }
 
-    /**
-     * 🔧 追加: MACアドレスの正規化（コロン区切り・大文字に統一）
-     */
     private fun normalizeMacAddress(mac: String): String {
-        val trimmed = mac.trim()
-        // ダッシュをコロンに置換して大文字に
-        return trimmed.replace("-", ":").uppercase()
+        return mac.trim().replace("-", ":").uppercase()
     }
 
-    /**
-     * Bluetooth HID デバイスプロキシを取得
-     */
     @SuppressLint("MissingPermission")
     fun getHidDeviceProxy(callback: (BluetoothHidDevice?) -> Unit) {
         if (serviceConnected && bluetoothHidDevice != null) {
@@ -107,11 +95,6 @@ class BluetoothHIDController(private val context: Context) {
         )
     }
 
-    /**
-     * 🔧 修正: Nintendo Switch に接続 (MAC アドレスで指定)
-     * - MACアドレスのバリデーション追加
-     * - try-catch でクラッシュを防止
-     */
     @SuppressLint("MissingPermission")
     fun connectToSwitch(macAddress: String) {
         if (!hasBluetoothPermissions()) {
@@ -119,14 +102,11 @@ class BluetoothHIDController(private val context: Context) {
             return
         }
 
-        // 🔧 MACアドレスを正規化
         val normalizedMac = normalizeMacAddress(macAddress)
 
-        // 🔧 MACアドレス形式チェック（クラッシュの原因）
         if (!isValidMacAddress(normalizedMac)) {
             controllerListener?.onError(
-                "無効なMACアドレス形式です: \"$macAddress\"\n" +
-                "正しい形式: AA:BB:CC:DD:EE:FF"
+                "無効なMACアドレス形式です: \"$macAddress\"\n正しい形式: AA:BB:CC:DD:EE:FF"
             )
             return
         }
@@ -141,7 +121,6 @@ class BluetoothHIDController(private val context: Context) {
             return
         }
 
-        // 🔧 getRemoteDevice を try-catch で保護（クラッシュの主原因）
         val device = try {
             bluetoothAdapter?.getRemoteDevice(normalizedMac)
         } catch (e: IllegalArgumentException) {
@@ -168,13 +147,9 @@ class BluetoothHIDController(private val context: Context) {
         }
     }
 
-    /**
-     * 🔧 修正: デバイスに直接接続
-     * - connect() 呼び出しを追加（元のコードでは接続処理が不完全だった）
-     */
     @SuppressLint("MissingPermission")
     private fun connectToDevice(device: BluetoothDevice) {
-        targetDevice = device  // 接続先を保持
+        targetDevice = device
 
         getHidDeviceProxy { hidDevice ->
             if (hidDevice == null) {
@@ -182,7 +157,6 @@ class BluetoothHIDController(private val context: Context) {
                 return@getHidDeviceProxy
             }
 
-            // 既に登録済みの場合は再登録せずに接続
             if (appRegistered) {
                 try {
                     hidDevice.connect(device)
@@ -223,7 +197,6 @@ class BluetoothHIDController(private val context: Context) {
                             Log.d(TAG, "App status changed: registered=$registered")
 
                             if (registered && targetDevice != null) {
-                                // 🔧 修正: アプリ登録後に明示的にconnect()を呼ぶ（元のコードで欠けていた重要な処理）
                                 try {
                                     hidDevice.connect(targetDevice!!)
                                     controllerListener?.onStateChanged("接続中...")
@@ -247,7 +220,6 @@ class BluetoothHIDController(private val context: Context) {
                                 }
                                 BluetoothProfile.STATE_CONNECTING -> {
                                     controllerListener?.onStateChanged("接続中...")
-                                    Log.d(TAG, "Connecting to ${device.address}")
                                 }
                                 BluetoothProfile.STATE_DISCONNECTED -> {
                                     deviceConnected = false
@@ -257,34 +229,23 @@ class BluetoothHIDController(private val context: Context) {
                                 }
                                 BluetoothProfile.STATE_DISCONNECTING -> {
                                     controllerListener?.onStateChanged("切断中...")
-                                    Log.d(TAG, "Disconnecting from ${device.address}")
                                 }
                             }
                         }
 
-                        override fun onGetReport(device: BluetoothDevice, type: Byte, id: Byte, bufferSize: Int) {
-                            Log.d(TAG, "onGetReport: type=$type, id=$id")
-                        }
-
-                        override fun onSetReport(device: BluetoothDevice, type: Byte, id: Byte, data: ByteArray) {
-                            Log.d(TAG, "onSetReport: type=$type, id=$id")
-                        }
-
-                        override fun onInterruptData(device: BluetoothDevice, reportId: Byte, data: ByteArray) {
-                            Log.d(TAG, "onInterruptData: reportId=$reportId")
-                        }
+                        override fun onGetReport(device: BluetoothDevice, type: Byte, id: Byte, bufferSize: Int) {}
+                        override fun onSetReport(device: BluetoothDevice, type: Byte, id: Byte, data: ByteArray) {}
+                        override fun onInterruptData(device: BluetoothDevice, reportId: Byte, data: ByteArray) {}
                     }
                 )
 
                 if (registered) {
-                    Log.d(TAG, "registerApp() called successfully, waiting for onAppStatusChanged...")
                     controllerListener?.onStateChanged("HIDアプリ登録中...")
                 } else {
                     controllerListener?.onError("HID App登録に失敗しました。Bluetoothを再起動してください。")
                 }
 
             } catch (e: SecurityException) {
-                Log.e(TAG, "Permission error: ${e.message}", e)
                 controllerListener?.onError("権限エラー: Bluetooth権限を確認してください")
             } catch (e: Exception) {
                 Log.e(TAG, "Connection error: ${e.message}", e)
@@ -293,9 +254,6 @@ class BluetoothHIDController(private val context: Context) {
         }
     }
 
-    /**
-     * コントローラー入力を送信
-     */
     @SuppressLint("MissingPermission")
     fun sendControllerInput(buttonData: ByteArray) {
         if (!deviceConnected || connectedDevice == null || bluetoothHidDevice == null) {
@@ -311,40 +269,62 @@ class BluetoothHIDController(private val context: Context) {
     }
 
     /**
-     * Nintendo Switch用 HID Descriptor
+     * 🔧 修正: Nintendo Switch用 HID Descriptor
+     * 18ボタン (フェース/ショルダー/システム/十字キー) + 左右スティック
+     *
+     * レポート構造 (7バイト):
+     *   Byte 0 : ボタン  1-8  (B, A, Y, X, L, R, ZL, ZR)
+     *   Byte 1 : ボタン  9-16 (MINUS, PLUS, L3, R3, HOME, CAPTURE, DPAD_UP, DPAD_DOWN)
+     *   Byte 2 : ボタン 17-18 + パディング6bit (DPAD_LEFT, DPAD_RIGHT)
+     *   Byte 3 : 左スティック X (-127〜127)
+     *   Byte 4 : 左スティック Y (-127〜127)
+     *   Byte 5 : 右スティック X (-127〜127)
+     *   Byte 6 : 右スティック Y (-127〜127)
      */
     private fun buildHidDescriptor(): ByteArray {
         return byteArrayOf(
-            0x05, 0x01,
-            0x09, 0x05,
-            0xa1.toByte(), 0x01,
-            0x15, 0x00,
-            0x25, 0x01,
-            0x35, 0x00,
-            0x45, 0x01,
+            0x05, 0x01,                 // Usage Page (Generic Desktop)
+            0x09, 0x05,                 // Usage (Gamepad)
+            0xa1.toByte(), 0x01,        // Collection (Application)
+
+            // --- ボタン 18個 ---
+            0x15, 0x00,                 // Logical Minimum (0)
+            0x25, 0x01,                 // Logical Maximum (1)
+            0x75, 0x01,                 // Report Size (1)
+            0x95.toByte(), 0x12,        // Report Count (18)
+            0x05, 0x09,                 // Usage Page (Button)
+            0x19, 0x01,                 // Usage Minimum (1)
+            0x29, 0x12,                 // Usage Maximum (18)
+            0x81.toByte(), 0x02,        // Input (Data, Variable, Absolute)
+
+            // --- パディング 6ビット (3バイト境界に揃える) ---
             0x75, 0x01,
-            0x95.toByte(), 0x0e,
-            0x05, 0x09,
-            0x19, 0x01,
-            0x29, 0x0e,
-            0x81.toByte(), 0x02,
-            0x95.toByte(), 0x02,
-            0x81.toByte(), 0x01,
-            0x05, 0x01,
-            0x09, 0x30,
-            0x09, 0x31,
-            0x15, 0x81.toByte(),
-            0x25, 0x7f,
-            0x75, 0x08,
-            0x95.toByte(), 0x02,
-            0x81.toByte(), 0x06,
-            0xc0.toByte()
+            0x95.toByte(), 0x06,
+            0x81.toByte(), 0x03,        // Input (Constant)
+
+            // --- 左スティック X/Y ---
+            0x05, 0x01,                 // Usage Page (Generic Desktop)
+            0x09, 0x30,                 // Usage (X)
+            0x09, 0x31,                 // Usage (Y)
+            0x15, 0x81.toByte(),        // Logical Minimum (-127)
+            0x25, 0x7f,                 // Logical Maximum (127)
+            0x75, 0x08,                 // Report Size (8)
+            0x95.toByte(), 0x02,        // Report Count (2)
+            0x81.toByte(), 0x06,        // Input (Data, Variable, Relative)
+
+            // --- 右スティック Z/Rz ---
+            0x09, 0x32,                 // Usage (Z)
+            0x09, 0x35,                 // Usage (Rz)
+            0x15, 0x81.toByte(),        // Logical Minimum (-127)
+            0x25, 0x7f,                 // Logical Maximum (127)
+            0x75, 0x08,                 // Report Size (8)
+            0x95.toByte(), 0x02,        // Report Count (2)
+            0x81.toByte(), 0x06,        // Input (Data, Variable, Relative)
+
+            0xc0.toByte()               // End Collection
         )
     }
 
-    /**
-     * 接続解除
-     */
     @SuppressLint("MissingPermission")
     fun disconnect() {
         targetDevice = null
@@ -356,16 +336,12 @@ class BluetoothHIDController(private val context: Context) {
                 connectedDevice = null
                 appRegistered = false
                 controllerListener?.onDisconnected()
-                Log.d(TAG, "Disconnected")
             } catch (e: Exception) {
                 Log.e(TAG, "Disconnect error: ${e.message}", e)
             }
         }
     }
 
-    /**
-     * Bluetooth権限チェック
-     */
     private fun hasBluetoothPermissions(): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             ActivityCompat.checkSelfPermission(
@@ -378,9 +354,6 @@ class BluetoothHIDController(private val context: Context) {
         }
     }
 
-    /**
-     * リソース解放
-     */
     fun cleanup() {
         disconnect()
         hidExecutor.shutdown()
