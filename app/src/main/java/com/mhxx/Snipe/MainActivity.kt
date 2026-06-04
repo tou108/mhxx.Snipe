@@ -201,10 +201,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * JavaScriptへデータを送信
+     * JavaScriptへデータを送信（修正版: 型安全性向上）
      */
-    private fun sendToJS(functionName: String, data: Map<String, Any>) {
-        val jsonData = JSONObject(data).toString()
+    private fun sendToJS(functionName: String, data: Map<String, Any?>) {
+        val jsonData = JSONObject(data as Map<String, *>).toString()
             .replace("\\", "\\\\")
             .replace("\"", "\\\"")
             .replace("\n", "\\n")
@@ -262,7 +262,7 @@ class MainActivity : AppCompatActivity() {
             Log.e("ArduinoImport", "Error: ${e.message}", e)
             sendToJS("arduinoEvent", mapOf(
                 "type" to "importError",
-                "message" to e.message
+                "message" to (e.message ?: "Unknown error")
             ))
         }
     }
