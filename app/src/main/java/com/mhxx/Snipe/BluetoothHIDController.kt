@@ -127,16 +127,20 @@ class BluetoothHIDController(private val context: Context) {
                     "Switch Controller",  // name
                     "Nintendo Switch",     // description
                     "Nintendo",            // provider
-                    BluetoothHidDevice.SUBCLASS1_KEYBOARD or BluetoothHidDevice.SUBCLASS2_GAMEPAD,
+                    // [修正1] Byte同士のorはIntになるので.toByte()で戻す
+                    (BluetoothHidDevice.SUBCLASS1_KEYBOARD.toInt() or BluetoothHidDevice.SUBCLASS2_GAMEPAD.toInt()).toByte(),
                     buildHidDescriptor()   // HID descriptor
                 )
 
                 // HID QoS 設定
+                // [修正2] コンストラクタは6引数: (serviceType, tokenRate, tokenBucketSize, peakBandwidth, latency, delayVariation)
                 val qosSettings = BluetoothHidDeviceAppQosSettings(
-                    QOS_PEAK_BANDWIDTH,
-                    QOS_LATENCY,
-                    QOS_LATENCY,
-                    BluetoothHidDeviceAppQosSettings.SERVICE_GUARANTEED
+                    BluetoothHidDeviceAppQosSettings.SERVICE_GUARANTEED,  // serviceType
+                    QOS_TOKEN_RATE,        // tokenRate
+                    QOS_TOKEN_BUCKET_SIZE, // tokenBucketSize
+                    QOS_PEAK_BANDWIDTH,    // peakBandwidth
+                    QOS_LATENCY,           // latency
+                    QOS_DELAY_VARIATION    // delayVariation
                 )
 
                 // アプリを HID として登録
@@ -145,7 +149,8 @@ class BluetoothHIDController(private val context: Context) {
                         null,
                         qosSettings,
                         hidExecutor,
-                        object : BluetoothHidDevice.Callback {
+                        // [修正3] abstract classは()でコンストラクタを呼ぶ必要がある
+                        object : BluetoothHidDevice.Callback() {
                             override fun onAppStatusChanged(pluggedDevice: BluetoothDevice, registered: Boolean) {
                                 appRegistered = registered
                                 Log.d(TAG, "App status changed: registered=$registered")
@@ -204,31 +209,32 @@ class BluetoothHIDController(private val context: Context) {
      */
     private fun buildHidDescriptor(): ByteArray {
         // 標準的なゲームコントローラーディスクリプタ
+        // [修正4] 127(0x7F)より大きい値は.toByte()が必要
         return byteArrayOf(
-            0x05, 0x01,        // Usage Page (Generic Desktop)
-            0x09, 0x05,        // Usage (Game Pad)
-            0xa1, 0x01,        // Collection (Application)
-            0x15, 0x00,        // Logical Minimum (0)
-            0x25, 0x01,        // Logical Maximum (1)
-            0x35, 0x00,        // Physical Minimum (0)
-            0x45, 0x01,        // Physical Maximum (1)
-            0x75, 0x01,        // Report Size (1)
-            0x95, 0x0e,        // Report Count (14)
-            0x05, 0x09,        // Usage Page (Button)
-            0x19, 0x01,        // Usage Minimum (Button 1)
-            0x29, 0x0e,        // Usage Maximum (Button 14)
-            0x81, 0x02,        // Input (Data, Variable, Absolute)
-            0x95, 0x02,        // Report Count (2)
-            0x81, 0x01,        // Input (Constant)
-            0x05, 0x01,        // Usage Page (Generic Desktop)
-            0x09, 0x30,        // Usage (X)
-            0x09, 0x31,        // Usage (Y)
-            0x15, 0x81.toByte(),        // Logical Minimum (-127)
-            0x25, 0x7f,        // Logical Maximum (127)
-            0x75, 0x08,        // Report Size (8)
-            0x95, 0x02,        // Report Count (2)
-            0x81, 0x06,        // Input (Data, Variable, Relative)
-            0xc0               // End Collection
+            0x05, 0x01,              // Usage Page (Generic Desktop)
+            0x09, 0x05,              // Usage (Game Pad)
+            0xa1.toByte(), 0x01,     // Collection (Application)
+            0x15, 0x00,              // Logical Minimum (0)
+            0x25, 0x01,              // Logical Maximum (1)
+            0x35, 0x00,              // Physical Minimum (0)
+            0x45, 0x01,              // Physical Maximum (1)
+            0x75, 0x01,              // Report Size (1)
+            0x95.toByte(), 0x0e,     // Report Count (14)
+            0x05, 0x09,              // Usage Page (Button)
+            0x19, 0x01,              // Usage Minimum (Button 1)
+            0x29, 0x0e,              // Usage Maximum (Button 14)
+            0x81.toByte(), 0x02,     // Input (Data, Variable, Absolute)
+            0x95.toByte(), 0x02,     // Report Count (2)
+            0x81.toByte(), 0x01,     // Input (Constant)
+            0x05, 0x01,              // Usage Page (Generic Desktop)
+            0x09, 0x30,              // Usage (X)
+            0x09, 0x31,              // Usage (Y)
+            0x15, 0x81.toByte(),     // Logical Minimum (-127)
+            0x25, 0x7f,              // Logical Maximum (127)
+            0x75, 0x08,              // Report Size (8)
+            0x95.toByte(), 0x02,     // Report Count (2)
+            0x81.toByte(), 0x06,     // Input (Data, Variable, Relative)
+            0xc0.toByte()            // End Collection
         )
     }
 
