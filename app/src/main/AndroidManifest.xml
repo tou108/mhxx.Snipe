@@ -7,12 +7,23 @@
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
 
+    <!-- 位置情報（Bluetoothスキャン用、Android 11以下） -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
     <!-- ファイルアクセス権限 -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
 
     <!-- インターネット権限 -->
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- 🔧 追加: フォアグラウンドサービス（バックグラウンド維持） -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+
+    <!-- 🔧 追加: 通知権限（Android 13+） -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- HID デバイスとして動作するための権限 -->
     <uses-feature
@@ -26,14 +37,24 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.AppCompat.Light.DarkActionBar">
 
+        <!-- 🔧 修正: PiP対応のconfigChanges追加 -->
         <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true"
+            android:supportsPictureInPicture="true"
+            android:launchMode="singleTop"
+            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|keyboardHidden">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- 🔧 追加: フォアグラウンドサービス宣言 -->
+        <service
+            android:name=".SnipeForegroundService"
+            android:foregroundServiceType="connectedDevice"
+            android:exported="false" />
 
     </application>
 
