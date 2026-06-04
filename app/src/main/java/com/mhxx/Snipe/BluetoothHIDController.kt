@@ -199,7 +199,7 @@ class BluetoothHIDController(private val context: Context) {
                     "Switch Controller",
                     "Nintendo Switch Controller",
                     "Nintendo",
-                    (BluetoothHidDevice.SUBCLASS1_GAMEPAD.toInt()).toByte(),
+                    BluetoothHidDevice.SUBCLASS2_GAMEPAD.toByte(),
                     buildHidDescriptor()
                 )
 
