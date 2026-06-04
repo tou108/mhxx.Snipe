@@ -1,16 +1,25 @@
 package com.mhxx.snipe
 
+import android.Manifest
 import android.annotation.SuppressLint
+import android.app.PictureInPictureParams
 import android.bluetooth.BluetoothDevice
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.DocumentsContract
 import android.util.Base64
 import android.util.Log
+import android.util.Rational
 import android.webkit.*
+import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.japanese.JapaneseTextRecognizerOptions
@@ -21,10 +30,7 @@ import java.io.FileOutputStream
 
 /**
  * MHXX お守りスナイプツール - 統合版
- * 機能:
- * - ML Kit による日本語OCR認識
- * - JoyConDroid の Bluetooth HID コントローラー統合
- * - Arduino 自動化プログラムのインポート・実行
+ * 🔧 修正版: クラッシュ修正 + ランタイム権限 + PiP対応 + フォアグラウンドサービス
  */
 class MainActivity : AppCompatActivity() {
 
@@ -35,6 +41,18 @@ class MainActivity : AppCompatActivity() {
     private var fileChooserCallback: ValueCallback<Array<Uri>>? = null
     private val FILE_CHOOSER_RC = 1001
     private val PROGRAM_IMPORT_RC = 1002
+    private val PERMISSION_REQUEST_CODE = 2001
+
+    // 🔧 追加: 必要な権限リスト
+    private val REQUIRED_PERMISSIONS = mutableListOf(
+        Manifest.permission.BLUETOOTH_CONNECT,
+        Manifest.permission.BLUETOOTH_SCAN,
+        Manifest.permission.ACCESS_FINE_LOCATION
+    ).apply {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }.toTypedArray()
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -60,7 +78,6 @@ class MainActivity : AppCompatActivity() {
                 displayZoomControls = false
             }
 
-            // JavaScript ブリッジ登録
             addJavascriptInterface(IntegratedBridge(), "Android")
 
             webChromeClient = object : WebChromeClient() {
@@ -88,7 +105,6 @@ class MainActivity : AppCompatActivity() {
                 override fun onPageFinished(view: WebView, url: String) {
                     super.onPageFinished(view, url)
                     Log.d("MhxxSnipe", "Page loaded: $url")
-                    // ページロード完了後、初期化スクリプトを実行
                     initializeUI()
                 }
             }
@@ -97,24 +113,136 @@ class MainActivity : AppCompatActivity() {
         }
 
         setContentView(webView)
-
-        // Bluetoothコントローラーのリスナー設定
         setupBluetoothListener()
-
-        // Arduinoマネージャーのリスナー設定
         setupArduinoListener()
+
+        // 🔧 追加: 権限チェック → フォアグラウンドサービス開始
+        if (hasAllPermissions()) {
+            SnipeForegroundService.start(this)
+        } else {
+            requestBluetoothPermissions()
+        }
     }
 
+    // ============ 🔧 追加: ランタイム権限処理 ============
+
+    private fun hasAllPermissions(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            REQUIRED_PERMISSIONS.all {
+                ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
+            }
+        } else {
+            true  // Android 11以下はマニフェスト権限のみでOK
+        }
+    }
+
+    private fun requestBluetoothPermissions() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val deniedPermissions = REQUIRED_PERMISSIONS.filter {
+                ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+            }
+
+            if (deniedPermissions.isNotEmpty()) {
+                // 権限の説明ダイアログ
+                val needsRationale = deniedPermissions.any {
+                    ActivityCompat.shouldShowRequestPermissionRationale(this, it)
+                }
+
+                if (needsRationale) {
+                    AlertDialog.Builder(this)
+                        .setTitle("Bluetooth権限が必要です")
+                        .setMessage("Switch接続にBluetooth権限が必要です。\n権限を許可してください。")
+                        .setPositiveButton("許可する") { _, _ ->
+                            ActivityCompat.requestPermissions(
+                                this, deniedPermissions.toTypedArray(), PERMISSION_REQUEST_CODE
+                            )
+                        }
+                        .setNegativeButton("キャンセル", null)
+                        .show()
+                } else {
+                    ActivityCompat.requestPermissions(
+                        this, deniedPermissions.toTypedArray(), PERMISSION_REQUEST_CODE
+                    )
+                }
+            }
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == PERMISSION_REQUEST_CODE) {
+            val allGranted = grantResults.isNotEmpty() &&
+                    grantResults.all { it == PackageManager.PERMISSION_GRANTED }
+            if (allGranted) {
+                Log.d("MainActivity", "All permissions granted")
+                SnipeForegroundService.start(this)
+                Toast.makeText(this, "Bluetooth権限が許可されました", Toast.LENGTH_SHORT).show()
+            } else {
+                Log.w("MainActivity", "Some permissions denied")
+                Toast.makeText(
+                    this,
+                    "一部の権限が拒否されました。Switch接続に問題が発生する可能性があります。",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+    }
+
+    // ============ 🔧 追加: PictureInPicture (PiP) 対応 ============
+
     /**
-     * Bluetooth コントローラーのリスナー設定
+     * ホームボタン押下など、他アプリ起動時に自動でPiPモードに入る
      */
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        enterPipMode()
+    }
+
+    private fun enterPipMode() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            try {
+                val params = PictureInPictureParams.Builder()
+                    .setAspectRatio(Rational(16, 9))
+                    .apply {
+                        // Android 12以上: 自動PiP有効化
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                            setAutoEnterEnabled(true)
+                        }
+                    }
+                    .build()
+                enterPictureInPictureMode(params)
+                Log.d("MainActivity", "Entered PiP mode")
+            } catch (e: Exception) {
+                Log.e("MainActivity", "PiP failed: ${e.message}", e)
+            }
+        }
+    }
+
+    override fun onPictureInPictureModeChanged(
+        isInPictureInPictureMode: Boolean,
+        newConfig: android.content.res.Configuration
+    ) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        if (isInPictureInPictureMode) {
+            Log.d("MainActivity", "PiP mode ON")
+        } else {
+            Log.d("MainActivity", "PiP mode OFF - restored to full screen")
+        }
+    }
+
+    // ============ Bluetooth / Arduino セットアップ ============
+
     private fun setupBluetoothListener() {
         bluetoothHIDController.setListener(object : BluetoothHIDController.ControllerListener {
             override fun onConnected(device: BluetoothDevice) {
                 sendToJS("bluetoothStatus", mapOf(
                     "status" to "connected",
                     "device" to device.address,
-                    "name" to (device.name ?: "Unknown")
+                    "name" to (runCatching { device.name }.getOrDefault("Unknown"))
                 ))
                 Log.d("BT", "Connected: ${device.address}")
             }
@@ -127,6 +255,10 @@ class MainActivity : AppCompatActivity() {
             override fun onError(message: String) {
                 sendToJS("bluetoothError", mapOf("message" to message))
                 Log.e("BT", "Error: $message")
+                // エラーをUIにも表示
+                runOnUiThread {
+                    Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
+                }
             }
 
             override fun onStateChanged(state: String) {
@@ -136,61 +268,29 @@ class MainActivity : AppCompatActivity() {
         })
     }
 
-    /**
-     * Arduino マネージャーのリスナー設定
-     */
     private fun setupArduinoListener() {
         arduinoManager.setListener(object : ArduinoAutomationManager.ExecutionListener {
             override fun onImportSuccess(fileName: String) {
-                sendToJS("arduinoEvent", mapOf(
-                    "type" to "importSuccess",
-                    "fileName" to fileName
-                ))
+                sendToJS("arduinoEvent", mapOf("type" to "importSuccess", "fileName" to fileName))
             }
-
             override fun onImportError(fileName: String, message: String) {
-                sendToJS("arduinoEvent", mapOf(
-                    "type" to "importError",
-                    "fileName" to fileName,
-                    "message" to message
-                ))
+                sendToJS("arduinoEvent", mapOf("type" to "importError", "fileName" to fileName, "message" to message))
             }
-
             override fun onExecutionStart(programName: String) {
-                sendToJS("arduinoEvent", mapOf(
-                    "type" to "executionStart",
-                    "programName" to programName
-                ))
+                sendToJS("arduinoEvent", mapOf("type" to "executionStart", "programName" to programName))
             }
-
             override fun onExecutionStop(programName: String, exitCode: Int) {
-                sendToJS("arduinoEvent", mapOf(
-                    "type" to "executionStop",
-                    "programName" to programName,
-                    "exitCode" to exitCode
-                ))
+                sendToJS("arduinoEvent", mapOf("type" to "executionStop", "programName" to programName, "exitCode" to exitCode))
             }
-
             override fun onExecutionError(programName: String, message: String) {
-                sendToJS("arduinoEvent", mapOf(
-                    "type" to "executionError",
-                    "programName" to programName,
-                    "message" to message
-                ))
+                sendToJS("arduinoEvent", mapOf("type" to "executionError", "programName" to programName, "message" to message))
             }
-
             override fun onOutputReceived(programName: String, output: String) {
-                sendToJS("arduinoOutput", mapOf(
-                    "programName" to programName,
-                    "output" to output
-                ))
+                sendToJS("arduinoOutput", mapOf("programName" to programName, "output" to output))
             }
         })
     }
 
-    /**
-     * UI初期化スクリプト実行
-     */
     private fun initializeUI() {
         val js = """
             if (typeof initializeControlPanel === 'function') {
@@ -201,23 +301,34 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * JavaScriptへデータを送信（修正版: 型安全性向上）
+     * 🔧 修正: JSONを安全にJavaScriptへ送信
      */
     private fun sendToJS(functionName: String, data: Map<String, Any?>) {
-        val jsonData = JSONObject(data as Map<String, *>).toString()
-            .replace("\\", "\\\\")
-            .replace("\"", "\\\"")
-            .replace("\n", "\\n")
-
-        val js = "if (typeof $functionName === 'function') { $functionName('$jsonData'); }"
-        runOnUiThread {
-            webView.evaluateJavascript(js, null)
+        try {
+            val json = JSONObject(data as Map<String, *>)
+            val b64 = Base64.encodeToString(
+                json.toString().toByteArray(Charsets.UTF_8),
+                Base64.NO_WRAP
+            )
+            val js = """
+                (function(){
+                    try {
+                        var b='$b64';
+                        var bin=atob(b);
+                        var u8=new Uint8Array(bin.length);
+                        for(var i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i);
+                        var s=new TextDecoder('utf-8').decode(u8);
+                        var obj=JSON.parse(s);
+                        if(typeof $functionName==='function') $functionName(s);
+                    } catch(e) { console.error('sendToJS error:', e); }
+                })();
+            """.trimIndent()
+            runOnUiThread { webView.evaluateJavascript(js, null) }
+        } catch (e: Exception) {
+            Log.e("MainActivity", "sendToJS error: ${e.message}", e)
         }
     }
 
-    /**
-     * ファイル選択コールバック
-     */
     @Deprecated("onActivityResult")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         when (requestCode) {
@@ -229,41 +340,27 @@ class MainActivity : AppCompatActivity() {
             }
             PROGRAM_IMPORT_RC -> {
                 if (resultCode == RESULT_OK && data != null) {
-                    data.data?.let { uri ->
-                        importArduinoProgram(uri)
-                    }
+                    data.data?.let { uri -> importArduinoProgram(uri) }
                 }
             }
             else -> super.onActivityResult(requestCode, resultCode, data)
         }
     }
 
-    /**
-     * Arduino プログラムをインポート
-     */
     private fun importArduinoProgram(uri: Uri) {
         try {
             val contentResolver = contentResolver
-            val displayName = DocumentsContract.getDocumentId(uri)
-                .substringAfterLast(":")
+            val displayName = DocumentsContract.getDocumentId(uri).substringAfterLast(":")
             val inputStream = contentResolver.openInputStream(uri) ?: return
-
             val fileName = displayName ?: "program_${System.currentTimeMillis()}.txt"
             val tempFile = File(cacheDir, fileName)
-
             inputStream.use { input ->
-                FileOutputStream(tempFile).use { output ->
-                    input.copyTo(output)
-                }
+                FileOutputStream(tempFile).use { output -> input.copyTo(output) }
             }
-
             arduinoManager.importProgram(tempFile, fileName)
         } catch (e: Exception) {
             Log.e("ArduinoImport", "Error: ${e.message}", e)
-            sendToJS("arduinoEvent", mapOf(
-                "type" to "importError",
-                "message" to (e.message ?: "Unknown error")
-            ))
+            sendToJS("arduinoEvent", mapOf("type" to "importError", "message" to (e.message ?: "Unknown error")))
         }
     }
 
@@ -274,15 +371,18 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         bluetoothHIDController.cleanup()
         arduinoManager.cleanup()
+        // アプリ終了時のみサービス停止（PiPやバックグラウンドでは維持）
+        if (!isChangingConfigurations) {
+            SnipeForegroundService.stop(this)
+        }
         super.onDestroy()
     }
 
-    /**
-     * 統合 JavaScript ブリッジ
-     */
+    // ============ JavaScript ブリッジ ============
+
     inner class IntegratedBridge {
 
-        // ============ ML Kit OCR 関連 ============
+        // ---------- ML Kit OCR ----------
 
         @JavascriptInterface
         fun runMlKit(base64Image: String) {
@@ -290,12 +390,8 @@ class MainActivity : AppCompatActivity() {
                 val bytes = Base64.decode(base64Image, Base64.DEFAULT)
                 val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                     ?: return returnError("画像デコード失敗")
-
                 val image = InputImage.fromBitmap(bitmap, 0)
-                val recognizer = TextRecognition.getClient(
-                    JapaneseTextRecognizerOptions.Builder().build()
-                )
-
+                val recognizer = TextRecognition.getClient(JapaneseTextRecognizerOptions.Builder().build())
                 recognizer.process(image)
                     .addOnSuccessListener { result ->
                         val json = JSONObject().apply { put("text", result.text) }
@@ -314,10 +410,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         private fun sendMlKitResult(json: String) {
-            val b64 = Base64.encodeToString(
-                json.toByteArray(Charsets.UTF_8),
-                Base64.NO_WRAP
-            )
+            val b64 = Base64.encodeToString(json.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
             val js = """
                 (function(){
                     var b='$b64';
@@ -331,7 +424,7 @@ class MainActivity : AppCompatActivity() {
             runOnUiThread { webView.evaluateJavascript(js, null) }
         }
 
-        // ============ Bluetooth HID コントローラー関連 ============
+        // ---------- Bluetooth HID ----------
 
         @JavascriptInterface
         fun connectBluetoothSwitch(macAddress: String) {
@@ -347,7 +440,6 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun sendControllerInput(buttonData: String) {
             try {
-                // JSON形式のボタンデータをバイト配列に変換
                 val json = JSONObject(buttonData)
                 val data = json.getString("data")
                 val bytes = data.split(",").map { it.trim().toInt().toByte() }.toByteArray()
@@ -357,7 +449,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // ============ Arduino 自動化関連 ============
+        // ---------- Arduino ----------
 
         @JavascriptInterface
         fun getImportedPrograms(): String {
@@ -371,10 +463,7 @@ class MainActivity : AppCompatActivity() {
                 addCategory(Intent.CATEGORY_OPENABLE)
                 type = "*/*"
                 putExtra(Intent.EXTRA_MIME_TYPES, arrayOf(
-                    "text/plain",
-                    "text/x-python",
-                    "application/json",
-                    "text/x-shellscript"
+                    "text/plain", "text/x-python", "application/json", "text/x-shellscript"
                 ))
             }
             startActivityForResult(intent, PROGRAM_IMPORT_RC)
