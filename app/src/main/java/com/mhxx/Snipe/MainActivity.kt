@@ -57,62 +57,85 @@ class MainActivity : AppCompatActivity() {
     }.toTypedArray()
 
     // =====================================================================
-    // 🔧 修正: ボタン名 → HIDビット番号マッピング
-    // HIDレポート構造 (7バイト):
-    //   Byte 0 : ボタン 0- 7 (B, A, Y, X, L, R, ZL, ZR)
-    //   Byte 1 : ボタン 8-15 (MINUS, PLUS, L_STICK, R_STICK, HOME, CAPTURE, DPAD_UP, DPAD_DOWN)
-    //   Byte 2 : ボタン16-17 + パディング (DPAD_LEFT, DPAD_RIGHT)
-    //   Byte 3 : 左スティック X (-127~127)
-    //   Byte 4 : 左スティック Y (-127~127)
-    //   Byte 5 : 右スティック X (-127~127)
-    //   Byte 6 : 右スティック Y (-127~127)
+    // Nintendo Switch Pro Controller レポートフォーマット (9バイト)
+    //
+    // BluetoothHIDController に渡す buttonData の構造:
+    //   byte[0] 右ボタン   : Y=0x01 X=0x02 B=0x04 A=0x08 R=0x40 ZR=0x80
+    //   byte[1] 共通ボタン : MINUS=0x01 PLUS=0x02 R_STICK=0x04
+    //                        L_STICK=0x08 HOME=0x10 CAPTURE=0x20
+    //   byte[2] 左/十字    : DOWN=0x01 UP=0x02 RIGHT=0x04 LEFT=0x08
+    //                        L=0x40 ZL=0x80
+    //   byte[3-5] 左スティック (12bit X + 12bit Y, little-endian packed)
+    //   byte[6-8] 右スティック (12bit X + 12bit Y, little-endian packed)
+    //
+    // スティック値域: -100 〜 +100 (中立=0)
     // =====================================================================
-    private val BUTTON_MAP = mapOf(
-        // フェースボタン
-        "B"          to 0,  "A"       to 1,  "Y"       to 2,  "X"       to 3,
-        // ショルダー
-        "L"          to 4,  "R"       to 5,  "ZL"      to 6,  "ZR"      to 7,
-        // システム
-        "MINUS"      to 8,  "PLUS"    to 9,
-        "L_STICK"    to 10, "R_STICK" to 11,
-        "HOME"       to 12, "CAPTURE" to 13,
-        // 十字キー
-        "DPAD_UP"    to 14, "DPAD_DOWN"  to 15,
-        "DPAD_LEFT"  to 16, "DPAD_RIGHT" to 17
+
+    /** ボタン名 → (バイトインデックス, ビットマスク) */
+    private val BUTTON_MAP = mapOf<String, Pair<Int, Int>>(
+        // byte[0]: 右フェースボタン・ショルダー
+        "Y"          to Pair(0, 0x01),
+        "X"          to Pair(0, 0x02),
+        "B"          to Pair(0, 0x04),
+        "A"          to Pair(0, 0x08),
+        "R"          to Pair(0, 0x40),
+        "ZR"         to Pair(0, 0x80),
+        // byte[1]: 共通ボタン
+        "MINUS"      to Pair(1, 0x01),
+        "PLUS"       to Pair(1, 0x02),
+        "R_STICK"    to Pair(1, 0x04),
+        "L_STICK"    to Pair(1, 0x08),
+        "HOME"       to Pair(1, 0x10),
+        "CAPTURE"    to Pair(1, 0x20),
+        // byte[2]: 左ボタン・十字キー
+        "DPAD_DOWN"  to Pair(2, 0x01),
+        "DPAD_UP"    to Pair(2, 0x02),
+        "DPAD_RIGHT" to Pair(2, 0x04),
+        "DPAD_LEFT"  to Pair(2, 0x08),
+        "L"          to Pair(2, 0x40),
+        "ZL"         to Pair(2, 0x80)
     )
 
     /**
-     * HIDレポートバイト列を生成
+     * Pro Controller フォーマットの 9バイトレポートを生成する。
      *
-     * スティック引数は -127〜127 の範囲で受け取り、
-     * HIDディスクリプタに合わせた 0〜255 (中立=128) に変換する。
-     * ✅ Fix2: signed(-127〜127) → unsigned(0〜255, center=128) に変換
+     * @param buttons ボタン名のセット (大文字小文字不問)
+     * @param lx      左スティック X: -100 〜 +100
+     * @param ly      左スティック Y: -100 〜 +100 (上がマイナス)
+     * @param rx      右スティック X: -100 〜 +100
+     * @param ry      右スティック Y: -100 〜 +100 (上がマイナス)
      */
     private fun buildHidReport(
         buttons: Set<String> = emptySet(),
         lx: Int = 0, ly: Int = 0,
         rx: Int = 0, ry: Int = 0
     ): ByteArray {
-        var b0 = 0; var b1 = 0; var b2 = 0
-        for (btn in buttons) {
-            val bit = BUTTON_MAP[btn.uppercase().trim()] ?: continue
-            when {
-                bit < 8  -> b0 = b0 or (1 shl bit)
-                bit < 16 -> b1 = b1 or (1 shl (bit - 8))
-                else     -> b2 = b2 or (1 shl (bit - 16))
-            }
-        }
-        // -127〜127 → 0〜255 (center=128) に変換
-        fun toUnsigned(v: Int): Byte =
-            (v.coerceIn(-127, 127) + 128).coerceIn(0, 255).toByte()
+        val buf = ByteArray(9)
 
-        return byteArrayOf(
-            b0.toByte(), b1.toByte(), b2.toByte(),
-            toUnsigned(lx),
-            toUnsigned(ly),
-            toUnsigned(rx),
-            toUnsigned(ry)
-        )
+        // ボタンビット設定
+        for (btn in buttons) {
+            val (byteIdx, mask) = BUTTON_MAP[btn.uppercase().trim()] ?: continue
+            buf[byteIdx] = (buf[byteIdx].toInt() or mask).toByte()
+        }
+
+        // スティック値 (-100〜100) → 12bit (0〜4095, 中立=2048)
+        fun to12Bit(v: Int): Int =
+            ((v.coerceIn(-100, 100) + 100) / 200.0 * 4095).toInt()
+
+        val lxR = to12Bit(lx);  val lyR = to12Bit(ly)
+        val rxR = to12Bit(rx);  val ryR = to12Bit(ry)
+
+        // 左スティック: byte[3-5]
+        buf[3] = (lxR and 0xFF).toByte()
+        buf[4] = ((lxR shr 8) and 0x0F or ((lyR and 0x0F) shl 4)).toByte()
+        buf[5] = ((lyR shr 4) and 0xFF).toByte()
+
+        // 右スティック: byte[6-8]
+        buf[6] = (rxR and 0xFF).toByte()
+        buf[7] = ((rxR shr 8) and 0x0F or ((ryR and 0x0F) shl 4)).toByte()
+        buf[8] = ((ryR shr 4) and 0xFF).toByte()
+
+        return buf
     }
 
     @SuppressLint("SetJavaScriptEnabled")
