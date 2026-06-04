@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MHXX お守りスナイプツール - 統合版</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 10px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+
+        .header p {
+            font-size: 12px;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 20px;
+        }
+
+        .tab-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .tab-btn {
+            padding: 10px 20px;
+            border: 2px solid #667eea;
+            background: white;
+            color: #667eea;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .tab-btn.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .tab-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* OCR タブ */
+        #ocrTab .section {
+            margin-bottom: 20px;
+        }
+
+        .image-input {
+            border: 2px dashed #667eea;
+            border-radius: 8px;
+            padding: 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .image-input:hover {
+            background: #f8f9ff;
+        }
+
+        .image-input input {
+            display: none;
+        }
+
+        .preview-container {
+            margin-top: 15px;
+            display: none;
+        }
+
+        .preview-container.show {
+            display: block;
+        }
+
+        #imagePreview {
+            max-width: 100%;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+
+        /* Bluetooth コントローラー タブ */
+        .bluetooth-section {
+            background: #f8f9ff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+
+        .bluetooth-status {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .bluetooth-status.disconnected {
+            background: #ffe6e6;
+            color: #d32f2f;
+        }
+
+        .bluetooth-status.connected {
+            background: #e6ffe6;
+            color: #388e3c;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+
+        .status-indicator.disconnected {
+            background: #d32f2f;
+        }
+
+        .status-indicator.connected {
+            background: #388e3c;
+        }
+
+        .input-group {
+            margin-bottom: 12px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .input-group input,
+        .input-group select,
+        .input-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-family: monospace;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            flex: 1;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
+        .btn-danger {
+            background: #f44336;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #d32f2f;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Arduino タブ */
+        .program-list {
+            background: #f8f9ff;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .program-item {
+            padding: 12px;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .program-item:last-child {
+            border-bottom: none;
+        }
+
+        .program-name {
+            font-weight: 600;
+            color: #333;
+            flex: 1;
+        }
+
+        .program-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+
+        .output-console {
+            background: #1e1e1e;
+            color: #00ff00;
+            border-radius: 8px;
+            padding: 12px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 15px;
+        }
+
+        .output-line {
+            margin: 2px 0;
+            word-wrap: break-word;
+        }
+
+        .output-error {
+            color: #ff6b6b;
+        }
+
+        /* ステータスメッセージ */
+        .status-message {
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            display: none;
+        }
+
+        .status-message.show {
+            display: block;
+        }
+
+        .status-message.success {
+            background: #e6ffe6;
+            color: #388e3c;
+            border: 1px solid #388e3c;
+        }
+
+        .status-message.error {
+            background: #ffe6e6;
+            color: #d32f2f;
+            border: 1px solid #d32f2f;
+        }
+
+        .status-message.info {
+            background: #e6f2ff;
+            color: #1976d2;
+            border: 1px solid #1976d2;
+        }
+
+        /* レスポンシブ */
+        @media (max-width: 600px) {
+            .header h1 {
+                font-size: 18px;
+            }
+
+            .tab-buttons {
+                flex-direction: column;
+            }
+
+            .tab-btn {
+                width: 100%;
+            }
+
+            .button-group {
+                flex-direction: column;
+            }
+
+            .program-item {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .program-actions {
+                width: 100%;
+                margin-top: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎮 MHXX スナイプツール 統合版</h1>
+            <p>Switch連携 + Arduino自動化 + OCR認識</p>
+        </div>
+
+        <div class="content">
+            <!-- タブボタン -->
+            <div class="tab-buttons">
+                <button class="tab-btn active" onclick="switchTab('ocrTab')">OCR認識</button>
+                <button class="tab-btn" onclick="switchTab('btTab')">Switch接続</button>
+                <button class="tab-btn" onclick="switchTab('arduinoTab')">Arduino自動化</button>
+            </div>
+
+            <!-- OCR タブ -->
+            <div id="ocrTab" class="tab-content active">
+                <div class="section">
+                    <div id="ocrStatus" class="status-message"></div>
+                    <div class="image-input" onclick="document.getElementById('imageInput').click()">
+                        <input type="file" id="imageInput" accept="image/*" onchange="handleImageSelect(event)">
+                        <div style="font-size: 48px; margin-bottom: 10px;">📸</div>
+                        <p><strong>画像をクリックして選択</strong></p>
+                        <p style="font-size: 12px; color: #999; margin-top: 5px;">PNG / JPG / GIF に対応</p>
+                    </div>
+                    <div id="previewContainer" class="preview-container">
+                        <img id="imagePreview" alt="preview">
+                        <button class="btn btn-primary" onclick="recognizeImage()">OCR認識を実行</button>
+                    </div>
+                    <div id="ocrResult" style="margin-top: 15px; display: none;">
+                        <h3>認識結果:</h3>
+                        <textarea id="ocrText" readonly style="height: 200px; margin-top: 10px;"></textarea>
+                        <button class="btn btn-secondary" onclick="copyOCRResult()" style="margin-top: 10px; width: 100%;">
+                            テキストをコピー
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bluetooth/Switch接続 タブ -->
+            <div id="btTab" class="tab-content">
+                <div class="bluetooth-section">
+                    <h3 style="margin-bottom: 15px;">Switch接続状態</h3>
+                    <div id="bluetoothStatus" class="bluetooth-status disconnected">
+                        <span class="status-indicator disconnected"></span>
+                        <span>切断</span>
+                    </div>
+                </div>
+
+                <div class="bluetooth-section">
+                    <h3 style="margin-bottom: 15px;">接続設定</h3>
+                    <div class="input-group">
+                        <label for="macAddress">Switch の MAC アドレス:</label>
+                        <input type="text" id="macAddress" placeholder="例: AA:BB:CC:DD:EE:FF">
+                        <small style="display: block; margin-top: 5px; color: #666;">
+                            Switch の設定画面から MAC アドレスを確認してください
+                        </small>
+                    </div>
+
+                    <div class="button-group" style="margin-top: 15px;">
+                        <button class="btn btn-primary" onclick="connectToSwitch()">接続</button>
+                        <button class="btn btn-danger" onclick="disconnectFromSwitch()" id="disconnectBtn" disabled>
+                            切断
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bluetooth-section">
+                    <h3 style="margin-bottom: 15px;">コントローラー入力テスト</h3>
+                    <div class="input-group">
+                        <label>ボタン入力 (16進数):</label>
+                        <input type="text" id="buttonInput" placeholder="例: 01 00 7f 7f" value="00 00 7f 7f">
+                    </div>
+                    <button class="btn btn-primary" onclick="sendControllerInput()">送信</button>
+                </div>
+            </div>
+
+            <!-- Arduino自動化 タブ -->
+            <div id="arduinoTab" class="tab-content">
+                <div class="bluetooth-section">
+                    <h3 style="margin-bottom: 15px;">プログラム管理</h3>
+                    <div class="button-group" style="margin-bottom: 15px;">
+                        <button class="btn btn-primary" onclick="importArduinoProgram()">📁 プログラムをインポート</button>
+                    </div>
+                    <div id="programList" class="program-list">
+                        <div style="padding: 20px; text-align: center; color: #999;">
+                            プログラムがまだインポートされていません
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bluetooth-section">
+                    <h3 style="margin-bottom: 15px;">実行ログ</h3>
+                    <div id="outputConsole" class="output-console">
+                        <div style="color: #666; text-align: center;">
+                            ここにプログラムの出力が表示されます
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ========== タブ切り替え ==========
+        function switchTab(tabName) {
+            // すべてのタブを非表示
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            // 指定タブを表示
+            document.getElementById(tabName).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        // ========== OCR関連 ==========
+        function handleImageSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const base64 = e.target.result.split(',')[1];
+                document.getElementById('imagePreview').src = 'data:image/jpeg;base64,' + base64;
+                document.getElementById('previewContainer').classList.add('show');
+                document.getElementById('ocrResult').style.display = 'none';
+
+                // グローバルに保存（OCR実行時に使用）
+                window.currentImageBase64 = base64;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function recognizeImage() {
+            if (!window.currentImageBase64) {
+                showStatus('ocrStatus', 'error', 'まず画像を選択してください');
+                return;
+            }
+
+            showStatus('ocrStatus', 'info', '認識中...');
+            Android.runMlKit(window.currentImageBase64);
+        }
+
+        function receiveMlKitResult(jsonStr) {
+            try {
+                const result = JSON.parse(jsonStr);
+                if (result.error) {
+                    showStatus('ocrStatus', 'error', result.error);
+                    return;
+                }
+
+                document.getElementById('ocrText').value = result.text;
+                document.getElementById('ocrResult').style.display = 'block';
+                showStatus('ocrStatus', 'success', '認識完了');
+            } catch (e) {
+                showStatus('ocrStatus', 'error', '解析エラー: ' + e.message);
+            }
+        }
+
+        function copyOCRResult() {
+            const text = document.getElementById('ocrText').value;
+            navigator.clipboard.writeText(text).then(() => {
+                showStatus('ocrStatus', 'success', 'クリップボードにコピーしました');
+            });
+        }
+
+        // ========== Bluetooth関連 ==========
+        function connectToSwitch() {
+            const mac = document.getElementById('macAddress').value.trim();
+            if (!mac) {
+                showStatus(null, 'error', 'MAC アドレスを入力してください');
+                return;
+            }
+
+            showStatus(null, 'info', '接続中...');
+            Android.connectBluetoothSwitch(mac);
+        }
+
+        function disconnectFromSwitch() {
+            Android.disconnectBluetoothSwitch();
+        }
+
+        function sendControllerInput() {
+            const input = document.getElementById('buttonInput').value.trim();
+            if (!input) {
+                showStatus(null, 'error', 'ボタン入力を指定してください');
+                return;
+            }
+
+            try {
+                const bytes = input.split(/\s+/).map(h => parseInt(h, 16));
+                const data = JSON.stringify({ data: bytes.join(',') });
+                Android.sendControllerInput(data);
+                showStatus(null, 'success', 'コントローラー入力を送信しました');
+            } catch (e) {
+                showStatus(null, 'error', '入力形式が正しくありません: ' + e.message);
+            }
+        }
+
+        function bluetoothStatus(jsonStr) {
+            try {
+                const data = JSON.parse(jsonStr);
+                updateBluetoothStatus(data);
+            } catch (e) {
+                console.error('Bluetooth status parse error:', e);
+            }
+        }
+
+        function updateBluetoothStatus(data) {
+            const statusDiv = document.getElementById('bluetoothStatus');
+            const disconnectBtn = document.getElementById('disconnectBtn');
+
+            if (data.status === 'connected') {
+                statusDiv.className = 'bluetooth-status connected';
+                statusDiv.innerHTML = `
+                    <span class="status-indicator connected"></span>
+                    <span>接続中: ${data.device}</span>
+                `;
+                disconnectBtn.disabled = false;
+            } else {
+                statusDiv.className = 'bluetooth-status disconnected';
+                statusDiv.innerHTML = `
+                    <span class="status-indicator disconnected"></span>
+                    <span>切断</span>
+                `;
+                disconnectBtn.disabled = true;
+            }
+        }
+
+        // ========== Arduino関連 ==========
+        function importArduinoProgram() {
+            Android.importArduinoProgram();
+        }
+
+        function refreshProgramList() {
+            const listStr = Android.getImportedPrograms();
+            const programs = JSON.parse(listStr);
+
+            const listDiv = document.getElementById('programList');
+            if (programs.length === 0) {
+                listDiv.innerHTML = '<div style="padding: 20px; text-align: center; color: #999;">プログラムがまだインポートされていません</div>';
+                return;
+            }
+
+            let html = '';
+            programs.forEach(prog => {
+                html += `
+                    <div class="program-item">
+                        <span class="program-name">📄 ${prog}</span>
+                        <div class="program-actions">
+                            <button class="btn btn-small btn-primary" onclick="executeProgram('${prog}')">実行</button>
+                            <button class="btn btn-small btn-secondary" onclick="stopProgram('${prog}')">停止</button>
+                            <button class="btn btn-small btn-danger" onclick="deleteProgram('${prog}')">削除</button>
+                        </div>
+                    </div>
+                `;
+            });
+
+            listDiv.innerHTML = html;
+        }
+
+        function executeProgram(progName) {
+            showConsoleMessage(`プログラムを実行中: ${progName}`);
+            Android.executeArduinoProgram(progName);
+        }
+
+        function stopProgram(progName) {
+            Android.stopArduinoProgram(progName);
+            showConsoleMessage(`プログラムを停止: ${progName}`);
+        }
+
+        function deleteProgram(progName) {
+            if (confirm(`${progName} を削除してもいいですか?`)) {
+                const result = Android.deleteArduinoProgram(progName);
+                if (result) {
+                    showConsoleMessage(`削除: ${progName}`);
+                    refreshProgramList();
+                }
+            }
+        }
+
+        function arduinoEvent(jsonStr) {
+            try {
+                const data = JSON.parse(jsonStr);
+                handleArduinoEvent(data);
+            } catch (e) {
+                console.error('Arduino event parse error:', e);
+            }
+        }
+
+        function handleArduinoEvent(data) {
+            switch (data.type) {
+                case 'importSuccess':
+                    showConsoleMessage(`✓ インポート成功: ${data.fileName}`);
+                    refreshProgramList();
+                    break;
+                case 'importError':
+                    showConsoleMessage(`✗ インポートエラー: ${data.message}`, true);
+                    break;
+                case 'executionStart':
+                    showConsoleMessage(`▶ 実行開始: ${data.programName}`);
+                    break;
+                case 'executionStop':
+                    showConsoleMessage(`■ 実行終了 (終了コード: ${data.exitCode})`);
+                    break;
+                case 'executionError':
+                    showConsoleMessage(`✗ 実行エラー: ${data.message}`, true);
+                    break;
+            }
+        }
+
+        function arduinoOutput(jsonStr) {
+            try {
+                const data = JSON.parse(jsonStr);
+                showConsoleMessage(`[${data.programName}] ${data.output}`);
+            } catch (e) {
+                console.error('Arduino output parse error:', e);
+            }
+        }
+
+        function showConsoleMessage(msg, isError = false) {
+            const console = document.getElementById('outputConsole');
+            const line = document.createElement('div');
+            line.className = 'output-line' + (isError ? ' output-error' : '');
+            line.textContent = msg;
+            console.appendChild(line);
+            console.scrollTop = console.scrollHeight;
+        }
+
+        // ========== ユーティリティ ==========
+        function showStatus(elementId, type, message) {
+            if (elementId === null) {
+                // グローバルメッセージ（簡易版）
+                alert(message);
+                return;
+            }
+
+            const el = document.getElementById(elementId);
+            if (!el) return;
+
+            el.className = `status-message show ${type}`;
+            el.textContent = message;
+
+            if (type === 'success') {
+                setTimeout(() => el.classList.remove('show'), 3000);
+            }
+        }
+
+        function initializeControlPanel() {
+            console.log('Control panel initialized');
+            refreshProgramList();
+        }
+
+        // ページロード時の初期化
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('DOM Content Loaded');
+        });
+    </script>
+</body>
+</html>
