@@ -114,8 +114,6 @@ class BluetoothHIDController(private val context: Context) {
         bluetoothAdapter = mgr?.adapter
     }
 
-    fun setListener(l: ControllerListener) { listener = l }
-
     // ============================================================
     // 接続
     // ============================================================
