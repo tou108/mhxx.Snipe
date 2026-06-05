@@ -1751,16 +1751,28 @@ function _parentAb(method) {
     args[0] = JSON.stringify(args[0]);
   }
 
-  // ① 自フレームの AndroidBridge（Android WebView は iframe にも注入する）
-  if (window.AndroidBridge && typeof window.AndroidBridge[method] === 'function') {
-    try { return window.AndroidBridge[method].apply(window.AndroidBridge, args); } catch(e) {}
+  // ① window.Android（MainActivity で addJavascriptInterface(bridge, "Android") 登録済み — 最優先）
+  // ★ Fix: typeof チェックを外し、プロパティが存在するかだけ確認する。
+  //   一部の Android WebView バージョンでは JavascriptInterface メソッドの typeof が
+  //   'function' ではなく 'object' になるため、typeof チェックで誤ってスキップされていた。
+  if (window.Android && window.Android[method]) {
+    try { return window.Android[method].apply(window.Android, args); } catch(e) {
+      console.error('[_parentAb] Android.' + method + ' error:', e);
+    }
   }
 
-  // ② 親フレームの AndroidBridge（同一オリジン file:// ならアクセス可）
+  // ② window.AndroidBridge（同じブリッジの別名 — フォールバック）
+  if (window.AndroidBridge && window.AndroidBridge[method]) {
+    try { return window.AndroidBridge[method].apply(window.AndroidBridge, args); } catch(e) {
+      console.error('[_parentAb] AndroidBridge.' + method + ' error:', e);
+    }
+  }
+
+  // ③ 親フレームの AndroidBridge（同一オリジン file:// ならアクセス可）
   try {
     if (window.parent && window.parent !== window &&
         window.parent.AndroidBridge &&
-        typeof window.parent.AndroidBridge[method] === 'function') {
+        window.parent.AndroidBridge[method]) {
       return window.parent.AndroidBridge[method].apply(window.parent.AndroidBridge, args);
     }
   } catch(e) {}
@@ -4926,6 +4938,47 @@ function _initAIntervalList() {
 }
 
 // =====================================================================
+// ★ スナイプ実行パネル用 ブリッジ直接送信ヘルパー
+// =====================================================================
+/**
+ * スナイプ実行専用ボタン送信ヘルパー。
+ * pressCtrlBtn() と違い、トースト・マクロ記録・ビジュアルフィードバックを発生させず
+ * Android ブリッジへ直接送信する。
+ *
+ * 試行順序:
+ *   1. window.Android.pressButton(btn, dur)     ← 直接登録ブリッジ（最優先）
+ *   2. window.AndroidBridge.pressButton(btn, dur) ← 別名ブリッジ
+ *   3. pressCtrlBtn(btn)                         ← フォールバック（タイマー値を使用）
+ *
+ * @param {string} btn - ボタン名 ("A", "B", "DPAD_UP" 等)
+ * @param {number} [dur=100] - 押下保持時間 [ms]
+ */
+function _snipePressBtn(btn, dur) {
+  var d = (typeof dur === 'number' && dur > 0) ? dur : 100;
+  // ① window.Android（直接ブリッジ）
+  if (window.Android && window.Android.pressButton) {
+    try {
+      window.Android.pressButton(btn, d);
+      return;
+    } catch(e) {
+      console.error('[_snipePressBtn] Android.pressButton error:', e);
+    }
+  }
+  // ② window.AndroidBridge（フォールバック）
+  if (window.AndroidBridge && window.AndroidBridge.pressButton) {
+    try {
+      window.AndroidBridge.pressButton(btn, d);
+      return;
+    } catch(e) {
+      console.error('[_snipePressBtn] AndroidBridge.pressButton error:', e);
+    }
+  }
+  // ③ 最終フォールバック: pressCtrlBtn 経由
+  console.warn('[_snipePressBtn] ブリッジ未接続 — pressCtrlBtn へフォールバック');
+  pressCtrlBtn(btn);
+}
+
+// =====================================================================
 // ★ スナイプ実行パネル  (ソフト選択同時スタート + コンテニュースキップ + はい自動押下)
 // =====================================================================
 let snipeRunActive = false;
@@ -4974,7 +5027,7 @@ function startSnipeRun() {
       const fireAt = aStartDelay + cumulative;
       const t = setTimeout(((idx, ms) => () => {
         if (!snipeRunActive) return;
-        pressCtrlBtn('A');
+        _snipePressBtn('A', 100); // ★ Fix: 直接ブリッジ送信（pressCtrlBtn の代わり）
         _logSnipe(`  [${idx + 1}/${aPresses}] ▶ A を押しました (${ms}ms後)`);
       })(i, fireAt), fireAt);
       snipeRunTimers.push(t);
@@ -5004,7 +5057,7 @@ function stopSnipeRun() {
  */
 function onSnipeTimerEnd() {
   if (!snipeRunActive) return;
-  pressCtrlBtn('A'); // キャラ選択 → 「はい」
+  _snipePressBtn('A', 100); // ★ Fix: キャラ選択「はい」を直接ブリッジ送信
   _logSnipe('✅ タイマー終了 → キャラ選択「はい」(A) を押しました！');
   showToast('✅ スナイプ実行完了！ 🎯');
   snipeRunActive = false;
