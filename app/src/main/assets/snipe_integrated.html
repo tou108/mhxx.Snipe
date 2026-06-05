@@ -4561,7 +4561,7 @@ function _macroMgrLog(msg, isError) {
 }
 
 // =====================================================================
-// ★ スナイプ実行パネル  (ソフト選択同時スタート + コンテニュースキップ + はい自動押下)
+// ★ スナイプ実行パネル  (ユーザー選択同時スタート + コンテニュースキップ + はい自動押下)
 // =====================================================================
 let snipeRunActive = false;
 let snipeRunTimers = [];
@@ -4589,7 +4589,7 @@ function startSnipeRun() {
   const logEl = document.getElementById('snipeRunLog');
   if (logEl) { logEl.innerHTML = ''; logEl.style.display = 'block'; }
 
-  _logSnipe('🎮 ソフト選択を検出 → カウントダウン開始');
+  _logSnipe('🎮 ユーザー選択を検出 → カウントダウン開始');
 
   // ─── ① カウントダウンタイマーを同時スタート ───
   initAndStartCountdown();
