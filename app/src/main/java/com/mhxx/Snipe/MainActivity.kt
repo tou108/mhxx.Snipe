@@ -49,7 +49,8 @@ class MainActivity : AppCompatActivity() {
     private val REQUIRED_PERMISSIONS = mutableListOf(
         Manifest.permission.BLUETOOTH_CONNECT,
         Manifest.permission.BLUETOOTH_SCAN,
-        Manifest.permission.ACCESS_FINE_LOCATION
+        Manifest.permission.ACCESS_FINE_LOCATION,
+        Manifest.permission.CAMERA  // 📷 カメラOCR撮影機能
     ).apply {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             add(Manifest.permission.POST_NOTIFICATIONS)
@@ -174,6 +175,22 @@ class MainActivity : AppCompatActivity() {
                     Log.d("MhxxSnipe/JS",
                         "[${msg.messageLevel()}] ${msg.message()} (${msg.sourceId()}:${msg.lineNumber()})")
                     return true
+                }
+
+                // 📷 WebView の getUserMedia カメラ権限を許可
+                override fun onPermissionRequest(request: PermissionRequest) {
+                    runOnUiThread {
+                        // カメラリソースの要求のみ許可
+                        val grantable = request.resources.filter {
+                            it == PermissionRequest.RESOURCE_VIDEO_CAPTURE
+                        }.toTypedArray()
+                        if (grantable.isNotEmpty()) {
+                            request.grant(grantable)
+                            Log.d("MhxxSnipe", "📷 Camera permission granted to WebView")
+                        } else {
+                            request.deny()
+                        }
+                    }
                 }
 
                 override fun onShowFileChooser(
