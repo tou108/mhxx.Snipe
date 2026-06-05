@@ -107,6 +107,8 @@ class BluetoothHIDController(private val context: Context) {
         fun onDisconnected()
         fun onError(message: String)
         fun onStateChanged(state: String)
+        /** 未ペアリングの Switch への初回接続時に呼ばれる (UI でガイドを表示するために使用) */
+        fun onBondingStarted(device: BluetoothDevice) {}
     }
 
     init {
@@ -137,7 +139,15 @@ class BluetoothHIDController(private val context: Context) {
         if (!adapter.isEnabled) { listener?.onError("Bluetoothが無効です"); return }
         val device = try { adapter.getRemoteDevice(mac) }
                      catch (e: Exception) { listener?.onError("デバイスエラー: ${e.message}"); return }
-        listener?.onStateChanged("接続準備中...")
+
+        val isBonded = device.bondState == BluetoothDevice.BOND_BONDED
+        if (isBonded) {
+            listener?.onStateChanged("接続準備中...")
+        } else {
+            // 初回接続: Switch 側でのペアリング操作が必要
+            listener?.onStateChanged("初回接続: Switch のペアリング画面で「さがす」を押してください...")
+            listener?.onBondingStarted(device)
+        }
         hidExecutor.execute { connectToDevice(device) }
     }
 
@@ -164,8 +174,15 @@ class BluetoothHIDController(private val context: Context) {
         getHidProxy { hid ->
             if (hid == null) { listener?.onError("HIDプロキシが利用できません"); return@getHidProxy }
             if (appRegistered) {
-                try { hid.connect(device) }
-                catch (e: Exception) { listener?.onError("接続エラー: ${e.message}") }
+                if (device.bondState == BluetoothDevice.BOND_BONDED) {
+                    // ペアリング済み → こちらからプッシュ接続
+                    try { hid.connect(device) }
+                    catch (e: Exception) { listener?.onError("接続エラー: ${e.message}") }
+                } else {
+                    // 未ペアリング → 試みつつ Switch からの接続も待機
+                    try { hid.connect(device) } catch (_: Exception) {}
+                    listener?.onStateChanged("Switch のペアリング画面で「さがす」を押してください")
+                }
                 return@getHidProxy
             }
             try {
@@ -189,8 +206,17 @@ class BluetoothHIDController(private val context: Context) {
                     override fun onAppStatusChanged(pluggedDevice: BluetoothDevice?, registered: Boolean) {
                         appRegistered = registered
                         if (registered && targetDevice != null) {
-                            try { hid.connect(targetDevice!!) }
-                            catch (e: Exception) { listener?.onError("接続開始エラー: ${e.message}") }
+                            val dev = targetDevice!!
+                            if (dev.bondState == BluetoothDevice.BOND_BONDED) {
+                                // ペアリング済み → こちらからプッシュ接続
+                                try { hid.connect(dev) }
+                                catch (e: Exception) { listener?.onError("接続開始エラー: ${e.message}") }
+                            } else {
+                                // 未ペアリング → Switch からの接続要求 or ペアリングを待つ
+                                // hid.connect() も試みる (Switch がペアリングモードなら成功することも)
+                                try { hid.connect(dev) } catch (_: Exception) {}
+                                listener?.onStateChanged("Switch のペアリング画面で「さがす」を押してください\nペアリング完了後に自動接続されます")
+                            }
                         }
                     }
 
@@ -482,6 +508,25 @@ class BluetoothHIDController(private val context: Context) {
     // ============================================================
     // 切断 & クリーンアップ
     // ============================================================
+
+    /**
+     * MainActivity の BroadcastReceiver からペアリング完了通知を受け取り、
+     * HID 接続を完成させる。
+     * 対象デバイス以外のペアリング完了は無視する。
+     */
+    fun onBondCompleted(device: BluetoothDevice) {
+        if (device.address != targetDevice?.address) return
+        listener?.onStateChanged("ペアリング完了 → HID 接続中...")
+        hidExecutor.execute {
+            if (appRegistered && bluetoothHidDevice != null) {
+                try { bluetoothHidDevice!!.connect(device) }
+                catch (e: Exception) { listener?.onError("ペアリング後の接続エラー: ${e.message}") }
+            } else {
+                // HID アプリ未登録なら最初から接続処理をやり直す
+                connectToDevice(device)
+            }
+        }
+    }
 
     fun disconnect() {
         targetDevice = null

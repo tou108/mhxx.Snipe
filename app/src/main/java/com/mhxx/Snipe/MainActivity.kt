@@ -3,8 +3,12 @@ package com.mhxx.snipe
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.PictureInPictureParams
+import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
 import android.net.Uri
@@ -52,10 +56,52 @@ class MainActivity : AppCompatActivity() {
         Manifest.permission.ACCESS_FINE_LOCATION,
         Manifest.permission.CAMERA  // 📷 カメラOCR撮影機能
     ).apply {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            add(Manifest.permission.BLUETOOTH_ADVERTISE) // 🔵 他のSwitchへの初回ペアリングに必要
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             add(Manifest.permission.POST_NOTIFICATIONS)
         }
     }.toTypedArray()
+
+    /**
+     * ★ Bluetooth ペアリング完了を検知するレシーバー
+     * 未ペアリングの Switch への初回接続時に BOND_BONDED を受け取ったら
+     * BluetoothHIDController.onBondCompleted() を呼んで HID 接続を完成させる。
+     */
+    private val bondStateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action != BluetoothDevice.ACTION_BOND_STATE_CHANGED) return
+            val device: BluetoothDevice? =
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+                    intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE, BluetoothDevice::class.java)
+                else
+                    @Suppress("DEPRECATION") intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
+            device ?: return
+
+            when (intent.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE, BluetoothDevice.ERROR)) {
+                BluetoothDevice.BOND_BONDING -> {
+                    // ペアリング中 → UI に通知
+                    sendToJS("bluetoothState", mapOf("state" to "Switch とペアリング中..."))
+                }
+                BluetoothDevice.BOND_BONDED -> {
+                    // ペアリング完了 → HID 接続を完成させる
+                    bluetoothHIDController.onBondCompleted(device)
+                    runOnUiThread {
+                        Toast.makeText(
+                            this@MainActivity,
+                            "✅ ペアリング完了: ${device.address}",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
+                BluetoothDevice.BOND_NONE -> {
+                    // ペアリング失敗 / キャンセル
+                    sendToJS("bluetoothError", mapOf("message" to "ペアリングが失敗またはキャンセルされました"))
+                }
+            }
+        }
+    }
 
     // =====================================================================
     // ★ Nintendo Pro Controller ボタン → (バイトインデックス, ビットマスク) マッピング
@@ -222,6 +268,14 @@ class MainActivity : AppCompatActivity() {
         setupBluetoothListener()
         setupArduinoListener()
 
+        // ★ Bluetooth ペアリング完了レシーバーを登録
+        val bondFilter = IntentFilter(BluetoothDevice.ACTION_BOND_STATE_CHANGED)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(bondStateReceiver, bondFilter, Context.RECEIVER_EXPORTED)
+        } else {
+            registerReceiver(bondStateReceiver, bondFilter)
+        }
+
         if (hasAllPermissions()) {
             SnipeForegroundService.start(this)
         } else {
@@ -352,6 +406,17 @@ class MainActivity : AppCompatActivity() {
             override fun onStateChanged(state: String) {
                 sendToJS("bluetoothState", mapOf("state" to state))
             }
+
+            /** 未ペアリングSwitchへの初回接続: 操作ガイドをトーストで表示 */
+            override fun onBondingStarted(device: BluetoothDevice) {
+                runOnUiThread {
+                    Toast.makeText(
+                        this@MainActivity,
+                        "🔵 初回接続: Switch のペアリング画面で「さがす」を押してください\nMAC: ${device.address}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
         }
     }
 
@@ -452,6 +517,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        // ★ Bluetooth ペアリングレシーバーを解除
+        try { unregisterReceiver(bondStateReceiver) } catch (_: Exception) {}
         bluetoothHIDController.cleanup()
         arduinoManager.cleanup()
         if (!isChangingConfigurations) {
