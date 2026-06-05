@@ -57,85 +57,86 @@ class MainActivity : AppCompatActivity() {
     }.toTypedArray()
 
     // =====================================================================
-    // Nintendo Switch Pro Controller レポートフォーマット (9バイト)
+    // ★ Nintendo Pro Controller ボタン → (バイトインデックス, ビットマスク) マッピング
     //
-    // BluetoothHIDController に渡す buttonData の構造:
-    //   byte[0] 右ボタン   : Y=0x01 X=0x02 B=0x04 A=0x08 R=0x40 ZR=0x80
-    //   byte[1] 共通ボタン : MINUS=0x01 PLUS=0x02 R_STICK=0x04
-    //                        L_STICK=0x08 HOME=0x10 CAPTURE=0x20
-    //   byte[2] 左/十字    : DOWN=0x01 UP=0x02 RIGHT=0x04 LEFT=0x08
-    //                        L=0x40 ZL=0x80
-    //   byte[3-5] 左スティック (12bit X + 12bit Y, little-endian packed)
-    //   byte[6-8] 右スティック (12bit X + 12bit Y, little-endian packed)
+    // HID レポート 9バイト構造 (BluetoothHIDController.sendControllerInput() に渡す):
+    //   Byte 0 (右ボタン) : Y=0x01, X=0x02, B=0x04, A=0x08, R=0x40, ZR=0x80
+    //   Byte 1 (中ボタン) : MINUS=0x01, PLUS=0x02, R_STICK=0x04, L_STICK=0x08,
+    //                       HOME=0x10, CAPTURE=0x20
+    //   Byte 2 (左ボタン) : DPAD_DOWN=0x01, DPAD_UP=0x02, DPAD_RIGHT=0x04,
+    //                       DPAD_LEFT=0x08, L=0x40, ZL=0x80
+    //   Byte 3–5 : 左スティック (12bit X + 12bit Y packed, 中立=0x800)
+    //   Byte 6–8 : 右スティック (同上)
     //
-    // スティック値域: -100 〜 +100 (中立=0)
+    // 旧形式 (7バイト汎用 HID) とは完全に異なる。
     // =====================================================================
-
-    /** ボタン名 → (バイトインデックス, ビットマスク) */
-    private val BUTTON_MAP = mapOf<String, Pair<Int, Int>>(
-        // byte[0]: 右フェースボタン・ショルダー
-        "Y"          to Pair(0, 0x01),
-        "X"          to Pair(0, 0x02),
-        "B"          to Pair(0, 0x04),
-        "A"          to Pair(0, 0x08),
-        "R"          to Pair(0, 0x40),
-        "ZR"         to Pair(0, 0x80),
-        // byte[1]: 共通ボタン
-        "MINUS"      to Pair(1, 0x01),
-        "PLUS"       to Pair(1, 0x02),
-        "R_STICK"    to Pair(1, 0x04),
-        "L_STICK"    to Pair(1, 0x08),
-        "HOME"       to Pair(1, 0x10),
-        "CAPTURE"    to Pair(1, 0x20),
-        // byte[2]: 左ボタン・十字キー
-        "DPAD_DOWN"  to Pair(2, 0x01),
-        "DPAD_UP"    to Pair(2, 0x02),
-        "DPAD_RIGHT" to Pair(2, 0x04),
-        "DPAD_LEFT"  to Pair(2, 0x08),
-        "L"          to Pair(2, 0x40),
-        "ZL"         to Pair(2, 0x80)
+    private val BUTTON_MAP = mapOf(
+        // 右ボタン (byte 0)
+        "Y"          to Pair(0, 0x01), "X"       to Pair(0, 0x02),
+        "B"          to Pair(0, 0x04), "A"       to Pair(0, 0x08),
+        "R"          to Pair(0, 0x40), "ZR"      to Pair(0, 0x80),
+        // 中ボタン (byte 1)
+        "MINUS"      to Pair(1, 0x01), "PLUS"    to Pair(1, 0x02),
+        "R_STICK"    to Pair(1, 0x04), "L_STICK" to Pair(1, 0x08),
+        "HOME"       to Pair(1, 0x10), "CAPTURE" to Pair(1, 0x20),
+        // 左ボタン / 十字キー (byte 2)
+        "DPAD_DOWN"  to Pair(2, 0x01), "DPAD_UP"    to Pair(2, 0x02),
+        "DPAD_RIGHT" to Pair(2, 0x04), "DPAD_LEFT"  to Pair(2, 0x08),
+        "L"          to Pair(2, 0x40), "ZL"         to Pair(2, 0x80)
     )
 
     /**
-     * Pro Controller フォーマットの 9バイトレポートを生成する。
+     * Nintendo Pro Controller 用 HID レポート (9バイト) を生成する
      *
-     * @param buttons ボタン名のセット (大文字小文字不問)
-     * @param lx      左スティック X: -100 〜 +100
-     * @param ly      左スティック Y: -100 〜 +100 (上がマイナス)
-     * @param rx      右スティック X: -100 〜 +100
-     * @param ry      右スティック Y: -100 〜 +100 (上がマイナス)
+     * BluetoothHIDController.sendControllerInput() に渡す配列。
+     * 内部で 48バイトの Standard Full Report (0x30) に変換される。
+     *
+     * @param buttons ボタン名のセット (例: setOf("A"), setOf("DPAD_UP", "ZL"))
+     * @param lx 左スティック X (-127〜127, 中立=0)
+     * @param ly 左スティック Y (-127〜127, 中立=0)
+     * @param rx 右スティック X (-127〜127, 中立=0)
+     * @param ry 右スティック Y (-127〜127, 中立=0)
+     *
+     * スティック値は 12bit (0–4095, 中立=2048) に変換してパックする。
      */
     private fun buildHidReport(
         buttons: Set<String> = emptySet(),
         lx: Int = 0, ly: Int = 0,
         rx: Int = 0, ry: Int = 0
     ): ByteArray {
-        val buf = ByteArray(9)
-
-        // ボタンビット設定
+        var b0 = 0; var b1 = 0; var b2 = 0
         for (btn in buttons) {
             val (byteIdx, mask) = BUTTON_MAP[btn.uppercase().trim()] ?: continue
-            buf[byteIdx] = (buf[byteIdx].toInt() or mask).toByte()
+            when (byteIdx) {
+                0 -> b0 = b0 or mask
+                1 -> b1 = b1 or mask
+                2 -> b2 = b2 or mask
+            }
         }
 
-        // スティック値 (-100〜100) → 12bit (0〜4095, 中立=2048)
-        fun to12Bit(v: Int): Int =
-            ((v.coerceIn(-100, 100) + 100) / 200.0 * 4095).toInt()
+        // -127〜127 → 0〜4095 (12bit, 中立=2048=0x800)
+        // 計算式: (v + 127) * 4096 / 254  →  v=0 で正確に 2048 になる
+        fun to12bit(v: Int): Int =
+            ((v.coerceIn(-127, 127) + 127) * 4096 / 254).coerceIn(0, 4095)
 
-        val lxR = to12Bit(lx);  val lyR = to12Bit(ly)
-        val rxR = to12Bit(rx);  val ryR = to12Bit(ry)
+        val lxV = to12bit(lx); val lyV = to12bit(ly)
+        val rxV = to12bit(rx); val ryV = to12bit(ry)
 
-        // 左スティック: byte[3-5]
-        buf[3] = (lxR and 0xFF).toByte()
-        buf[4] = ((lxR shr 8) and 0x0F or ((lyR and 0x0F) shl 4)).toByte()
-        buf[5] = ((lyR shr 4) and 0xFF).toByte()
-
-        // 右スティック: byte[6-8]
-        buf[6] = (rxR and 0xFF).toByte()
-        buf[7] = ((rxR shr 8) and 0x0F or ((ryR and 0x0F) shl 4)).toByte()
-        buf[8] = ((ryR shr 4) and 0xFF).toByte()
-
-        return buf
+        // 12bit X + 12bit Y を 3バイトにパック (LE):
+        //   byte[0] = X[7:0]
+        //   byte[1] = X[11:8] | (Y[3:0] << 4)
+        //   byte[2] = Y[11:4]
+        return byteArrayOf(
+            b0.toByte(), b1.toByte(), b2.toByte(),
+            // 左スティック
+            (lxV and 0xFF).toByte(),
+            (((lxV shr 8) and 0x0F) or ((lyV and 0x0F) shl 4)).toByte(),
+            ((lyV shr 4) and 0xFF).toByte(),
+            // 右スティック
+            (rxV and 0xFF).toByte(),
+            (((rxV shr 8) and 0x0F) or ((ryV and 0x0F) shl 4)).toByte(),
+            ((ryV shr 4) and 0xFF).toByte()
+        )
     }
 
     @SuppressLint("SetJavaScriptEnabled")
