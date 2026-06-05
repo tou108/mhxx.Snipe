@@ -85,12 +85,18 @@ class MainActivity : AppCompatActivity() {
                     sendToJS("bluetoothState", mapOf("state" to "Switch とペアリング中..."))
                 }
                 BluetoothDevice.BOND_BONDED -> {
-                    // ペアリング完了 → HID 接続を完成させる
+                    val mac = device.address
+                    // HID 接続を完成させる (targetDevice が null でも対応)
                     bluetoothHIDController.onBondCompleted(device)
                     runOnUiThread {
+                        // ★ MAC アドレス入力欄をペアリングしたデバイスのアドレスで自動更新
+                        webView.evaluateJavascript(
+                            "var el=document.getElementById('btMacAddress');" +
+                            "if(el){ el.value='$mac'; }", null
+                        )
                         Toast.makeText(
                             this@MainActivity,
-                            "✅ ペアリング完了: ${device.address}",
+                            "✅ ペアリング完了: $mac",
                             Toast.LENGTH_SHORT
                         ).show()
                     }

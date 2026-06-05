@@ -512,17 +512,28 @@ class BluetoothHIDController(private val context: Context) {
     /**
      * MainActivity の BroadcastReceiver からペアリング完了通知を受け取り、
      * HID 接続を完成させる。
-     * 対象デバイス以外のペアリング完了は無視する。
+     *
+     * ★ 修正: Switch 側からペアリングが開始された場合 (targetDevice が null か
+     *   別アドレスの場合) も対応するため、ガード条件を緩和する。
      */
     fun onBondCompleted(device: BluetoothDevice) {
-        if (device.address != targetDevice?.address) return
+        // targetDevice が null → Switch 側から先にペアリングが来たケース
+        // targetDevice のアドレスが異なる → 別の Switch がペアリングしてきたケース
+        // どちらも targetDevice を更新して接続を続行する
+        if (targetDevice != null && device.address != targetDevice!!.address) {
+            // 別の Switch → targetDevice を上書き
+            targetDevice = device
+        } else if (targetDevice == null) {
+            // MAC 未入力のまま Switch 側から先にペアリング
+            targetDevice = device
+        }
         listener?.onStateChanged("ペアリング完了 → HID 接続中...")
         hidExecutor.execute {
             if (appRegistered && bluetoothHidDevice != null) {
                 try { bluetoothHidDevice!!.connect(device) }
                 catch (e: Exception) { listener?.onError("ペアリング後の接続エラー: ${e.message}") }
             } else {
-                // HID アプリ未登録なら最初から接続処理をやり直す
+                // HID アプリ未登録 → 登録から接続までやり直す
                 connectToDevice(device)
             }
         }
