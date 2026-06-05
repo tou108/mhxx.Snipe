@@ -174,6 +174,14 @@ class BluetoothHIDController(private val context: Context) {
         getHidProxy { hid ->
             if (hid == null) { listener?.onError("HIDプロキシが利用できません"); return@getHidProxy }
             if (appRegistered) {
+                // ★ 修正1: 別デバイスへの切替時は現在の接続を先に切断
+                val prev = connectedDevice
+                if (prev != null && prev.address != device.address) {
+                    Log.d(TAG, "別デバイスへ切替: ${prev.address} → ${device.address}, 旧接続を切断")
+                    try { hid.disconnect(prev) } catch (e: Exception) {
+                        Log.w(TAG, "旧デバイス切断エラー: ${e.message}")
+                    }
+                }
                 if (device.bondState == BluetoothDevice.BOND_BONDED) {
                     // ペアリング済み → こちらからプッシュ接続
                     try { hid.connect(device) }
@@ -223,6 +231,20 @@ class BluetoothHIDController(private val context: Context) {
                     override fun onConnectionStateChanged(dev: BluetoothDevice, state: Int) {
                         when (state) {
                             BluetoothProfile.STATE_CONNECTED -> {
+                                // ★ 修正2: targetDevice 以外のデバイス (ペアリング済み旧Switch) が
+                                //          自動再接続してきた場合は即座に切断して無視する
+                                val target = targetDevice
+                                if (target != null && dev.address != target.address) {
+                                    Log.w(TAG, "意図しないデバイス自動接続: ${dev.address} (期待: ${target.address}) → 切断")
+                                    listener?.onStateChanged(
+                                        "⚠ 別のSwitch(${dev.address})が自動接続しました\n" +
+                                        "切断して ${target.address} を待機中..."
+                                    )
+                                    try { hid.disconnect(dev) } catch (e: Exception) {
+                                        Log.e(TAG, "unwanted device disconnect error", e)
+                                    }
+                                    return
+                                }
                                 deviceConnected = true; connectedDevice = dev
                                 listener?.onConnected(dev)
                                 // 接続直後: Simple HID ハンドシェイク開始
@@ -231,9 +253,15 @@ class BluetoothHIDController(private val context: Context) {
                             BluetoothProfile.STATE_CONNECTING  -> listener?.onStateChanged("接続中...")
                             BluetoothProfile.STATE_DISCONNECTING -> listener?.onStateChanged("切断中...")
                             BluetoothProfile.STATE_DISCONNECTED -> {
-                                deviceConnected = false; connectedDevice = null
-                                stopScheduler()
-                                listener?.onDisconnected()
+                                // ★ 修正2: 意図しないデバイスの切断通知は無視
+                                //          (自動再接続を拒否した場合も STATE_DISCONNECTED が来る)
+                                if (connectedDevice?.address == dev.address) {
+                                    deviceConnected = false; connectedDevice = null
+                                    stopScheduler()
+                                    listener?.onDisconnected()
+                                } else {
+                                    Log.d(TAG, "拒否済みデバイス切断通知を無視: ${dev.address}")
+                                }
                             }
                         }
                     }
@@ -548,6 +576,9 @@ class BluetoothHIDController(private val context: Context) {
                 bluetoothHidDevice?.unregisterApp()
             } catch (e: Exception) { Log.e(TAG, "disconnect error", e) }
             deviceConnected = false; connectedDevice = null; appRegistered = false
+            // ★ 修正3: プロキシキャッシュもリセットし、次回接続時に必ず再取得させる
+            //          これにより stale なプロキシ経由で registerApp() が失敗するのを防ぐ
+            serviceConnected = false; bluetoothHidDevice = null
             listener?.onDisconnected()
         }
     }
