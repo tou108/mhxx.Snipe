@@ -847,7 +847,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed !important; }
 <div class="main-tabs">
   <div class="main-tab active" data-tab="search" onclick="switchTab('search')">🔍 護石サーチ</div>
   <div class="main-tab" data-tab="controller" onclick="switchTab('controller')">🎮 コントローラー</div>
-  <div class="main-tab" data-tab="ocr" onclick="switchTab('ocr')">📸 OCR認識</div>
+
   <div class="main-tab" data-tab="bt" onclick="switchTab('bt')">📶 Switch接続</div>
 
 </div>
@@ -1146,7 +1146,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed !important; }
 
       <div style="font-size:10px;color:var(--text3);margin-bottom:10px;line-height:1.9;">
         ①護石を検索 → 結果行をクリックでタイマー自動セット<br>
-        ②「ソフトを選択して同時スタート」を押した瞬間に<br>
+        ②「ユーザーを選択して同時スタート」を押した瞬間に<br>
         　タイマー開始 + Aボタンでコンテニュー画面までスキップ<br>
         ③タイマーが0になった瞬間に「はい」を自動押下
       </div>
@@ -1186,7 +1186,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed !important; }
       <!-- 実行 / 停止ボタン -->
       <div style="display:flex;gap:7px;margin-top:10px;">
         <button id="snipeRunStartBtn" onclick="startSnipeRun()" class="snipe-exec-btn">
-          🎮 ソフトを選択して同時スタート
+          🎮 ユーザーを選択して同時スタート
         </button>
         <button id="snipeRunStopBtn" onclick="stopSnipeRun()"
           style="display:none;padding:10px 14px;background:rgba(220,53,69,0.15);border:1px solid var(--red);color:var(--red);border-radius:5px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);">
@@ -1516,56 +1516,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed !important; }
 </div><!-- /tab-controller -->
 
 <!-- =================== TAB: OCR =================== -->
-<div class="tab-page" id="tab-ocr" style="flex-direction:column;overflow:hidden;">
-  <div style="flex:1;overflow-y:auto;padding:0;">
-    <div class="sec-title"><span class="dot"></span>OCR 画像認識</div>
-    <div class="ctrl-section">
-      <div class="ctrl-section-title">画像を選択 / カメラ撮影</div>
-      <!-- ★ 入力方法選択ボタン群 -->
-      <div style="display:flex;gap:8px;margin-bottom:12px;">
-        <button onclick="openCameraModal()" class="search-btn"
-          style="flex:1;background:linear-gradient(135deg,rgba(32,201,151,0.1),rgba(32,201,151,0.2));border-color:rgba(32,201,151,0.4);color:var(--teal);font-size:13px;padding:12px 0;">
-          📷 カメラで撮影
-        </button>
-        <button onclick="document.getElementById('ocrImageInput').click()" class="search-btn"
-          style="flex:1;font-size:12px;padding:12px 0;">
-          🖼 ファイルから選択
-        </button>
-      </div>
-      <input type="file" id="ocrImageInput" accept="image/*" onchange="handleImageSelect(event)" style="display:none;">
-      <!-- ドロップゾーン（PCブラウザ向け） -->
-      <div id="ocrDropArea"
-           ondragover="event.preventDefault();this.style.borderColor='var(--steel)'"
-           ondragleave="this.style.borderColor='var(--border2)'"
-           ondrop="handleImageDrop(event)"
-           style="border:2px dashed var(--border2);border-radius:8px;padding:14px;text-align:center;background:var(--panel);transition:border-color 0.2s;">
-        <p style="font-size:11px;color:var(--text3);">📂 ここに画像をドロップ（PC）</p>
-      </div>
-      <div id="ocrPreviewContainer" style="display:none;margin-top:12px;">
-        <img id="ocrImagePreview" alt="preview" style="max-width:100%;border-radius:6px;margin-bottom:10px;border:1px solid var(--border);">
-        <button onclick="recognizeImage()" class="search-btn" style="margin-top:0;">🔍 OCR認識を実行</button>
-        <!-- ★ 自動護石サーチ オプション -->
-        <label style="display:flex;align-items:center;gap:7px;margin-top:10px;font-size:12px;color:var(--text2);cursor:pointer;padding:8px 10px;background:rgba(32,201,151,0.07);border:1px solid rgba(32,201,151,0.25);border-radius:5px;">
-          <input type="checkbox" id="ocrAutoApply" checked style="cursor:pointer;accent-color:var(--teal);width:15px;height:15px;">
-          <span>認識後に自動で護石サーチ</span>
-          <span class="ocr-auto-badge">AUTO</span>
-        </label>
-      </div>
-    </div>
-    <div id="ocrStatus" style="display:none;padding:10px 14px;border-radius:6px;margin:10px 14px;font-size:12px;"></div>
-    <div id="ocrResult" style="display:none;">
-      <div class="sec-title"><span class="dot"></span>認識結果</div>
-      <div class="ctrl-section">
-        <textarea id="ocrText" readonly style="width:100%;height:160px;background:var(--panel);border:1px solid var(--border2);color:var(--text);border-radius:4px;padding:8px;font-family:monospace;font-size:12px;resize:vertical;"></textarea>
-        <div style="display:flex;gap:8px;margin-top:8px;">
-          <button onclick="copyOCRResult()" class="search-btn" style="flex:1;">📋 テキストをコピー</button>
-          <button onclick="applyOcrToSearch()" class="search-btn" style="flex:1;background:linear-gradient(135deg,rgba(32,201,151,0.12),rgba(32,201,151,0.22));border-color:rgba(32,201,151,0.45);color:var(--teal);">🔍 護石サーチに適用</button>
-        </div>
-        <div id="ocrApplyStatus" style="display:none;margin-top:8px;font-size:11px;color:var(--teal);"></div>
-      </div>
-    </div>
-  </div>
-</div><!-- /tab-ocr -->
+
 
 <!-- =================== カメラ撮影モーダル =================== -->
 <div class="camera-modal" id="cameraModal">
@@ -4616,7 +4567,7 @@ let snipeRunActive = false;
 let snipeRunTimers = [];
 
 /**
- * 「ソフトを選択して同時スタート」ボタンの処理
+ * 「ユーザーを選択して同時スタート」ボタンの処理
  *  1. カウントダウンタイマーを即時スタート
  *  2. 設定した回数だけ A ボタンを連打 → コンテニュー画面まで進める
  *  3. タイマーが 0 になったら onSnipeTimerEnd() が呼ばれ「はい」を押す
