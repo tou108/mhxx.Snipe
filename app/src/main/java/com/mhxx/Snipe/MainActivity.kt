@@ -312,7 +312,7 @@ class MainActivity : AppCompatActivity() {
     // ============ Bluetooth / Arduino セットアップ ============
 
     private fun setupBluetoothListener() {
-        bluetoothHIDController.setListener(object : BluetoothHIDController.ControllerListener {
+        bluetoothHIDController.listener = object : BluetoothHIDController.ControllerListener {
             override fun onConnected(device: BluetoothDevice) {
                 sendToJS("bluetoothStatus", mapOf(
                     "status" to "connected",
@@ -335,7 +335,7 @@ class MainActivity : AppCompatActivity() {
             override fun onStateChanged(state: String) {
                 sendToJS("bluetoothState", mapOf("state" to state))
             }
-        })
+        }
     }
 
     private fun setupArduinoListener() {
