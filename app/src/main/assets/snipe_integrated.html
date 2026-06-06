@@ -1562,33 +1562,25 @@ button:disabled { opacity: 0.45; cursor: not-allowed !important; }
     </div>
 
     <div class="ctrl-section">
-      <div class="ctrl-section-title">接続設定</div>
-      <div style="margin-bottom:12px;">
-        <label class="form-label">Switch の Bluetooth MACアドレス</label>
-        <input type="text" id="btMacAddress" placeholder="例: AA:BB:CC:DD:EE:FF" style="width:100%;font-family:monospace;">
-        <div style="font-size:10px;color:var(--text3);margin-top:4px;line-height:1.6;">
-          ⚠ <b>WiFi MACではなくBluetooth MAC</b>を使用してください<br>
-          確認方法: Switch 設定 → インターネット → 本体情報 → Bluetooth MACアドレス
-        </div>
+      <div class="ctrl-section-title">ペアリング設定</div>
+      <!-- 手順ガイド -->
+      <div style="margin-bottom:12px;padding:10px 12px;background:rgba(0,170,255,0.06);border:1px solid rgba(0,170,255,0.25);border-radius:6px;font-size:11px;color:var(--text3);line-height:1.7;">
+        <strong style="color:var(--teal);font-size:11px;">📋 接続手順</strong><br>
+        1. 「ペアリング開始」をタップ<br>
+        2. Switch 本体 → コントローラーの持ちかた/順番を変える<br>
+        3. 「持ちかたを変える」→ 新しいコントローラーを追加<br>
+        4. コントローラーの「SYNC ボタン」を長押し<br>
+        5. Switch 側に <strong style="color:var(--text1);">Pro Controller</strong> が表示されたら選択
       </div>
-      <div style="display:flex;gap:8px;margin-bottom:6px;">
-        <button onclick="connectToSwitch()" class="search-btn" style="flex:1;">🔗 接続 (MAC指定)</button>
+      <!-- ペアリング待機状態 -->
+      <div id="btDiscoveryStatus" style="display:none;margin-bottom:12px;padding:10px 12px;background:rgba(255,170,0,0.08);border:1px solid rgba(255,170,0,0.3);border-radius:6px;font-size:12px;color:#ffaa00;text-align:center;font-weight:600;">
+        <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#ffaa00;margin-right:6px;vertical-align:middle;animation:pulse 1s infinite;"></span>
+        <span id="btDiscoveryText">Switch からの接続を待機中... (60秒)</span>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button onclick="startDiscovery()" id="btDiscoverBtn" class="search-btn" style="flex:1;">📡 ペアリング開始</button>
         <button onclick="disconnectFromSwitch()" id="btDisconnectBtn" disabled
                 style="flex:1;padding:10px;background:rgba(220,53,69,0.1);border:1px solid rgba(220,53,69,0.35);color:var(--red);border-radius:4px;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font);opacity:0.5;">切断</button>
-      </div>
-      <button onclick="autoDetectSwitch()" style="width:100%;padding:9px;background:rgba(0,180,150,0.12);border:1px solid rgba(0,180,150,0.4);color:#00c8a0;border-radius:4px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);">
-        🔍 自動検出でペアリング (MACアドレス不要・初めての方向け)
-      </button>
-      <div style="margin-top:10px;padding:8px 10px;background:var(--panel2);border-radius:4px;font-size:10px;color:var(--text3);line-height:1.8;">
-        <b style="color:var(--text2);">📋 初回接続手順 (どのSwitchでも同じ)</b><br>
-        ① 「自動検出」ボタンをタップ → Android が「検索可能」になります<br>
-        ② Switch: ホーム → 設定 → コントローラーとセンサー<br>
-        ③ 「コントローラーの持ち方/順番を変える」→「さがす」<br>
-        ④ ペアリング確認ダイアログで「ペアリング」をタップ<br>
-        ⑤ ✅ 完了! MACアドレスが自動入力されます<br>
-        <br>
-        <b style="color:var(--text2);">🔁 2回目以降</b>: MACアドレスを入力して「接続」<br>
-        <b style="color:var(--text2);">⚠ 繋がらない場合</b>: Switch 設定 → コントローラー情報を削除 → 再度「自動検出」
       </div>
     </div>
 
@@ -4303,28 +4295,75 @@ function _showOcrStatus(type, message) {
 }
 
 // =====================================================================
-// Bluetooth / Switch 接続 (snipe_integrated より統合)
+// Bluetooth / Switch 接続 (JoyConDroid 方式: Switch が Android を発見してペアリング)
 // =====================================================================
-function connectToSwitch() {
-  const mac = document.getElementById('btMacAddress').value.trim();
-  if (!mac) { showToast('⚠ MACアドレスを入力するか「自動検出」を使ってください'); return; }
-  showToast('📶 接続中...');
-  if (window.Android && Android.connectBluetoothSwitch) {
-    Android.connectBluetoothSwitch(mac);
+
+/** ペアリング待機カウントダウンタイマー */
+var _btDiscoveryTimer = null;
+
+/**
+ * ペアリング待機を開始する
+ * Android 側: BT名を "Pro Controller" に変更 → discoverable 化 → Switch から接続を待つ
+ */
+function startDiscovery() {
+  showToast('📡 ペアリング待機を開始します...');
+  if (window.Android && Android.startBluetoothDiscovery) {
+    Android.startBluetoothDiscovery();
+  } else {
+    showToast('⚠ Androidブリッジ未接続');
+    return;
   }
+  // カウントダウン表示 (60秒)
+  _startDiscoveryCountdown(60);
 }
 
-function autoDetectSwitch() {
-  showToast('🔍 Switch自動検出中...\nSwitch のペアリング画面で「さがす」を押してください');
-  if (window.Android && Android.connectBluetoothSwitch) {
-    Android.connectBluetoothSwitch('');  // 空文字 = 自動検出モード
-  }
+function _startDiscoveryCountdown(seconds) {
+  clearInterval(_btDiscoveryTimer);
+  var remaining = seconds;
+  const discBtn = document.getElementById('btDiscoverBtn');
+  const discStatus = document.getElementById('btDiscoveryStatus');
+  const discText = document.getElementById('btDiscoveryText');
+  if (discStatus) discStatus.style.display = 'block';
+  if (discBtn) { discBtn.disabled = true; discBtn.style.opacity = '0.5'; }
+  _btDiscoveryTimer = setInterval(function() {
+    remaining--;
+    if (discText) discText.textContent = 'Switch からの接続を待機中... (' + remaining + '秒)';
+    if (remaining <= 0) {
+      _stopDiscoveryUI();
+      if (window.Android && Android.stopBluetoothDiscovery) {
+        Android.stopBluetoothDiscovery();
+      }
+    }
+  }, 1000);
+}
+
+function _stopDiscoveryUI() {
+  clearInterval(_btDiscoveryTimer);
+  _btDiscoveryTimer = null;
+  const discBtn = document.getElementById('btDiscoverBtn');
+  const discStatus = document.getElementById('btDiscoveryStatus');
+  if (discStatus) discStatus.style.display = 'none';
+  if (discBtn) { discBtn.disabled = false; discBtn.style.opacity = '1'; }
 }
 
 function disconnectFromSwitch() {
+  _stopDiscoveryUI();
   if (window.Android && Android.disconnectBluetoothSwitch) {
     Android.disconnectBluetoothSwitch();
   }
+}
+
+/** Android から discoverable 状態の通知を受け取る */
+function bluetoothDiscovery(jsonStr) {
+  try {
+    var data = JSON.parse(jsonStr);
+    if (data.status === 'active') {
+      // Android が正式に discoverable になった
+      if (data.duration > 0) { _startDiscoveryCountdown(data.duration); }
+    } else if (data.status === 'stopped' || data.status === 'cancelled') {
+      _stopDiscoveryUI();
+    }
+  } catch(e) {}
 }
 
 function sendControllerInput() {
@@ -4349,48 +4388,21 @@ function bluetoothStatus(jsonStr) {
 function _updateBtStatus(data) {
   const statusDiv = document.getElementById('btStatus');
   const disconnectBtn = document.getElementById('btDisconnectBtn');
+  const discoverBtn = document.getElementById('btDiscoverBtn');
   if (!statusDiv) return;
   if (data.status === 'connected') {
+    // 接続確立: ペアリング待機UIを閉じる
+    _stopDiscoveryUI();
     statusDiv.style.cssText = 'padding:12px 14px;border-radius:6px;background:rgba(40,167,69,0.1);border:1px solid rgba(40,167,69,0.3);color:#28a745;text-align:center;font-size:12px;font-weight:600;';
-    statusDiv.innerHTML = '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#28a745;margin-right:6px;vertical-align:middle;"></span>接続中: ' + (data.device || '');
+    statusDiv.innerHTML = '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#28a745;margin-right:6px;vertical-align:middle;"></span>接続中: ' + (data.name || data.device || 'Nintendo Switch');
     if (disconnectBtn) { disconnectBtn.disabled = false; disconnectBtn.style.opacity = '1'; }
+    if (discoverBtn)   { discoverBtn.disabled = true;  discoverBtn.style.opacity = '0.5'; }
   } else {
     statusDiv.style.cssText = 'padding:12px 14px;border-radius:6px;background:rgba(220,53,69,0.08);border:1px solid rgba(220,53,69,0.3);color:#dc3545;text-align:center;font-size:12px;font-weight:600;';
     statusDiv.innerHTML = '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#dc3545;margin-right:6px;vertical-align:middle;"></span>切断';
-    if (disconnectBtn) { disconnectBtn.disabled = true; disconnectBtn.style.opacity = '0.5'; }
+    if (disconnectBtn) { disconnectBtn.disabled = true;  disconnectBtn.style.opacity = '0.5'; }
+    if (discoverBtn)   { discoverBtn.disabled = false; discoverBtn.style.opacity = '1'; }
   }
-}
-
-// ★ 修正追加: Kotlin の sendToJS("bluetoothState", ...) に対応するコールバック
-// onStateChanged → 接続中・ペアリング中などの中間状態をステータス欄に表示する
-function bluetoothState(jsonStr) {
-  try {
-    const data = JSON.parse(jsonStr);
-    const statusDiv = document.getElementById('btStatus');
-    if (!statusDiv || !data.state) return;
-    statusDiv.style.cssText = 'padding:12px 14px;border-radius:6px;background:rgba(74,127,170,0.1);border:1px solid rgba(74,127,170,0.4);color:#7a9ab8;text-align:center;font-size:12px;font-weight:600;white-space:pre-wrap;';
-    statusDiv.innerHTML =
-      '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#7a9ab8;margin-right:6px;vertical-align:middle;"></span>'
-      + data.state.replace(/\n/g, '<br>');
-  } catch (e) {}
-}
-
-// ★ 修正追加: Kotlin の sendToJS("bluetoothError", ...) に対応するコールバック
-// onError → エラー内容をステータス欄に赤表示 + トーストで通知する
-function bluetoothError(jsonStr) {
-  try {
-    const data = JSON.parse(jsonStr);
-    const msg = data.message || '不明なエラー';
-    showToast('❌ ' + msg);
-    const statusDiv = document.getElementById('btStatus');
-    if (!statusDiv) return;
-    statusDiv.style.cssText = 'padding:12px 14px;border-radius:6px;background:rgba(220,53,69,0.12);border:1px solid rgba(220,53,69,0.5);color:#dc3545;text-align:center;font-size:12px;font-weight:600;white-space:pre-wrap;';
-    statusDiv.innerHTML =
-      '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#dc3545;margin-right:6px;vertical-align:middle;"></span>エラー: '
-      + msg.replace(/\n/g, '<br>');
-    const disconnectBtn = document.getElementById('btDisconnectBtn');
-    if (disconnectBtn) { disconnectBtn.disabled = true; disconnectBtn.style.opacity = '0.5'; }
-  } catch (e) {}
 }
 
 // =====================================================================
