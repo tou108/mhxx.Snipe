@@ -311,32 +311,47 @@ class BluetoothHIDController(private val context: Context) {
                             BluetoothProfile.STATE_CONNECTING  -> listener?.onStateChanged("接続中...")
                             BluetoothProfile.STATE_DISCONNECTING -> listener?.onStateChanged("切断中...")
                             BluetoothProfile.STATE_DISCONNECTED -> {
-                                if (connectedDevice?.address.equals(dev.address, ignoreCase = true)) {
-                                    // 正規デバイスが切断された
-                                    deviceConnected = false; connectedDevice = null
-                                    stopScheduler()
-                                    listener?.onDisconnected()
-                                } else if (!deviceConnected) {
-                                    // ★ 修正: 拒否した不要デバイスが切断完了 → targetDevice へ再接続リトライ
-                                    // ただし isConnectingToTarget=true の場合はすでに接続試行中なのでスキップ
-                                    val target = targetDevice
-                                    if (target != null && !isConnectingToTarget) {
-                                        // BOND_BONDED のみリトライ (未ペアリングは Switch 側の操作待ち)
-                                        if (target.bondState == BluetoothDevice.BOND_BONDED) {
-                                            isConnectingToTarget = true
-                                            Log.d(TAG, "不要デバイス切断完了 → ${target.address} に再接続リトライ")
-                                            listener?.onStateChanged("${target.address} に再接続中...")
-                                            try { hid.connect(target) } catch (e: Exception) {
-                                                isConnectingToTarget = false
-                                                Log.e(TAG, "再接続リトライエラー: ${e.message}", e)
-                                            }
-                                        } else {
-                                            // 未ペアリング Switch は switch 側の「さがす」操作待ち
-                                            Log.d(TAG, "不要デバイス切断完了 → ${target.address} は未ペアリング, Switch 側操作待ち")
-                                        }
+                                val target = targetDevice
+                                val isTargetDev = target != null &&
+                                    dev.address.equals(target.address, ignoreCase = true)
+                                when {
+                                    // Case 1: 正規接続済みデバイスが切断された
+                                    connectedDevice?.address.equals(dev.address, ignoreCase = true) -> {
+                                        deviceConnected = false; connectedDevice = null
+                                        isConnectingToTarget = false
+                                        stopScheduler()
+                                        listener?.onDisconnected()
                                     }
+                                    // Case 2: ★ targetDevice への接続試行自体が失敗した
+                                    //   (STATE_CONNECTING → DISCONNECTED: switchA の割り込み等で接続が潰された)
+                                    //   → isConnectingToTarget をリセットして、不要デバイス切断後のリトライを可能にする
+                                    !deviceConnected && isTargetDev -> {
+                                        isConnectingToTarget = false
+                                        Log.w(TAG, "targetDevice ${dev.address} の接続試行が失敗 → フラグリセット")
+                                        // ★ 注: ここでは再接続しない。
+                                        //   switchA の STATE_DISCONNECTED が後で来たとき Case 3 がリトライする。
+                                        //   switchA が既に切断済みの場合は UI 表示のみ (ユーザーに Switch 操作を促す)
+                                        listener?.onStateChanged("接続試行失敗 (${dev.address}) — 再試行中...")
+                                    }
+                                    // Case 3: 不要デバイス (switchA 等) が切断完了 → targetDevice に再接続リトライ
+                                    !deviceConnected -> {
+                                        if (target != null && !isConnectingToTarget) {
+                                            if (target.bondState == BluetoothDevice.BOND_BONDED) {
+                                                isConnectingToTarget = true
+                                                Log.d(TAG, "不要デバイス切断完了 → ${target.address} に再接続リトライ")
+                                                listener?.onStateChanged("${target.address} に再接続中...")
+                                                try { hid.connect(target) } catch (e: Exception) {
+                                                    isConnectingToTarget = false
+                                                    Log.e(TAG, "再接続リトライエラー: ${e.message}", e)
+                                                }
+                                            } else {
+                                                Log.d(TAG, "不要デバイス切断完了 → ${target.address} は未ペアリング, Switch 側操作待ち")
+                                            }
+                                        }
+                                        // isConnectingToTarget=true → target 接続試行中 → スキップ
+                                    }
+                                    // else: 接続済み状態で無関係デバイスの切断通知 → 無視
                                 }
-                                // else: 接続済み状態で別デバイスの切断通知 → 無視
                             }
                         }
                     }
