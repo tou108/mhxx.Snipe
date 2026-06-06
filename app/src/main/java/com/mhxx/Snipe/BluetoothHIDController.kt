@@ -121,6 +121,22 @@ class BluetoothHIDController(private val context: Context) {
         fun onStateChanged(state: String)
         /** 未ペアリングの Switch への初回接続時に呼ばれる (UI でガイドを表示するために使用) */
         fun onBondingStarted(device: BluetoothDevice) {}
+        /**
+         * ★ 追加: Android を Discoverable (スキャン検索可能) にするよう MainActivity に依頼する
+         *
+         * Switch の「さがす」機能はBluetooth スキャンを行うため、
+         * Android 側が SCAN_MODE_CONNECTABLE_DISCOVERABLE でなければ Switch に見つけてもらえない。
+         * このコールバックを受けた MainActivity は ACTION_REQUEST_DISCOVERABLE を発行する。
+         *
+         * 呼ばれるタイミング:
+         *   - onAppStatusChanged で targetDevice == null (自動検出モード) のとき
+         *   - onAppStatusChanged で targetDevice が未ペアリング (BOND_NONE) のとき
+         */
+        fun onDiscoveryNeeded() {}
+        /**
+         * ★ 追加: 接続完了 → Discoverable 状態を解除してよい
+         */
+        fun onDiscoveryStopped() {}
     }
 
     init {
@@ -271,7 +287,8 @@ class BluetoothHIDController(private val context: Context) {
                         if (registered) {
                             val dev = targetDevice
                             if (dev == null) {
-                                // ★ 自動検出モード: ペアリングを待つだけ
+                                // ★ 自動検出モード: Android を Discoverable にして Switch の「さがす」に備える
+                                listener?.onDiscoveryNeeded()
                                 listener?.onStateChanged(
                                     "🔍 自動検出モード: Switch のペアリング画面で\n" +
                                     "「さがす」を押してください\nペアリング完了後に自動接続されます"
@@ -302,14 +319,22 @@ class BluetoothHIDController(private val context: Context) {
                                     }
                                 }
                             } else {
-                                // 未ペアリング → Switch からの接続要求 or ペアリングを待つ
-                                // (BOND_NONE では connect() を呼んでも効果がないので呼ばない)
+                                // 未ペアリング → ★ Android を Discoverable にして Switch の「さがす」に備える
+                                listener?.onDiscoveryNeeded()
                                 listener?.onStateChanged("Switch のペアリング画面で「さがす」を押してください\nペアリング完了後に自動接続されます")
                             }
                         }
                     }
 
                     override fun onConnectionStateChanged(dev: BluetoothDevice, state: Int) {
+                        // ★ JoyConDroid 準拠: "Nintendo Switch" という名前のデバイス以外は無視する
+                        // これにより他の Bluetooth デバイスが誤接続しても処理しない
+                        val devName = try { dev.name } catch (_: Exception) { null }
+                        if (devName != null && !devName.equals("Nintendo Switch", ignoreCase = true)) {
+                            Log.d(TAG, "非Switchデバイス ($devName) の接続イベント → スキップ")
+                            return
+                        }
+
                         when (state) {
                             BluetoothProfile.STATE_CONNECTED -> {
                                 // ★ 修正: ペアリング済みの別Switchが自動再接続してきた場合はブロックする
@@ -329,6 +354,7 @@ class BluetoothHIDController(private val context: Context) {
                                 deviceConnected = true; connectedDevice = dev
                                 isConnectingToTarget = false   // ★ 接続成功 → フラグ解除
                                 cancelHidConnectTimeout()      // ★ 追加: タイムアウトキャンセル
+                                listener?.onDiscoveryStopped() // ★ 追加: Discoverable 解除
                                 listener?.onConnected(dev)
                                 // 接続直後: Simple HID ハンドシェイク開始
                                 startHandshake()
@@ -371,6 +397,8 @@ class BluetoothHIDController(private val context: Context) {
                                                     Log.e(TAG, "再接続リトライエラー: ${e.message}", e)
                                                 }
                                             } else {
+                                                // 未ペアリング: Discoverable 継続
+                                                listener?.onDiscoveryNeeded()
                                                 Log.d(TAG, "不要デバイス切断完了 → ${target.address} は未ペアリング, Switch 側操作待ち")
                                             }
                                         }

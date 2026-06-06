@@ -20,6 +20,7 @@ import android.util.Log
 import android.util.Rational
 import android.webkit.*
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -49,6 +50,46 @@ class MainActivity : AppCompatActivity() {
     private val FILE_CHOOSER_RC = 1001
     private val PROGRAM_IMPORT_RC = 1002
     private val PERMISSION_REQUEST_CODE = 2001
+
+    /**
+     * ★ 追加: ACTION_REQUEST_DISCOVERABLE の結果受け取り
+     *
+     * JoyConDroid 準拠: 未ペアリングの Switch への初回接続時、
+     * Android 側を Discoverable (スキャン検索可能) にして
+     * Switch の「さがす」からAndroid デバイスを発見させる。
+     *
+     * resultCode = RESULT_CANCELED (ユーザーが拒否 or タイムアウト) の場合は
+     * ガイドメッセージを表示するのみで接続フローは維持する。
+     */
+    private val requestDiscoverableResult = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode > 0) {
+            Log.d("MainActivity", "Discoverable: ${result.resultCode}秒間有効")
+        } else {
+            Log.d("MainActivity", "Discoverable 拒否またはタイムアウト (resultCode=${result.resultCode})")
+            runOnUiThread {
+                Toast.makeText(
+                    this,
+                    "⚠ Discoverable を許可すると Switch から見つけやすくなります",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+    }
+
+    /** Android を Discoverable にする (Switch の「さがす」に対応するため) */
+    private fun requestDiscoverable(durationSec: Int = 60) {
+        try {
+            val intent = Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE).apply {
+                putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, durationSec)
+            }
+            requestDiscoverableResult.launch(intent)
+            Log.d("MainActivity", "Discoverable リクエスト: ${durationSec}秒")
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Discoverable リクエスト失敗: ${e.message}", e)
+        }
+    }
 
     private val REQUIRED_PERMISSIONS = mutableListOf(
         Manifest.permission.BLUETOOTH_CONNECT,
@@ -86,6 +127,13 @@ class MainActivity : AppCompatActivity() {
                 }
                 BluetoothDevice.BOND_BONDED -> {
                     val mac = device.address
+                    // ★ JoyConDroid 準拠: "Nintendo Switch" という名前のデバイスのみ処理する
+                    //   他の Bluetooth デバイスのペアリング完了で誤動作しないようにする
+                    val devName = try { device.name } catch (_: Exception) { null }
+                    if (devName != null && !devName.equals("Nintendo Switch", ignoreCase = true)) {
+                        Log.d("BondReceiver", "非Switchデバイス ($devName) のペアリング完了 → スキップ")
+                        return
+                    }
                     // HID 接続を完成させる (targetDevice が null でも対応)
                     bluetoothHIDController.onBondCompleted(device)
                     runOnUiThread {
@@ -422,6 +470,28 @@ class MainActivity : AppCompatActivity() {
                         Toast.LENGTH_LONG
                     ).show()
                 }
+            }
+
+            /**
+             * ★ 追加: Android を Discoverable にするよう要求
+             *
+             * BluetoothHIDController が「未ペアリングSwitchのペアリングが必要」と
+             * 判断したときに呼ばれる。JoyConDroid の startHidDeviceDiscovery() に相当。
+             * ACTION_REQUEST_DISCOVERABLE で 60 秒間 Discoverable にする。
+             */
+            override fun onDiscoveryNeeded() {
+                runOnUiThread {
+                    requestDiscoverable(60)
+                }
+            }
+
+            /**
+             * ★ 追加: Switch への接続完了 → Discoverable 継続不要
+             */
+            override fun onDiscoveryStopped() {
+                // Discoverable は自動的に期限切れになるため、明示的な停止は不要
+                // 必要なら requestDiscoverable(1) で即時終了させることも可能
+                Log.d("MainActivity", "接続完了 → Discoverable 解除不要 (自動期限切れ待ち)")
             }
         }
     }
