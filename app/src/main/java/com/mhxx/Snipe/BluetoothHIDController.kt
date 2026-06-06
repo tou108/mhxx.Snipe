@@ -210,14 +210,20 @@ class BluetoothHIDController(private val context: Context) {
             if (appRegistered) {
                 val prev = connectedDevice
                 if (prev != null && prev.address != device.address) {
-                    Log.d(TAG, "別デバイスへ切替: ${prev.address} → ${device.address}, 旧接続を切断してから接続")
+                    // ① 別Switchへ切替: 旧接続を切断 → 切断完了後に doFullReset (STATE_DISCONNECTED で実行)
+                    Log.d(TAG, "別デバイスへ切替: ${prev.address} → ${device.address}")
                     pendingReconnectDevice = device
                     try { hid.disconnect(prev) } catch (e: Exception) {
                         Log.w(TAG, "旧デバイス切断エラー: ${e.message}")
                         pendingReconnectDevice = null
-                        doConnect(hid, device)
+                        doFullReset(hid, device)   // 切断失敗時もフルリセット
                     }
+                } else if (prev == null) {
+                    // ② appRegistered=true だが未接続 → 旧SwitchのHID自動再接続を防ぐため完全リセット
+                    Log.d(TAG, "新規接続 (appRegistered=true/未接続) → doFullReset: ${device.address}")
+                    doFullReset(hid, device)
                 } else {
+                    // ③ 同一デバイスへの再接続
                     doConnect(hid, device)
                 }
                 return@getHidProxy
@@ -293,8 +299,8 @@ class BluetoothHIDController(private val context: Context) {
                                     val pending = pendingReconnectDevice
                                     if (pending != null) {
                                         pendingReconnectDevice = null
-                                        Log.d(TAG, "旧接続切断完了 → 新デバイスへ接続: ${pending.address}")
-                                        doConnect(hid, pending)
+                                        Log.d(TAG, "旧接続切断完了 → フルリセットして新デバイスへ接続: ${pending.address}")
+                                        doFullReset(hid, pending)   // doConnect→doFullReset に変更
                                     } else {
                                         listener?.onDisconnected()
                                     }
@@ -504,6 +510,52 @@ class BluetoothHIDController(private val context: Context) {
     // ============================================================
     // レポート送信 (Android → Switch)
     // ============================================================
+
+    /**
+     * HIDアプリ登録を完全にリセットしてから新しいSwitchへ接続する。
+     *
+     * 【用途】
+     *   - 別のSwitchへ切り替える際、旧SwitchのHID自動再接続を遮断する
+     *   - appRegistered=true の状態から新規ペアリングするためのクリーンスタート
+     *
+     * 【処理フロー】
+     *   1. 全HID接続を切断 (connectedDevices)
+     *   2. unregisterApp() でHIDプロファイルを解放 → BTスタックから旧Switch情報を消去
+     *   3. 300ms 待機 (BTスタック安定化)
+     *   4. connectToDevice() を再呼び出し → 新規 registerApp フローへ
+     *
+     * 【なぜ doConnect ではなくこれが必要か】
+     *   appRegistered=true のまま別のSwitchに doConnect() すると、
+     *   旧Switch (ペアリング済み) がHIDプロファイルへ自動再接続を試み続け、
+     *   新Switchへの接続を妨害する。unregisterApp() によりこの競合を排除できる。
+     */
+    private fun doFullReset(hid: BluetoothHidDevice, device: BluetoothDevice) {
+        Log.d(TAG, "doFullReset 開始 → ${device.address}")
+        listener?.onStateChanged("接続リセット中 (旧Switch切断)...")
+
+        // 全既存接続を切断
+        try {
+            hid.connectedDevices?.forEach { d ->
+                Log.d(TAG, "  doFullReset: 既存接続を切断: ${d.address}")
+                try { hid.disconnect(d) } catch (_: Exception) {}
+            }
+        } catch (_: Exception) {}
+
+        // HIDアプリ登録解除 (旧SwitchがHIDプロファイルへ自動接続するのを防ぐ)
+        try { hid.unregisterApp() } catch (_: Exception) {}
+        appRegistered = false
+        deviceConnected = false
+        connectedDevice = null
+
+        // BTスタック安定化を待ってから再登録・接続
+        hidExecutor.execute {
+            try { Thread.sleep(300) } catch (_: InterruptedException) {}
+            if (targetDevice?.address == device.address) {
+                Log.d(TAG, "doFullReset 完了 → connectToDevice 再呼び出し: ${device.address}")
+                connectToDevice(device)
+            }
+        }
+    }
 
     private fun doConnect(hid: BluetoothHidDevice, device: BluetoothDevice) {
         if (device.bondState == BluetoothDevice.BOND_BONDED) {
