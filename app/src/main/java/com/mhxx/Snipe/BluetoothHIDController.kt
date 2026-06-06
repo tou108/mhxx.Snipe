@@ -108,6 +108,9 @@ class BluetoothHIDController(private val context: Context) {
     // ----- 定期レポートスケジューラー -----
     @Volatile private var reportScheduler: ScheduledExecutorService? = null
 
+    // ----- HID接続タイムアウト (HIDプロファイルなしペアリング検知用) -----
+    @Volatile private var hidConnectTimeout: ScheduledExecutorService? = null
+
     // ============================================================
     // インターフェース
     // ============================================================
@@ -166,6 +169,21 @@ class BluetoothHIDController(private val context: Context) {
 
         val isBonded = device.bondState == BluetoothDevice.BOND_BONDED
         if (isBonded) {
+            // ★ 追加: ペアリング済みでも HID プロファイル UUID がキャッシュにない場合は
+            //   「HIDなし」でペアリングされている → BTアイコンのみで D-pad が出ない根本原因
+            //   (Androidの標準BT設定などでペアリングすると HID UUID なしで登録される)
+            if (!hasHidProfileUuid(device)) {
+                Log.w(TAG, "★ ${mac}: BOND_BONDED だが HID UUID キャッシュなし → HIDなしペアリング検出")
+                val removed = removeBond(device)
+                listener?.onStateChanged(
+                    "⚠ このSwitchはHIDプロファイルなしでペアリング済みです\n" +
+                    (if (removed) "Androidのペアリングを自動削除しました ✓\n" else "Android設定からこのデバイスのペアリングを手動削除してください\n") +
+                    "次に Switch 本体: 設定 → コントローラーとセンサー\n" +
+                    "→「コントローラーの持ち方/順番を変える」→「コントローラー情報を削除」\n" +
+                    "削除後、再度「接続」ボタンを押してください"
+                )
+                return
+            }
             listener?.onStateChanged("接続準備中...")
         } else {
             // 初回接続: Switch 側でのペアリング操作が必要
@@ -275,6 +293,12 @@ class BluetoothHIDController(private val context: Context) {
                                             "Switch 側で このコントローラーを削除し、\n" +
                                             "「さがす」から再ペアリングしてください"
                                         )
+                                    } else {
+                                        // ★ 追加: HIDプロファイル接続タイムアウト開始
+                                        // connect()=true でも STATE_CONNECTED が来ない場合 =
+                                        //   BTクラシック接続OK だが HID プロファイル層が確立しない
+                                        //   (= 「BTアイコンのみ、D-padアイコンなし」の状態)
+                                        scheduleHidConnectTimeout(dev)
                                     }
                                 }
                             } else {
@@ -304,6 +328,7 @@ class BluetoothHIDController(private val context: Context) {
                                 }
                                 deviceConnected = true; connectedDevice = dev
                                 isConnectingToTarget = false   // ★ 接続成功 → フラグ解除
+                                cancelHidConnectTimeout()      // ★ 追加: タイムアウトキャンセル
                                 listener?.onConnected(dev)
                                 // 接続直後: Simple HID ハンドシェイク開始
                                 startHandshake()
@@ -319,6 +344,7 @@ class BluetoothHIDController(private val context: Context) {
                                     connectedDevice?.address.equals(dev.address, ignoreCase = true) -> {
                                         deviceConnected = false; connectedDevice = null
                                         isConnectingToTarget = false
+                                        cancelHidConnectTimeout()  // ★ 追加
                                         stopScheduler()
                                         listener?.onDisconnected()
                                     }
@@ -685,6 +711,88 @@ class BluetoothHIDController(private val context: Context) {
     // ============================================================
     // ユーティリティ
     // ============================================================
+
+    /**
+     * ★ 追加: ペアリング済みデバイスの UUID キャッシュに HID プロファイルが含まれるか確認
+     *
+     * Nintendo Switch が Bluetooth 標準設定でペアリングされた場合、HID UUID は含まれない。
+     * HID UUID なし = 「BTアイコンのみ、D-padアイコンが出ない」問題の根本原因。
+     *
+     * HID Host UUID: 00001124-0000-1000-8000-00805f9b34fb
+     * UUID が空/null → SDP 未取得のため「不明」として true を返す（試みを阻害しない）
+     */
+    private fun hasHidProfileUuid(device: BluetoothDevice): Boolean {
+        return try {
+            val uuids = device.uuids
+            if (uuids.isNullOrEmpty()) {
+                // UUID キャッシュが空 = SDP 未発見 or Android が情報を持っていない
+                // → ブロックせず接続を試みる（タイムアウトで後続判定する）
+                Log.d(TAG, "${device.address}: UUID キャッシュ空 → HID判定スキップ")
+                return true
+            }
+            val hidUuid = java.util.UUID.fromString("00001124-0000-1000-8000-00805f9b34fb")
+            val found = uuids.any { it.uuid == hidUuid }
+            Log.d(TAG, "${device.address}: HID UUID ${if (found) "あり ✓" else "なし ✗"} (cached UUIDs: ${uuids.size}件)")
+            found
+        } catch (e: Exception) {
+            Log.w(TAG, "UUID確認エラー: ${e.message}")
+            true  // エラー時はブロックしない
+        }
+    }
+
+    /**
+     * ★ 追加: ボンド削除 (リフレクション経由)
+     *
+     * HID なしでペアリングされた Switch を再ペアリングするために使用。
+     * 標準 API にないため getMethod("removeBond") を使用。
+     */
+    private fun removeBond(device: BluetoothDevice): Boolean {
+        return try {
+            val method = device.javaClass.getMethod("removeBond")
+            val result = method.invoke(device) as? Boolean ?: false
+            Log.d(TAG, "${device.address}: removeBond → $result")
+            result
+        } catch (e: Exception) {
+            Log.e(TAG, "removeBond 失敗 (手動で削除してください): ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * ★ 追加: HIDプロファイル接続タイムアウトをスケジュール
+     *
+     * hid.connect() が true を返しても STATE_CONNECTED が来ない場合 =
+     *   ・Bluetooth クラシック接続は成立 (BTアイコン表示)
+     *   ・だが HID プロファイル層は拒否された (D-padアイコンが出ない)
+     * これは Switch 側のペアリングレコードに HID 情報がないことを示す。
+     */
+    private fun scheduleHidConnectTimeout(dev: BluetoothDevice) {
+        cancelHidConnectTimeout()
+        val sched = Executors.newSingleThreadScheduledExecutor { r ->
+            Thread(r, "BT-HidConnectTimeout").also { it.isDaemon = true }
+        }
+        hidConnectTimeout = sched
+        sched.schedule({
+            if (isConnectingToTarget && !deviceConnected) {
+                isConnectingToTarget = false
+                Log.w(TAG, "★ HIDプロファイル接続タイムアウト: ${dev.address}")
+                val removed = removeBond(dev)
+                listener?.onStateChanged(
+                    "⚠ HIDプロファイル接続タイムアウト (${dev.address})\n" +
+                    "BTクラシック接続は成立しましたが HID プロファイルを拒否されました\n" +
+                    (if (removed) "Androidのペアリングを自動削除しました ✓\n" else "") +
+                    "Switch本体: 設定 → コントローラーとセンサー\n" +
+                    "→「コントローラーの持ち方/順番を変える」→「コントローラー情報を削除」\n" +
+                    "削除後、再度「接続」ボタンを押してください"
+                )
+            }
+        }, 10L, TimeUnit.SECONDS)
+    }
+
+    private fun cancelHidConnectTimeout() {
+        hidConnectTimeout?.shutdown()
+        hidConnectTimeout = null
+    }
 
     /**
      * 12bit スティックの中立値 (0x800 = 2048) をバイト配列に書き込む
