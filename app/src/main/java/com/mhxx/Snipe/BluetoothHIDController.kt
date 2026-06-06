@@ -87,6 +87,15 @@ class BluetoothHIDController(private val context: Context) {
     @Volatile private var isFullReportMode = false
 
     /**
+     * true の間は hid.connect(targetDevice) の重複呼び出しを防ぐ。
+     *
+     * 問題: onAppStatusChanged(registered=true) で connect() を呼んだ直後に
+     * 旧 Switch (BOND_BONDED) が自動再接続 → disconnect → STATE_DISCONNECTED で
+     * もう一度 connect() が呼ばれ、STATE_CONNECTING 中の二重呼び出しで接続失敗する。
+     */
+    @Volatile private var isConnectingToTarget = false
+
+    /**
      * 現在のボタン/スティック状態 (9バイト)
      *   [0] 右ボタン byte: Y=0x01, X=0x02, B=0x04, A=0x08, R=0x40, ZR=0x80
      *   [1] 中ボタン byte: MINUS=0x01, PLUS=0x02, R_STICK=0x04, L_STICK=0x08, HOME=0x10, CAPTURE=0x20
@@ -202,6 +211,7 @@ class BluetoothHIDController(private val context: Context) {
                     appRegistered = false
                     deviceConnected = false
                     connectedDevice = null
+                    isConnectingToTarget = false   // ★ 切り替え時にフラグをリセット
                     stopScheduler()
                     isFullReportMode = false
                     // unregisterApp は非同期処理のため少し待機してから再登録
@@ -250,19 +260,26 @@ class BluetoothHIDController(private val context: Context) {
                                 )
                             } else if (dev.bondState == BluetoothDevice.BOND_BONDED) {
                                 // ペアリング済み → こちらからプッシュ接続
-                                val ok = try { hid.connect(dev) }
-                                         catch (e: Exception) { listener?.onError("接続開始エラー: ${e.message}"); false }
-                                if (!ok) {
-                                    // connect() が false を返した場合: Switch 側で一度ペアリング削除 → 再ペアリングが必要
-                                    listener?.onStateChanged(
-                                        "⚠ 接続失敗 (connect=false)\n" +
-                                        "Switch 側で このコントローラーを削除し、\n" +
-                                        "「さがす」から再ペアリングしてください"
-                                    )
+                                // ★ 修正: isConnectingToTarget フラグで二重 connect() を防ぐ
+                                //   (直後に旧 Switch が自動再接続→切断→STATE_DISCONNECTED でも
+                                //    再度 connect() を呼ばないようにする)
+                                if (!isConnectingToTarget) {
+                                    isConnectingToTarget = true
+                                    val ok = try { hid.connect(dev) }
+                                             catch (e: Exception) { listener?.onError("接続開始エラー: ${e.message}"); false }
+                                    if (!ok) {
+                                        isConnectingToTarget = false
+                                        // connect() が false を返した場合: Switch 側で一度ペアリング削除 → 再ペアリングが必要
+                                        listener?.onStateChanged(
+                                            "⚠ 接続失敗 (connect=false)\n" +
+                                            "Switch 側で このコントローラーを削除し、\n" +
+                                            "「さがす」から再ペアリングしてください"
+                                        )
+                                    }
                                 }
                             } else {
                                 // 未ペアリング → Switch からの接続要求 or ペアリングを待つ
-                                try { hid.connect(dev) } catch (_: Exception) {}
+                                // (BOND_NONE では connect() を呼んでも効果がないので呼ばない)
                                 listener?.onStateChanged("Switch のペアリング画面で「さがす」を押してください\nペアリング完了後に自動接続されます")
                             }
                         }
@@ -286,6 +303,7 @@ class BluetoothHIDController(private val context: Context) {
                                     return  // ← 接続完了として扱わない
                                 }
                                 deviceConnected = true; connectedDevice = dev
+                                isConnectingToTarget = false   // ★ 接続成功 → フラグ解除
                                 listener?.onConnected(dev)
                                 // 接続直後: Simple HID ハンドシェイク開始
                                 startHandshake()
@@ -300,12 +318,21 @@ class BluetoothHIDController(private val context: Context) {
                                     listener?.onDisconnected()
                                 } else if (!deviceConnected) {
                                     // ★ 修正: 拒否した不要デバイスが切断完了 → targetDevice へ再接続リトライ
+                                    // ただし isConnectingToTarget=true の場合はすでに接続試行中なのでスキップ
                                     val target = targetDevice
-                                    if (target != null) {
-                                        Log.d(TAG, "不要デバイス切断完了 → ${target.address} に再接続リトライ")
-                                        listener?.onStateChanged("${target.address} に再接続中...")
-                                        try { hid.connect(target) } catch (e: Exception) {
-                                            Log.e(TAG, "再接続リトライエラー: ${e.message}", e)
+                                    if (target != null && !isConnectingToTarget) {
+                                        // BOND_BONDED のみリトライ (未ペアリングは Switch 側の操作待ち)
+                                        if (target.bondState == BluetoothDevice.BOND_BONDED) {
+                                            isConnectingToTarget = true
+                                            Log.d(TAG, "不要デバイス切断完了 → ${target.address} に再接続リトライ")
+                                            listener?.onStateChanged("${target.address} に再接続中...")
+                                            try { hid.connect(target) } catch (e: Exception) {
+                                                isConnectingToTarget = false
+                                                Log.e(TAG, "再接続リトライエラー: ${e.message}", e)
+                                            }
+                                        } else {
+                                            // 未ペアリング Switch は switch 側の「さがす」操作待ち
+                                            Log.d(TAG, "不要デバイス切断完了 → ${target.address} は未ペアリング, Switch 側操作待ち")
                                         }
                                     }
                                 }
@@ -606,8 +633,12 @@ class BluetoothHIDController(private val context: Context) {
         listener?.onStateChanged("ペアリング完了 → HID 接続中...")
         hidExecutor.execute {
             if (appRegistered && bluetoothHidDevice != null) {
+                isConnectingToTarget = true   // ★ ペアリング後接続でもフラグセット
                 try { bluetoothHidDevice!!.connect(device) }
-                catch (e: Exception) { listener?.onError("ペアリング後の接続エラー: ${e.message}") }
+                catch (e: Exception) {
+                    isConnectingToTarget = false
+                    listener?.onError("ペアリング後の接続エラー: ${e.message}")
+                }
             } else {
                 // HID アプリ未登録 → 登録から接続までやり直す
                 connectToDevice(device)
@@ -617,6 +648,7 @@ class BluetoothHIDController(private val context: Context) {
 
     fun disconnect() {
         targetDevice = null
+        isConnectingToTarget = false   // ★ 切断時にフラグリセット
         stopScheduler()
         hidExecutor.execute {
             try {
