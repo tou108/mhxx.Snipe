@@ -8,6 +8,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
 import androidx.core.app.ActivityCompat
+import java.lang.reflect.Method
 import java.util.concurrent.*
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
@@ -15,43 +16,32 @@ import java.util.concurrent.atomic.AtomicReference
 /**
  * Nintendo Switch用 Bluetooth HID コントローラー
  *
- * 【旧バージョンからの根本的な変更点】
+ * 【JoyConDroid 方式に変更】
  *
- * ❌ 旧: 汎用 HID Gamepad ディスクリプタ
- * ✅ 新: Nintendo Switch が唯一受け付ける Nintendo 独自ディスクリプタ (JoyConDroid と同一)
+ * ❌ 旧: Switch の MAC アドレスを手動入力して接続 (Android → Switch)
+ * ✅ 新: Android を "Pro Controller" として検出可能にし、Switch 側からペアリング
+ *         (Switch → Android)
  *
- * ❌ 旧: sendReport(device, reportId=0, 7バイト)
- * ✅ 新: sendReport(device, 0x30, 48バイト) / sendReport(device, 0x21, 48バイト)
- *
- * ❌ 旧: サブコマンドハンドラなし
- * ✅ 新: Switch が送ってくる Output Report (0x01) に含まれるサブコマンドすべてに応答
- *       (応答しないと Switch は入力を永久に無視する)
- *
- * ❌ 旧: ボタンデータが 7バイト汎用形式
- * ✅ 新: 3バイトボタン + 12bit アナログスティック×2 = 9バイト (これを 48バイトレポートに埋め込む)
- *
- * ❌ 旧: 接続後にレポートを送り続けない
- * ✅ 新: 接続直後に 0x3F Simple HID ハンドシェイク → 0x30 Full Report を 15ms ごとに送信
+ * 接続手順:
+ *   1. startDiscovery() を呼ぶ → Android の BT 名を "Pro Controller" に変更し、
+ *      discoverable モードを有効にする (60秒間)
+ *   2. Switch 側でコントローラーの追加 → 「持ちかた/順番を変える」→「Pro Controller」
+ *   3. Switch が Android を発見してペアリング → 自動接続
+ *   4. 切断後は Switch のペアリング情報を削除 → 次回もクリーンにペアリングできる
  */
 @SuppressLint("MissingPermission")
 class BluetoothHIDController(private val context: Context) {
 
     companion object {
         private const val TAG = "BluetoothHIDController"
+        private const val NINTENDO_SWITCH = "Nintendo Switch"
+
+        /** Switch が受け付ける BT デバイス名 */
+        private const val CONTROLLER_BT_NAME = "Pro Controller"
 
         /**
-         * Nintendo Pro Controller / Joy-Con 共通 HID ディスクリプタ
+         * Nintendo Pro Controller HID ディスクリプタ
          * 出典: JoyConDroid (ControllerType.java) / dekuNukem Nintendo Switch Reverse Engineering
-         *
-         * Switch はこのバイト列以外を持つデバイスを「コントローラー」として認識しない。
-         * 含まれる Report ID:
-         *   0x21 = Subcommand Reply (Input, 48 bytes)
-         *   0x30 = Standard Full Report (Input, 48 bytes)  ← メインレポート
-         *   0x31 = NFC/IR Report (Input, 361 bytes)
-         *   0x3F = Simple HID Report (Input, 11 bytes)    ← ハンドシェイク用
-         *   0x01 = Rumble + Subcommand (Output, 48 bytes) ← Switch からのコマンド受信
-         *   0x10 = Rumble Only (Output, 48 bytes)
-         *   0x11 = NFC/IR MCU Data (Output, 48 bytes)
          */
         private const val DESCRIPTOR_HEX =
             "05010905a1010601ff852109217508953081028530093075089530810285310931750896690181028532" +
@@ -60,56 +50,48 @@ class BluetoothHIDController(private val context: Context) {
             "0601ff850109017508953091028510091075089530910285110911750895309102851209127508953091" +
             "02c0"
 
-        private val MAC_REGEX = Regex("^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$")
+        // QoS 設定 (JoyConDroid と同値)
+        private const val QOS_TOKEN_RATE       = 21720
+        private const val QOS_TOKEN_BUCKET     = 362
+        private const val QOS_PEAK_BANDWIDTH   = 21720
+        private const val QOS_LATENCY          = 16667
+        private const val QOS_DELAY_VARIATION  = 16667
     }
 
     // ----- BT 基盤 -----
     private var bluetoothAdapter: BluetoothAdapter? = null
     private var bluetoothHidDevice: BluetoothHidDevice? = null
-    // コールバック + サブコマンド処理を同一スレッドで行う BT 専用 Executor
     private val hidExecutor: ExecutorService = Executors.newSingleThreadExecutor()
 
     // ----- 接続状態 -----
     @Volatile private var connectedDevice: BluetoothDevice? = null
-    @Volatile private var targetDevice: BluetoothDevice? = null
     @Volatile private var deviceConnected = false
     private var appRegistered = false
     private var serviceConnected = false
+
+    /** 接続前の元の BT 名 (切断・クリーンアップ時に復元) */
+    private var originalBtName: String? = null
 
     // ----- リスナー -----
     var listener: ControllerListener? = null
 
     // ----- レポート制御 -----
-    /** 各レポートに付与するタイマー値 (0–255 でインクリメント) */
     private val reportTimer = AtomicInteger(0)
 
-    /** true になると定期 Full Report 送信を開始する */
     @Volatile private var isFullReportMode = false
-
-    /**
-     * true の間は hid.connect(targetDevice) の重複呼び出しを防ぐ。
-     *
-     * 問題: onAppStatusChanged(registered=true) で connect() を呼んだ直後に
-     * 旧 Switch (BOND_BONDED) が自動再接続 → disconnect → STATE_DISCONNECTED で
-     * もう一度 connect() が呼ばれ、STATE_CONNECTING 中の二重呼び出しで接続失敗する。
-     */
-    @Volatile private var isConnectingToTarget = false
 
     /**
      * 現在のボタン/スティック状態 (9バイト)
      *   [0] 右ボタン byte: Y=0x01, X=0x02, B=0x04, A=0x08, R=0x40, ZR=0x80
      *   [1] 中ボタン byte: MINUS=0x01, PLUS=0x02, R_STICK=0x04, L_STICK=0x08, HOME=0x10, CAPTURE=0x20
      *   [2] 左ボタン byte: DOWN=0x01, UP=0x02, RIGHT=0x04, LEFT=0x08, L=0x40, ZL=0x80
-     *   [3–5] 左スティック: 12bit X (LE) + 12bit Y (LE), 中立 = 0x800
+     *   [3–5] 左スティック: 12bit X+Y packed, 中立=0x800
      *   [6–8] 右スティック: 同上
      */
     private val currentButtonState = AtomicReference(ByteArray(9).also { setStickCenter(it) })
 
     // ----- 定期レポートスケジューラー -----
     @Volatile private var reportScheduler: ScheduledExecutorService? = null
-
-    // ----- HID接続タイムアウト (HIDプロファイルなしペアリング検知用) -----
-    @Volatile private var hidConnectTimeout: ScheduledExecutorService? = null
 
     // ============================================================
     // インターフェース
@@ -119,24 +101,10 @@ class BluetoothHIDController(private val context: Context) {
         fun onDisconnected()
         fun onError(message: String)
         fun onStateChanged(state: String)
-        /** 未ペアリングの Switch への初回接続時に呼ばれる (UI でガイドを表示するために使用) */
-        fun onBondingStarted(device: BluetoothDevice) {}
-        /**
-         * ★ 追加: Android を Discoverable (スキャン検索可能) にするよう MainActivity に依頼する
-         *
-         * Switch の「さがす」機能はBluetooth スキャンを行うため、
-         * Android 側が SCAN_MODE_CONNECTABLE_DISCOVERABLE でなければ Switch に見つけてもらえない。
-         * このコールバックを受けた MainActivity は ACTION_REQUEST_DISCOVERABLE を発行する。
-         *
-         * 呼ばれるタイミング:
-         *   - onAppStatusChanged で targetDevice == null (自動検出モード) のとき
-         *   - onAppStatusChanged で targetDevice が未ペアリング (BOND_NONE) のとき
-         */
-        fun onDiscoveryNeeded() {}
-        /**
-         * ★ 追加: 接続完了 → Discoverable 状態を解除してよい
-         */
-        fun onDiscoveryStopped() {}
+        /** ペアリング待機中 (discoverable になった) */
+        fun onDiscoveryStarted()
+        /** ペアリング待機終了 */
+        fun onDiscoveryStopped()
     }
 
     init {
@@ -145,12 +113,8 @@ class BluetoothHIDController(private val context: Context) {
     }
 
     // ============================================================
-    // 接続
+    // 権限チェック
     // ============================================================
-
-    private fun normalizeMac(mac: String) = mac.trim().replace("-", ":").uppercase()
-    private fun isValidMac(mac: String) = MAC_REGEX.matches(mac)
-
     private fun hasPermission(): Boolean =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
             ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) ==
@@ -159,54 +123,56 @@ class BluetoothHIDController(private val context: Context) {
             ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH) ==
                     PackageManager.PERMISSION_GRANTED
 
-    fun connectToSwitch(macAddress: String) {
+    // ============================================================
+    // 接続 (JoyConDroid 方式: Switch が Android を発見してペアリング)
+    // ============================================================
+
+    /**
+     * ペアリング待機を開始する
+     *
+     * 1. Android の BT 名を "Pro Controller" に変更
+     * 2. HID プロキシ取得 → HID アプリ登録
+     * 3. コールバック内で onAppStatusChanged → ControllerActivity.startHidDeviceDiscovery() 相当
+     *    → Androidを discoverable にする処理は呼び出し元 (MainActivity) が担当
+     *       (ACTION_REQUEST_DISCOVERABLE は Activity からしか起動できないため)
+     */
+    fun startDiscovery() {
         if (!hasPermission()) { listener?.onError("Bluetooth権限がありません"); return }
-        val adapter = bluetoothAdapter ?: run { listener?.onError("Bluetoothがサポートされていません"); return }
+        val adapter = bluetoothAdapter
+            ?: run { listener?.onError("Bluetoothがサポートされていません"); return }
         if (!adapter.isEnabled) { listener?.onError("Bluetoothが無効です"); return }
 
-        // ★ 自動検出モード: MACアドレスが空 → 任意のSwitchのペアリングを待つ
-        // 初めて使うユーザーや、MACアドレスが分からない場合に使用
-        if (macAddress.isBlank()) {
-            targetDevice = null
-            listener?.onStateChanged(
-                "🔍 自動検出モード\n" +
-                "Switch: ホーム → 設定 → コントローラーとセンサー\n" +
-                "→ コントローラーの持ち方/順番を変える\n" +
-                "→ 「さがす」を押してください"
-            )
-            hidExecutor.execute { connectToDevice(null) }
-            return
-        }
+        listener?.onStateChanged("ペアリング待機準備中...")
 
-        val mac = normalizeMac(macAddress)
-        if (!isValidMac(mac)) { listener?.onError("無効なMACアドレス: $macAddress"); return }
-        val device = try { adapter.getRemoteDevice(mac) }
-                     catch (e: Exception) { listener?.onError("デバイスエラー: ${e.message}"); return }
-
-        val isBonded = device.bondState == BluetoothDevice.BOND_BONDED
-        if (isBonded) {
-            // ★ 追加: ペアリング済みでも HID プロファイル UUID がキャッシュにない場合は
-            //   「HIDなし」でペアリングされている → BTアイコンのみで D-pad が出ない根本原因
-            //   (Androidの標準BT設定などでペアリングすると HID UUID なしで登録される)
-            if (!hasHidProfileUuid(device)) {
-                Log.w(TAG, "★ ${mac}: BOND_BONDED だが HID UUID キャッシュなし → HIDなしペアリング検出")
-                val removed = removeBond(device)
-                listener?.onStateChanged(
-                    "⚠ このSwitchはHIDプロファイルなしでペアリング済みです\n" +
-                    (if (removed) "Androidのペアリングを自動削除しました ✓\n" else "Android設定からこのデバイスのペアリングを手動削除してください\n") +
-                    "次に Switch 本体: 設定 → コントローラーとセンサー\n" +
-                    "→「コントローラーの持ち方/順番を変える」→「コントローラー情報を削除」\n" +
-                    "削除後、再度「接続」ボタンを押してください"
-                )
-                return
+        // BT 名を "Pro Controller" に変更 (元の名前を保存)
+        try {
+            val current = adapter.name
+            if (current != CONTROLLER_BT_NAME) {
+                originalBtName = current
+                adapter.name = CONTROLLER_BT_NAME
             }
-            listener?.onStateChanged("接続準備中...")
-        } else {
-            // 初回接続: Switch 側でのペアリング操作が必要
-            listener?.onStateChanged("初回接続: Switch のペアリング画面で「さがす」を押してください...")
-            listener?.onBondingStarted(device)
+        } catch (e: SecurityException) {
+            Log.w(TAG, "BT name change failed: ${e.message}")
         }
-        hidExecutor.execute { connectToDevice(device) }
+
+        hidExecutor.execute { initHidAndRegister() }
+    }
+
+    /** ペアリング待機を停止し、BT 名を元に戻す */
+    fun stopDiscovery() {
+        restoreBtName()
+        listener?.onDiscoveryStopped()
+        listener?.onStateChanged("ペアリング待機停止")
+    }
+
+    private fun restoreBtName() {
+        val original = originalBtName ?: return
+        try {
+            bluetoothAdapter?.name = original
+            originalBtName = null
+        } catch (e: SecurityException) {
+            Log.w(TAG, "BT name restore failed: ${e.message}")
+        }
     }
 
     private fun getHidProxy(callback: (BluetoothHidDevice?) -> Unit) {
@@ -227,228 +193,127 @@ class BluetoothHIDController(private val context: Context) {
         }, BluetoothProfile.HID_DEVICE)
     }
 
-    private fun connectToDevice(device: BluetoothDevice?) {
-        targetDevice = device
+    private fun initHidAndRegister() {
         getHidProxy { hid ->
             if (hid == null) { listener?.onError("HIDプロキシが利用できません"); return@getHidProxy }
             if (appRegistered) {
-                // ★ 修正: 接続先が変わった場合は unregisterApp → registerApp し直す
-                //   自動検出モード(device=null)でも同様にリセット
-                val isSameDevice = device != null &&
-                    connectedDevice?.address?.equals(device.address, ignoreCase = true) == true
-
-                if (!isSameDevice) {
-                    // 別の Switch or 自動検出 → HIDアプリをリセットしてから再登録
-                    listener?.onStateChanged(if (device == null) "自動検出モードで起動中..." else "接続先を切替中... HIDをリセットします")
-                    try { connectedDevice?.let { hid.disconnect(it) } } catch (_: Exception) {}
-                    try { hid.unregisterApp() } catch (_: Exception) {}
-                    appRegistered = false
-                    deviceConnected = false
-                    connectedDevice = null
-                    isConnectingToTarget = false   // ★ 切り替え時にフラグをリセット
-                    stopScheduler()
-                    isFullReportMode = false
-                    // unregisterApp は非同期処理のため少し待機してから再登録
-                    try { Thread.sleep(400) } catch (_: InterruptedException) {}
-                    // fall through → registerApp へ
-                } else {
-                    // 同じ Switch への再接続
-                    if (device!!.bondState == BluetoothDevice.BOND_BONDED) {
-                        val ok = try { hid.connect(device) }
-                                 catch (e: Exception) { listener?.onError("接続エラー: ${e.message}"); false }
-                        if (!ok) listener?.onStateChanged("接続中... しばらくお待ちください")
-                    } else {
-                        try { hid.connect(device) } catch (_: Exception) {}
-                        listener?.onStateChanged("Switch のペアリング画面で「さがす」を押してください")
-                    }
-                    return@getHidProxy
-                }
+                // 登録済みなら discoverable 通知だけ出す
+                listener?.onDiscoveryStarted()
+                listener?.onStateChanged("Switch からのペアリングを待機中...")
+                return@getHidProxy
             }
-            try {
-                // ★ Nintendo 専用ディスクリプタ
-                val descriptor = DESCRIPTOR_HEX.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+            registerHidApp(hid)
+        }
+    }
 
-                val sdp = BluetoothHidDeviceAppSdpSettings(
-                    "Pro Controller",     // Switch が認識するデバイス名 (完全一致が必要)
-                    "Pro Controller",     // 説明
-                    "Nintendo Co., Ltd.", // Switch が期待するメーカー名
-                    0x08,                 // SubClass: Gamepad
-                    descriptor
-                )
-                val qos = BluetoothHidDeviceAppQosSettings(
-                    BluetoothHidDeviceAppQosSettings.SERVICE_GUARANTEED,
-                    21720, 362, 21720, 16667, 16667
-                )
+    private fun registerHidApp(hid: BluetoothHidDevice) {
+        try {
+            val descriptor = DESCRIPTOR_HEX.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
 
-                hid.registerApp(sdp, null, qos, hidExecutor, object : BluetoothHidDevice.Callback() {
+            val sdp = BluetoothHidDeviceAppSdpSettings(
+                "Wireless Gamepad",    // HID 名 (SDP レコード)
+                "Gamepad",             // 説明
+                "Nintendo",            // プロバイダ
+                0x08.toByte(),         // SubClass: Gamepad
+                descriptor
+            )
+            val qos = BluetoothHidDeviceAppQosSettings(
+                BluetoothHidDeviceAppQosSettings.SERVICE_GUARANTEED,
+                QOS_TOKEN_RATE, QOS_TOKEN_BUCKET, QOS_PEAK_BANDWIDTH,
+                QOS_LATENCY, QOS_DELAY_VARIATION
+            )
 
-                    override fun onAppStatusChanged(pluggedDevice: BluetoothDevice?, registered: Boolean) {
-                        appRegistered = registered
-                        if (registered) {
-                            val dev = targetDevice
-                            if (dev == null) {
-                                // ★ 自動検出モード: Android を Discoverable にして Switch の「さがす」に備える
-                                listener?.onDiscoveryNeeded()
-                                listener?.onStateChanged(
-                                    "🔍 自動検出モード: Switch のペアリング画面で\n" +
-                                    "「さがす」を押してください\nペアリング完了後に自動接続されます"
-                                )
-                            } else if (dev.bondState == BluetoothDevice.BOND_BONDED) {
-                                // ペアリング済み → こちらからプッシュ接続
-                                // ★ 修正: isConnectingToTarget フラグで二重 connect() を防ぐ
-                                //   (直後に旧 Switch が自動再接続→切断→STATE_DISCONNECTED でも
-                                //    再度 connect() を呼ばないようにする)
-                                if (!isConnectingToTarget) {
-                                    isConnectingToTarget = true
-                                    val ok = try { hid.connect(dev) }
-                                             catch (e: Exception) { listener?.onError("接続開始エラー: ${e.message}"); false }
-                                    if (!ok) {
-                                        isConnectingToTarget = false
-                                        // connect() が false を返した場合: Switch 側で一度ペアリング削除 → 再ペアリングが必要
-                                        listener?.onStateChanged(
-                                            "⚠ 接続失敗 (connect=false)\n" +
-                                            "Switch 側で このコントローラーを削除し、\n" +
-                                            "「さがす」から再ペアリングしてください"
-                                        )
-                                    } else {
-                                        // ★ 追加: HIDプロファイル接続タイムアウト開始
-                                        // connect()=true でも STATE_CONNECTED が来ない場合 =
-                                        //   BTクラシック接続OK だが HID プロファイル層が確立しない
-                                        //   (= 「BTアイコンのみ、D-padアイコンなし」の状態)
-                                        scheduleHidConnectTimeout(dev)
-                                    }
-                                }
-                            } else {
-                                // 未ペアリング → ★ Android を Discoverable にして Switch の「さがす」に備える
-                                listener?.onDiscoveryNeeded()
-                                listener?.onStateChanged("Switch のペアリング画面で「さがす」を押してください\nペアリング完了後に自動接続されます")
-                            }
+            hid.registerApp(sdp, null, qos, hidExecutor, object : BluetoothHidDevice.Callback() {
+
+                override fun onAppStatusChanged(pluggedDevice: BluetoothDevice?, registered: Boolean) {
+                    appRegistered = registered
+                    if (registered) {
+                        // 既にペアリング済みの Switch があれば直接接続を試みる
+                        val bondedSwitch = findBondedSwitch()
+                        if (bondedSwitch != null) {
+                            try { hid.connect(bondedSwitch) }
+                            catch (e: Exception) { Log.w(TAG, "connect bonded: ${e.message}") }
+                        } else {
+                            // Switch からの発見を待つ → discoverable 開始を通知
+                            listener?.onDiscoveryStarted()
+                            listener?.onStateChanged("Switch からのペアリングを待機中...")
                         }
                     }
+                }
 
-                    override fun onConnectionStateChanged(dev: BluetoothDevice, state: Int) {
-                        // ★ JoyConDroid 準拠: "Nintendo Switch" という名前のデバイス以外は無視する
-                        // これにより他の Bluetooth デバイスが誤接続しても処理しない
-                        val devName = try { dev.name } catch (_: Exception) { null }
-                        if (devName != null && !devName.equals("Nintendo Switch", ignoreCase = true)) {
-                            Log.d(TAG, "非Switchデバイス ($devName) の接続イベント → スキップ")
-                            return
+                override fun onConnectionStateChanged(dev: BluetoothDevice, state: Int) {
+                    // JoyConDroid と同様: "Nintendo Switch" からの接続のみ受け付ける
+                    val devName = try { dev.name } catch (_: Exception) { "" }
+                    if (!NINTENDO_SWITCH.equals(devName, ignoreCase = true)) {
+                        Log.d(TAG, "非Switch デバイスを無視: $devName")
+                        return
+                    }
+
+                    when (state) {
+                        BluetoothProfile.STATE_CONNECTED -> {
+                            deviceConnected = true; connectedDevice = dev
+                            listener?.onDiscoveryStopped()
+                            listener?.onConnected(dev)
+                            startHandshake()
                         }
-
-                        when (state) {
-                            BluetoothProfile.STATE_CONNECTED -> {
-                                // ★ 修正: ペアリング済みの別Switchが自動再接続してきた場合はブロックする
-                                // 例) 5C:52:1E:07:EB:FE が登録済みのまま、別Switch接続中に割り込んでくるケース
-                                val target = targetDevice
-                                if (target != null && !dev.address.equals(target.address, ignoreCase = true)) {
-                                    Log.w(TAG, "★ 意図しないSwitch自動接続: ${dev.address} (期待: ${target.address}) → 即時切断")
-                                    listener?.onStateChanged(
-                                        "⚠ 旧Switch(${dev.address})が自動接続 → 切断して ${target.address} に再接続中..."
-                                    )
-                                    try { hid.disconnect(dev) } catch (e: Exception) {
-                                        Log.e(TAG, "不要デバイス切断エラー: ${e.message}", e)
-                                    }
-                                    // ★ 修正①: 旧Switch切断後、targetへの接続を即時リトライ
-                                    // isConnectingToTarget=true のままCase3がスキップされる問題を回避する
-                                    hidExecutor.execute {
-                                        try { Thread.sleep(600) } catch (_: InterruptedException) {}
-                                        if (!deviceConnected && targetDevice?.address == target.address) {
-                                            Log.d(TAG, "旧Switch切断完了 → ${target.address} に即時リトライ")
-                                            isConnectingToTarget = true
-                                            try { hid.connect(target) }
-                                            catch (e: Exception) {
-                                                isConnectingToTarget = false
-                                                Log.e(TAG, "即時リトライエラー: ${e.message}", e)
-                                            }
-                                        }
-                                    }
-                                    return  // ← 接続完了として扱わない
-                                }
-                                deviceConnected = true; connectedDevice = dev
-                                isConnectingToTarget = false   // ★ 接続成功 → フラグ解除
-                                cancelHidConnectTimeout()      // ★ 追加: タイムアウトキャンセル
-                                listener?.onDiscoveryStopped() // ★ 追加: Discoverable 解除
-                                listener?.onConnected(dev)
-                                // 接続直後: Simple HID ハンドシェイク開始
-                                startHandshake()
-                            }
-                            BluetoothProfile.STATE_CONNECTING  -> listener?.onStateChanged("接続中...")
-                            BluetoothProfile.STATE_DISCONNECTING -> listener?.onStateChanged("切断中...")
-                            BluetoothProfile.STATE_DISCONNECTED -> {
-                                val target = targetDevice
-                                val isTargetDev = target != null &&
-                                    dev.address.equals(target.address, ignoreCase = true)
-                                when {
-                                    // Case 1: 正規接続済みデバイスが切断された
-                                    connectedDevice?.address.equals(dev.address, ignoreCase = true) -> {
-                                        deviceConnected = false; connectedDevice = null
-                                        isConnectingToTarget = false
-                                        cancelHidConnectTimeout()  // ★ 追加
-                                        stopScheduler()
-                                        listener?.onDisconnected()
-                                    }
-                                    // Case 2: ★ targetDevice への接続試行自体が失敗した
-                                    //   (STATE_CONNECTING → DISCONNECTED: switchA の割り込み等で接続が潰された)
-                                    //   → isConnectingToTarget をリセットして、不要デバイス切断後のリトライを可能にする
-                                    !deviceConnected && isTargetDev -> {
-                                        isConnectingToTarget = false
-                                        Log.w(TAG, "targetDevice ${dev.address} の接続試行が失敗 → フラグリセット")
-                                        // ★ 注: ここでは再接続しない。
-                                        //   switchA の STATE_DISCONNECTED が後で来たとき Case 3 がリトライする。
-                                        //   switchA が既に切断済みの場合は UI 表示のみ (ユーザーに Switch 操作を促す)
-                                        listener?.onStateChanged("接続試行失敗 (${dev.address}) — 再試行中...")
-                                    }
-                                    // Case 3: 不要デバイス (switchA 等) が切断完了 → targetDevice に再接続リトライ
-                                    !deviceConnected -> {
-                                        if (target != null && !isConnectingToTarget) {
-                                            if (target.bondState == BluetoothDevice.BOND_BONDED) {
-                                                isConnectingToTarget = true
-                                                Log.d(TAG, "不要デバイス切断完了 → ${target.address} に再接続リトライ")
-                                                listener?.onStateChanged("${target.address} に再接続中...")
-                                                try { hid.connect(target) } catch (e: Exception) {
-                                                    isConnectingToTarget = false
-                                                    Log.e(TAG, "再接続リトライエラー: ${e.message}", e)
-                                                }
-                                            } else {
-                                                // 未ペアリング: Discoverable 継続
-                                                listener?.onDiscoveryNeeded()
-                                                Log.d(TAG, "不要デバイス切断完了 → ${target.address} は未ペアリング, Switch 側操作待ち")
-                                            }
-                                        }
-                                        // isConnectingToTarget=true → target 接続試行中 → スキップ
-                                    }
-                                    // else: 接続済み状態で無関係デバイスの切断通知 → 無視
-                                }
-                            }
+                        BluetoothProfile.STATE_CONNECTING  ->
+                            listener?.onStateChanged("接続中...")
+                        BluetoothProfile.STATE_DISCONNECTING ->
+                            listener?.onStateChanged("切断中...")
+                        BluetoothProfile.STATE_DISCONNECTED -> {
+                            deviceConnected = false; connectedDevice = null
+                            stopScheduler()
+                            // JoyConDroid と同様: ペアリング情報を削除して次回クリーン接続
+                            unpairDevice(dev)
+                            restoreBtName()
+                            listener?.onDisconnected()
                         }
                     }
+                }
 
-                    /** Switch から GET_REPORT が来た場合 — 現在状態を返す */
-                    override fun onGetReport(dev: BluetoothDevice, type: Byte, id: Byte, bufferSize: Int) {
-                        try { hid.replyReport(dev, type, id, buildFullReport()) }
-                        catch (e: Exception) { Log.e(TAG, "replyReport error", e) }
-                    }
+                override fun onGetReport(dev: BluetoothDevice, type: Byte, id: Byte, bufferSize: Int) {
+                    try { hid.replyReport(dev, type, id, buildFullReport()) }
+                    catch (e: Exception) { Log.e(TAG, "replyReport error", e) }
+                }
 
-                    override fun onSetReport(dev: BluetoothDevice, type: Byte, id: Byte, data: ByteArray) {
-                        try { hid.reportError(dev, BluetoothHidDevice.ERROR_RSP_SUCCESS) }
-                        catch (e: Exception) { Log.e(TAG, "reportError error", e) }
-                    }
+                override fun onSetReport(dev: BluetoothDevice, type: Byte, id: Byte, data: ByteArray) {
+                    try { hid.reportError(dev, BluetoothHidDevice.ERROR_RSP_SUCCESS) }
+                    catch (e: Exception) { Log.e(TAG, "reportError error", e) }
+                }
 
-                    /**
-                     * ★ Switch からの Output Report を受信する
-                     *   reportId=0x01: Rumble + Subcommand  ← サブコマンド処理が必要
-                     *   reportId=0x10: Rumble only          ← 無視でよい
-                     *   reportId=0x11: NFC/IR               ← 無視でよい
-                     *
-                     * このコールバックへの応答なしでは Switch は入力を受け付けない。
-                     */
-                    override fun onInterruptData(dev: BluetoothDevice, reportId: Byte, data: ByteArray) {
-                        if (reportId == 0x01.toByte() && data.size >= 10) {
-                            handleSubcommand(dev, data)
-                        }
+                override fun onInterruptData(dev: BluetoothDevice, reportId: Byte, data: ByteArray) {
+                    if (reportId == 0x01.toByte() && data.size >= 10) {
+                        handleSubcommand(dev, data)
                     }
-                })
-            } catch (e: Exception) { listener?.onError("接続エラー: ${e.message}") }
+                }
+            })
+        } catch (e: Exception) { listener?.onError("HID登録エラー: ${e.message}") }
+    }
+
+    /** ペアリング済み "Nintendo Switch" デバイスを探す (JoyConDroid の getConnectedNintendoSwitch 相当) */
+    private fun findBondedSwitch(): BluetoothDevice? {
+        return try {
+            bluetoothAdapter?.bondedDevices?.firstOrNull {
+                NINTENDO_SWITCH.equals(try { it.name } catch (_: Exception) { "" }, ignoreCase = true)
+            }
+        } catch (e: SecurityException) {
+            Log.w(TAG, "bondedDevices access denied: ${e.message}")
+            null
+        }
+    }
+
+    /**
+     * ペアリング情報を削除 (JoyConDroid の unpairDevice 相当)
+     * Switch 側のペアリング情報は Switch 本体側で管理されているため、
+     * Android 側で removeBond を呼ぶことで次回クリーンにペアリングできる。
+     */
+    private fun unpairDevice(device: BluetoothDevice) {
+        try {
+            val m: Method = device.javaClass.getMethod("removeBond")
+            m.invoke(device)
+            Log.d(TAG, "Unpaired: ${device.address}")
+        } catch (e: Exception) {
+            Log.w(TAG, "Unpair failed: ${e.message}")
         }
     }
 
@@ -456,49 +321,31 @@ class BluetoothHIDController(private val context: Context) {
     // サブコマンド処理 (Switch → Android)
     // ============================================================
 
-    /**
-     * Output Report 0x01 のペイロード構造:
-     *   data[0]   = global packet counter
-     *   data[1–8] = rumble data (L+R, 4 bytes each)
-     *   data[9]   = subcommand ID
-     *   data[10–] = subcommand arguments
-     */
     private fun handleSubcommand(dev: BluetoothDevice, data: ByteArray) {
         val timer = data[0]
         val subCmd = data[9]
         Log.d(TAG, "SubCmd: 0x${(subCmd.toInt() and 0xFF).toString(16).uppercase()}")
 
         when (subCmd) {
-            // 0x01: Bluetooth manual pairing
             0x01.toByte() -> ack(dev, timer, subCmd, 0x81.toByte())
-
-            // 0x02: Request device info
             0x02.toByte() -> {
                 val macStr = try { bluetoothAdapter?.address ?: "00:00:00:00:00:00" }
                              catch (_: Exception) { "00:00:00:00:00:00" }
                 val macBytes = macStr.split(":").map { it.toInt(16).toByte() }
                 val info = ByteArray(12).apply {
-                    this[0] = 0x04; this[1] = 0x21          // firmware ver
-                    this[2] = 0x03; this[3] = 0x02          // Pro Controller
+                    this[0] = 0x04; this[1] = 0x21
+                    this[2] = 0x03; this[3] = 0x02
                     for (i in 0..5) this[4 + i] = macBytes.getOrElse(5 - i) { 0 }
-                    this[10] = 0x01; this[11] = 0x01        // SPI colors
+                    this[10] = 0x01; this[11] = 0x01
                 }
                 subcmdReply(dev, timer, 0x82.toByte(), subCmd, info)
             }
-
-            // 0x03: Set input report mode → Full Report Mode へ切り替え
             0x03.toByte() -> {
                 ack(dev, timer, subCmd, 0x80.toByte())
                 if (!isFullReportMode) switchToFullReportMode()
             }
-
-            // 0x04: Trigger buttons elapsed time
             0x04.toByte() -> subcmdReply(dev, timer, 0x83.toByte(), subCmd, ByteArray(8))
-
-            // 0x08: Set shipment mode
             0x08.toByte() -> ack(dev, timer, subCmd, 0x80.toByte())
-
-            // 0x10: SPI flash read → ゼロ埋めで応答
             0x10.toByte() -> {
                 val len = if (data.size >= 15) (data[14].toInt() and 0xFF) else 0
                 val reply = ByteArray(5 + len)
@@ -509,42 +356,18 @@ class BluetoothHIDController(private val context: Context) {
                 if (data.size >= 15) reply[4] = data[14]
                 subcmdReply(dev, timer, 0x90.toByte(), subCmd, reply)
             }
-
-            // 0x11: SPI flash write
             0x11.toByte() -> ack(dev, timer, subCmd, 0x80.toByte())
-
-            // 0x21: Set NFC/IR MCU config
             0x21.toByte() -> subcmdReply(dev, timer, 0xA0.toByte(), subCmd, ByteArray(34))
-
-            // 0x22: Set NFC/IR MCU state
             0x22.toByte() -> ack(dev, timer, subCmd, 0x80.toByte())
-
-            // 0x30: Set player lights
             0x30.toByte() -> ack(dev, timer, subCmd, 0x80.toByte())
-
-            // 0x38: Set HOME light
             0x38.toByte() -> ack(dev, timer, subCmd, 0x80.toByte())
-
-            // 0x40: Enable IMU (6-axis)
             0x40.toByte() -> ack(dev, timer, subCmd, 0x80.toByte())
-
-            // 0x41: Set IMU sensitivity
             0x41.toByte() -> ack(dev, timer, subCmd, 0x80.toByte())
-
-            // 0x42: Write IMU registers
             0x42.toByte() -> ack(dev, timer, subCmd, 0x80.toByte())
-
-            // 0x43: Read IMU registers
             0x43.toByte() -> ack(dev, timer, subCmd, 0x80.toByte())
-
-            // 0x48: Enable vibration
             0x48.toByte() -> ack(dev, timer, subCmd, 0x80.toByte())
-
-            // 0x50: Get regulated voltage
             0x50.toByte() -> subcmdReply(dev, timer, 0x80.toByte(), subCmd,
-                byteArrayOf(0x08, 0x07, 0x00, 0x00)) // ~1800mV
-
-            // その他: 汎用 ACK
+                byteArrayOf(0x08, 0x07, 0x00, 0x00))
             else -> ack(dev, timer, subCmd, 0x80.toByte())
         }
     }
@@ -553,26 +376,12 @@ class BluetoothHIDController(private val context: Context) {
         subcmdReply(dev, timer, ack, subCmd, ByteArray(0))
     }
 
-    /**
-     * Subcommand Reply (Report ID 0x21, 48 bytes) を送信する
-     *
-     * レイアウト:
-     *   buf[0]     = timer
-     *   buf[1]     = battery (0x8E = full + BT connected)
-     *   buf[2–4]   = buttons (all 0)
-     *   buf[5–7]   = left stick center (0x800)
-     *   buf[8–10]  = right stick center (0x800)
-     *   buf[11]    = vibrator (0xB0)
-     *   buf[12]    = ACK byte
-     *   buf[13]    = subcommand ID
-     *   buf[14–47] = subcommand reply data (最大 34 bytes)
-     */
     private fun subcmdReply(dev: BluetoothDevice, timer: Byte, ack: Byte, subCmd: Byte, extra: ByteArray) {
         val buf = ByteArray(48)
         buf[0]  = timer
         buf[1]  = 0x8E.toByte()
-        setStickCenter(buf, offset = 5)   // left stick center at buf[5–7]
-        setStickCenter(buf, offset = 8)   // right stick center at buf[8–10]
+        setStickCenter(buf, offset = 5)
+        setStickCenter(buf, offset = 8)
         buf[11] = 0xB0.toByte()
         buf[12] = ack
         buf[13] = subCmd
@@ -592,18 +401,6 @@ class BluetoothHIDController(private val context: Context) {
         }
     }
 
-    /**
-     * Standard Full Report (0x30, 48 bytes) を currentButtonState から生成する
-     *
-     * レイアウト:
-     *   buf[0]     = timer (インクリメント)
-     *   buf[1]     = battery/connection (0x8E)
-     *   buf[2–4]   = buttons (3 bytes, Nintendo Pro Controller ビット配置)
-     *   buf[5–7]   = left stick  (12bit X + 12bit Y packed)
-     *   buf[8–10]  = right stick (12bit X + 12bit Y packed)
-     *   buf[11]    = vibrator input report (0xB0)
-     *   buf[12–47] = IMU data (すべて 0)
-     */
     private fun buildFullReport(): ByteArray {
         val buf = ByteArray(48)
         buf[0]  = (reportTimer.incrementAndGet() and 0xFF).toByte()
@@ -614,23 +411,12 @@ class BluetoothHIDController(private val context: Context) {
         return buf
     }
 
-    /**
-     * ボタン/スティック状態を Switch に送信する (public API)
-     *
-     * @param buttonData 9バイト配列 (buildHidReport() の戻り値を渡す)
-     *   [0] 右ボタン  [1] 中ボタン  [2] 左ボタン
-     *   [3–5] 左スティック 12bit   [6–8] 右スティック 12bit
-     */
     fun sendControllerInput(buttonData: ByteArray) {
         val dev = connectedDevice ?: run { Log.w(TAG, "未接続"); return }
         if (buttonData.size >= 9) currentButtonState.set(buttonData.copyOf(9))
         rawSend(dev, 0x30, buildFullReport())
     }
 
-    /**
-     * 指定ミリ秒後にリリースレポートを送信する
-     * hidExecutor で実行することで press → sleep → release の順序を保証する
-     */
     fun scheduleRelease(releaseReport: ByteArray, delayMs: Long) {
         hidExecutor.execute {
             try { Thread.sleep(delayMs) } catch (_: InterruptedException) {}
@@ -642,22 +428,11 @@ class BluetoothHIDController(private val context: Context) {
     // ハンドシェイク & 定期レポート
     // ============================================================
 
-    /**
-     * 接続直後に Simple HID (0x3F) レポートを送り続け Switch を "目覚め" させる。
-     * Switch が 0x03 (set input report mode) を送ってきたら isFullReportMode=true になり終了。
-     *
-     * hidExecutor と別スレッドで実行することで、onInterruptData コールバックの処理を
-     * ブロックしないようにする。
-     */
     private fun startHandshake() {
         Thread({
             var count = 0
             while (!isFullReportMode && deviceConnected && count < 100) {
                 val dev = connectedDevice ?: break
-                // Simple HID レポート (11 bytes):
-                //   buf[0–1] = buttons (0)
-                //   buf[2]   = hat switch neutral (0x08)
-                //   buf[3–10]= sticks at center (0x8000 LE per axis)
                 val buf = ByteArray(11).apply {
                     this[2] = 0x08
                     this[4] = 0x80.toByte(); this[6] = 0x80.toByte()
@@ -670,7 +445,6 @@ class BluetoothHIDController(private val context: Context) {
         }, "BT-Handshake").also { it.isDaemon = true; it.start() }
     }
 
-    /** 0x30 Full Report を 15ms (≒66Hz) ごとに送信開始する */
     private fun switchToFullReportMode() {
         isFullReportMode = true
         Log.d(TAG, "Full Report Mode 開始 (15ms/report)")
@@ -694,43 +468,7 @@ class BluetoothHIDController(private val context: Context) {
     // 切断 & クリーンアップ
     // ============================================================
 
-    /**
-     * MainActivity の BroadcastReceiver からペアリング完了通知を受け取り、
-     * HID 接続を完成させる。
-     *
-     * ★ 修正: Switch 側からペアリングが開始された場合 (targetDevice が null か
-     *   別アドレスの場合) も対応するため、ガード条件を緩和する。
-     */
-    fun onBondCompleted(device: BluetoothDevice) {
-        // targetDevice が null → Switch 側から先にペアリングが来たケース
-        // targetDevice のアドレスが異なる → 別の Switch がペアリングしてきたケース
-        // どちらも targetDevice を更新して接続を続行する
-        if (targetDevice != null && device.address != targetDevice!!.address) {
-            // 別の Switch → targetDevice を上書き
-            targetDevice = device
-        } else if (targetDevice == null) {
-            // MAC 未入力のまま Switch 側から先にペアリング
-            targetDevice = device
-        }
-        listener?.onStateChanged("ペアリング完了 → HID 接続中...")
-        hidExecutor.execute {
-            if (appRegistered && bluetoothHidDevice != null) {
-                isConnectingToTarget = true   // ★ ペアリング後接続でもフラグセット
-                try { bluetoothHidDevice!!.connect(device) }
-                catch (e: Exception) {
-                    isConnectingToTarget = false
-                    listener?.onError("ペアリング後の接続エラー: ${e.message}")
-                }
-            } else {
-                // HID アプリ未登録 → 登録から接続までやり直す
-                connectToDevice(device)
-            }
-        }
-    }
-
     fun disconnect() {
-        targetDevice = null
-        isConnectingToTarget = false   // ★ 切断時にフラグリセット
         stopScheduler()
         hidExecutor.execute {
             try {
@@ -738,8 +476,7 @@ class BluetoothHIDController(private val context: Context) {
                 bluetoothHidDevice?.unregisterApp()
             } catch (e: Exception) { Log.e(TAG, "disconnect error", e) }
             deviceConnected = false; connectedDevice = null; appRegistered = false
-            // ★ 修正: プロキシキャッシュをリセット → 次回接続時に必ず新規取得
-            serviceConnected = false; bluetoothHidDevice = null
+            restoreBtName()
             listener?.onDisconnected()
         }
     }
@@ -753,97 +490,6 @@ class BluetoothHIDController(private val context: Context) {
     // ユーティリティ
     // ============================================================
 
-    /**
-     * ★ 追加: ペアリング済みデバイスの UUID キャッシュに HID プロファイルが含まれるか確認
-     *
-     * Nintendo Switch が Bluetooth 標準設定でペアリングされた場合、HID UUID は含まれない。
-     * HID UUID なし = 「BTアイコンのみ、D-padアイコンが出ない」問題の根本原因。
-     *
-     * HID Host UUID: 00001124-0000-1000-8000-00805f9b34fb
-     * UUID が空/null → SDP 未取得のため「不明」として true を返す（試みを阻害しない）
-     */
-    private fun hasHidProfileUuid(device: BluetoothDevice): Boolean {
-        return try {
-            val uuids = device.uuids
-            if (uuids.isNullOrEmpty()) {
-                // UUID キャッシュが空 = SDP 未発見 or Android が情報を持っていない
-                // → ブロックせず接続を試みる（タイムアウトで後続判定する）
-                Log.d(TAG, "${device.address}: UUID キャッシュ空 → HID判定スキップ")
-                return true
-            }
-            val hidUuid = java.util.UUID.fromString("00001124-0000-1000-8000-00805f9b34fb")
-            val found = uuids.any { it.uuid == hidUuid }
-            Log.d(TAG, "${device.address}: HID UUID ${if (found) "あり ✓" else "なし ✗"} (cached UUIDs: ${uuids.size}件)")
-            found
-        } catch (e: Exception) {
-            Log.w(TAG, "UUID確認エラー: ${e.message}")
-            true  // エラー時はブロックしない
-        }
-    }
-
-    /**
-     * ★ 追加: ボンド削除 (リフレクション経由)
-     *
-     * HID なしでペアリングされた Switch を再ペアリングするために使用。
-     * 標準 API にないため getMethod("removeBond") を使用。
-     */
-    private fun removeBond(device: BluetoothDevice): Boolean {
-        return try {
-            val method = device.javaClass.getMethod("removeBond")
-            val result = method.invoke(device) as? Boolean ?: false
-            Log.d(TAG, "${device.address}: removeBond → $result")
-            result
-        } catch (e: Exception) {
-            Log.e(TAG, "removeBond 失敗 (手動で削除してください): ${e.message}")
-            false
-        }
-    }
-
-    /**
-     * ★ 追加: HIDプロファイル接続タイムアウトをスケジュール
-     *
-     * hid.connect() が true を返しても STATE_CONNECTED が来ない場合 =
-     *   ・Bluetooth クラシック接続は成立 (BTアイコン表示)
-     *   ・だが HID プロファイル層は拒否された (D-padアイコンが出ない)
-     * これは Switch 側のペアリングレコードに HID 情報がないことを示す。
-     */
-    private fun scheduleHidConnectTimeout(dev: BluetoothDevice) {
-        cancelHidConnectTimeout()
-        val sched = Executors.newSingleThreadScheduledExecutor { r ->
-            Thread(r, "BT-HidConnectTimeout").also { it.isDaemon = true }
-        }
-        hidConnectTimeout = sched
-        sched.schedule({
-            if (isConnectingToTarget && !deviceConnected) {
-                isConnectingToTarget = false
-                Log.w(TAG, "★ HIDプロファイル接続タイムアウト: ${dev.address}")
-                // ★ 修正②: タイムアウトでボンドを即削除しない
-                // 旧Switchの自動接続干渉が原因のタイムアウトでボンドを消すと再ペアリングが必要になる
-                // まず再試行を促す。それでも繋がらない場合のみSwitch側の削除を案内する。
-                listener?.onStateChanged(
-                    "⚠ 接続タイムアウト (${dev.address})\n" +
-                    "Android設定 → Bluetooth → 不要なSwitchのペアリングを削除してから\n" +
-                    "再度「接続」ボタンを押してください\n" +
-                    "それでも繋がらない場合: Switch本体 → 設定 → コントローラーとセンサー\n" +
-                    "→「コントローラーの持ち方/順番」→「コントローラー情報を削除」して再接続"
-                )
-            }
-        }, 10L, TimeUnit.SECONDS)
-    }
-
-    private fun cancelHidConnectTimeout() {
-        hidConnectTimeout?.shutdown()
-        hidConnectTimeout = null
-    }
-
-    /**
-     * 12bit スティックの中立値 (0x800 = 2048) をバイト配列に書き込む
-     * 12bit X + 12bit Y を 3バイトにパック:
-     *   byte[offset+0] = X[7:0]
-     *   byte[offset+1] = X[11:8] | (Y[3:0] << 4)
-     *   byte[offset+2] = Y[11:4]
-     * X=2048=0x800, Y=2048=0x800 → 0x00, 0x08, 0x80
-     */
     private fun setStickCenter(buf: ByteArray, offset: Int = 3) {
         buf[offset]     = 0x00
         buf[offset + 1] = 0x08

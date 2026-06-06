@@ -5,10 +5,7 @@ import android.annotation.SuppressLint
 import android.app.PictureInPictureParams
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
-import android.content.BroadcastReceiver
-import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
 import android.net.Uri
@@ -20,7 +17,6 @@ import android.util.Log
 import android.util.Rational
 import android.webkit.*
 import android.widget.Toast
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -35,10 +31,14 @@ import java.io.FileOutputStream
 
 /**
  * MHXX お守りスナイプツール - 統合版
- * 🔧 修正版v2:
- *   - AndroidBridge 名前修正 (Android → AndroidBridge + 両方登録)
- *   - pressButton / pressButtons / tiltStick メソッド追加
- *   - HIDレポート構築ヘルパー追加
+ *
+ * 【接続方式変更: JoyConDroid 方式】
+ *   - 旧: Switch の MAC アドレスを入力して Android → Switch に接続
+ *   - 新: Android を "Pro Controller" として discoverable にし Switch → Android でペアリング
+ *
+ * JS ブリッジ変更点:
+ *   - connectBluetoothSwitch(mac) → startBluetoothDiscovery() / stopBluetoothDiscovery()
+ *   - discoverable Intent は Activity からのみ起動可能なため MainActivity で担当
  */
 class MainActivity : AppCompatActivity() {
 
@@ -50,156 +50,35 @@ class MainActivity : AppCompatActivity() {
     private val FILE_CHOOSER_RC = 1001
     private val PROGRAM_IMPORT_RC = 1002
     private val PERMISSION_REQUEST_CODE = 2001
-
-    /**
-     * ★ 追加: ACTION_REQUEST_DISCOVERABLE の結果受け取り
-     *
-     * JoyConDroid 準拠: 未ペアリングの Switch への初回接続時、
-     * Android 側を Discoverable (スキャン検索可能) にして
-     * Switch の「さがす」からAndroid デバイスを発見させる。
-     *
-     * resultCode = RESULT_CANCELED (ユーザーが拒否 or タイムアウト) の場合は
-     * ガイドメッセージを表示するのみで接続フローは維持する。
-     */
-    private val requestDiscoverableResult = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode > 0) {
-            Log.d("MainActivity", "Discoverable: ${result.resultCode}秒間有効")
-        } else {
-            Log.d("MainActivity", "Discoverable 拒否またはタイムアウト (resultCode=${result.resultCode})")
-            runOnUiThread {
-                Toast.makeText(
-                    this,
-                    "⚠ Discoverable を許可すると Switch から見つけやすくなります",
-                    Toast.LENGTH_LONG
-                ).show()
-            }
-        }
-    }
-
-    /** Android を Discoverable にする (Switch の「さがす」に対応するため) */
-    private fun requestDiscoverable(durationSec: Int = 60) {
-        try {
-            val intent = Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE).apply {
-                putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, durationSec)
-            }
-            requestDiscoverableResult.launch(intent)
-            Log.d("MainActivity", "Discoverable リクエスト: ${durationSec}秒")
-        } catch (e: Exception) {
-            Log.e("MainActivity", "Discoverable リクエスト失敗: ${e.message}", e)
-        }
-    }
+    private val BT_DISCOVERABLE_RC = 3001
 
     private val REQUIRED_PERMISSIONS = mutableListOf(
         Manifest.permission.BLUETOOTH_CONNECT,
         Manifest.permission.BLUETOOTH_SCAN,
+        Manifest.permission.BLUETOOTH_ADVERTISE,
         Manifest.permission.ACCESS_FINE_LOCATION,
-        Manifest.permission.CAMERA  // 📷 カメラOCR撮影機能
+        Manifest.permission.CAMERA
     ).apply {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            add(Manifest.permission.BLUETOOTH_ADVERTISE) // 🔵 他のSwitchへの初回ペアリングに必要
-        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             add(Manifest.permission.POST_NOTIFICATIONS)
         }
     }.toTypedArray()
 
-    /**
-     * ★ Bluetooth ペアリング完了を検知するレシーバー
-     * 未ペアリングの Switch への初回接続時に BOND_BONDED を受け取ったら
-     * BluetoothHIDController.onBondCompleted() を呼んで HID 接続を完成させる。
-     */
-    private val bondStateReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) {
-            if (intent.action != BluetoothDevice.ACTION_BOND_STATE_CHANGED) return
-            val device: BluetoothDevice? =
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
-                    intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE, BluetoothDevice::class.java)
-                else
-                    @Suppress("DEPRECATION") intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
-            device ?: return
-
-            when (intent.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE, BluetoothDevice.ERROR)) {
-                BluetoothDevice.BOND_BONDING -> {
-                    // ペアリング中 → UI に通知
-                    sendToJS("bluetoothState", mapOf("state" to "Switch とペアリング中..."))
-                }
-                BluetoothDevice.BOND_BONDED -> {
-                    val mac = device.address
-                    // ★ JoyConDroid 準拠: "Nintendo Switch" という名前のデバイスのみ処理する
-                    //   他の Bluetooth デバイスのペアリング完了で誤動作しないようにする
-                    val devName = try { device.name } catch (_: Exception) { null }
-                    if (devName != null && !devName.equals("Nintendo Switch", ignoreCase = true)) {
-                        Log.d("BondReceiver", "非Switchデバイス ($devName) のペアリング完了 → スキップ")
-                        return
-                    }
-                    // HID 接続を完成させる (targetDevice が null でも対応)
-                    bluetoothHIDController.onBondCompleted(device)
-                    runOnUiThread {
-                        // ★ MAC アドレス入力欄をペアリングしたデバイスのアドレスで自動更新
-                        webView.evaluateJavascript(
-                            "var el=document.getElementById('btMacAddress');" +
-                            "if(el){ el.value='$mac'; }", null
-                        )
-                        Toast.makeText(
-                            this@MainActivity,
-                            "✅ ペアリング完了: $mac",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                }
-                BluetoothDevice.BOND_NONE -> {
-                    // ペアリング失敗 / キャンセル
-                    sendToJS("bluetoothError", mapOf("message" to "ペアリングが失敗またはキャンセルされました"))
-                }
-            }
-        }
-    }
-
     // =====================================================================
     // ★ Nintendo Pro Controller ボタン → (バイトインデックス, ビットマスク) マッピング
-    //
-    // HID レポート 9バイト構造 (BluetoothHIDController.sendControllerInput() に渡す):
-    //   Byte 0 (右ボタン) : Y=0x01, X=0x02, B=0x04, A=0x08, R=0x40, ZR=0x80
-    //   Byte 1 (中ボタン) : MINUS=0x01, PLUS=0x02, R_STICK=0x04, L_STICK=0x08,
-    //                       HOME=0x10, CAPTURE=0x20
-    //   Byte 2 (左ボタン) : DPAD_DOWN=0x01, DPAD_UP=0x02, DPAD_RIGHT=0x04,
-    //                       DPAD_LEFT=0x08, L=0x40, ZL=0x80
-    //   Byte 3–5 : 左スティック (12bit X + 12bit Y packed, 中立=0x800)
-    //   Byte 6–8 : 右スティック (同上)
-    //
-    // 旧形式 (7バイト汎用 HID) とは完全に異なる。
     // =====================================================================
     private val BUTTON_MAP = mapOf(
-        // 右ボタン (byte 0)
         "Y"          to Pair(0, 0x01), "X"       to Pair(0, 0x02),
         "B"          to Pair(0, 0x04), "A"       to Pair(0, 0x08),
         "R"          to Pair(0, 0x40), "ZR"      to Pair(0, 0x80),
-        // 中ボタン (byte 1)
         "MINUS"      to Pair(1, 0x01), "PLUS"    to Pair(1, 0x02),
         "R_STICK"    to Pair(1, 0x04), "L_STICK" to Pair(1, 0x08),
         "HOME"       to Pair(1, 0x10), "CAPTURE" to Pair(1, 0x20),
-        // 左ボタン / 十字キー (byte 2)
         "DPAD_DOWN"  to Pair(2, 0x01), "DPAD_UP"    to Pair(2, 0x02),
         "DPAD_RIGHT" to Pair(2, 0x04), "DPAD_LEFT"  to Pair(2, 0x08),
         "L"          to Pair(2, 0x40), "ZL"         to Pair(2, 0x80)
     )
 
-    /**
-     * Nintendo Pro Controller 用 HID レポート (9バイト) を生成する
-     *
-     * BluetoothHIDController.sendControllerInput() に渡す配列。
-     * 内部で 48バイトの Standard Full Report (0x30) に変換される。
-     *
-     * @param buttons ボタン名のセット (例: setOf("A"), setOf("DPAD_UP", "ZL"))
-     * @param lx 左スティック X (-127〜127, 中立=0)
-     * @param ly 左スティック Y (-127〜127, 中立=0)
-     * @param rx 右スティック X (-127〜127, 中立=0)
-     * @param ry 右スティック Y (-127〜127, 中立=0)
-     *
-     * スティック値は 12bit (0–4095, 中立=2048) に変換してパックする。
-     */
     private fun buildHidReport(
         buttons: Set<String> = emptySet(),
         lx: Int = 0, ly: Int = 0,
@@ -214,26 +93,15 @@ class MainActivity : AppCompatActivity() {
                 2 -> b2 = b2 or mask
             }
         }
-
-        // -127〜127 → 0〜4095 (12bit, 中立=2048=0x800)
-        // 計算式: (v + 127) * 4096 / 254  →  v=0 で正確に 2048 になる
         fun to12bit(v: Int): Int =
             ((v.coerceIn(-127, 127) + 127) * 4096 / 254).coerceIn(0, 4095)
-
         val lxV = to12bit(lx); val lyV = to12bit(ly)
         val rxV = to12bit(rx); val ryV = to12bit(ry)
-
-        // 12bit X + 12bit Y を 3バイトにパック (LE):
-        //   byte[0] = X[7:0]
-        //   byte[1] = X[11:8] | (Y[3:0] << 4)
-        //   byte[2] = Y[11:4]
         return byteArrayOf(
             b0.toByte(), b1.toByte(), b2.toByte(),
-            // 左スティック
             (lxV and 0xFF).toByte(),
             (((lxV shr 8) and 0x0F) or ((lyV and 0x0F) shl 4)).toByte(),
             ((lyV shr 4) and 0xFF).toByte(),
-            // 右スティック
             (rxV and 0xFF).toByte(),
             (((rxV shr 8) and 0x0F) or ((ryV and 0x0F) shl 4)).toByte(),
             ((ryV shr 4) and 0xFF).toByte()
@@ -264,9 +132,6 @@ class MainActivity : AppCompatActivity() {
             }
 
             val bridge = IntegratedBridge()
-            // 🔧 修正: "Android" と "AndroidBridge" の両方に登録
-            // - snipe_integrated.html の直接呼び出し (Android.xxx) に対応
-            // - _parentAb() 経由の呼び出し (AndroidBridge.xxx) に対応
             addJavascriptInterface(bridge, "Android")
             addJavascriptInterface(bridge, "AndroidBridge")
 
@@ -276,33 +141,22 @@ class MainActivity : AppCompatActivity() {
                         "[${msg.messageLevel()}] ${msg.message()} (${msg.sourceId()}:${msg.lineNumber()})")
                     return true
                 }
-
-                // 📷 WebView の getUserMedia カメラ権限を許可
                 override fun onPermissionRequest(request: PermissionRequest) {
                     runOnUiThread {
-                        // カメラリソースの要求のみ許可
                         val grantable = request.resources.filter {
                             it == PermissionRequest.RESOURCE_VIDEO_CAPTURE
                         }.toTypedArray()
-                        if (grantable.isNotEmpty()) {
-                            request.grant(grantable)
-                            Log.d("MhxxSnipe", "📷 Camera permission granted to WebView")
-                        } else {
-                            request.deny()
-                        }
+                        if (grantable.isNotEmpty()) request.grant(grantable) else request.deny()
                     }
                 }
-
                 override fun onShowFileChooser(
                     wv: WebView,
                     callback: ValueCallback<Array<Uri>>,
                     params: FileChooserParams
                 ): Boolean {
                     fileChooserCallback = callback
-                    val intent = params.createIntent()
-                    runCatching {
-                        startActivityForResult(intent, FILE_CHOOSER_RC)
-                    }.onFailure { callback.onReceiveValue(null) }
+                    runCatching { startActivityForResult(params.createIntent(), FILE_CHOOSER_RC) }
+                        .onFailure { callback.onReceiveValue(null) }
                     return true
                 }
             }
@@ -322,14 +176,6 @@ class MainActivity : AppCompatActivity() {
         setupBluetoothListener()
         setupArduinoListener()
 
-        // ★ Bluetooth ペアリング完了レシーバーを登録
-        val bondFilter = IntentFilter(BluetoothDevice.ACTION_BOND_STATE_CHANGED)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(bondStateReceiver, bondFilter, Context.RECEIVER_EXPORTED)
-        } else {
-            registerReceiver(bondStateReceiver, bondFilter)
-        }
-
         if (hasAllPermissions()) {
             SnipeForegroundService.start(this)
         } else {
@@ -344,46 +190,34 @@ class MainActivity : AppCompatActivity() {
             REQUIRED_PERMISSIONS.all {
                 ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
             }
-        } else {
-            true
-        }
+        } else true
     }
 
     private fun requestBluetoothPermissions() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val deniedPermissions = REQUIRED_PERMISSIONS.filter {
+            val denied = REQUIRED_PERMISSIONS.filter {
                 ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
             }
-
-            if (deniedPermissions.isNotEmpty()) {
-                val needsRationale = deniedPermissions.any {
-                    ActivityCompat.shouldShowRequestPermissionRationale(this, it)
-                }
-
-                if (needsRationale) {
-                    AlertDialog.Builder(this)
-                        .setTitle("Bluetooth権限が必要です")
-                        .setMessage("Switch接続にBluetooth権限が必要です。\n権限を許可してください。")
-                        .setPositiveButton("許可する") { _, _ ->
-                            ActivityCompat.requestPermissions(
-                                this, deniedPermissions.toTypedArray(), PERMISSION_REQUEST_CODE
-                            )
-                        }
-                        .setNegativeButton("キャンセル", null)
-                        .show()
-                } else {
-                    ActivityCompat.requestPermissions(
-                        this, deniedPermissions.toTypedArray(), PERMISSION_REQUEST_CODE
-                    )
-                }
+            if (denied.isEmpty()) return
+            if (denied.any { ActivityCompat.shouldShowRequestPermissionRationale(this, it) }) {
+                AlertDialog.Builder(this)
+                    .setTitle("Bluetooth権限が必要です")
+                    .setMessage("Switch接続にBluetooth権限が必要です。\n権限を許可してください。")
+                    .setPositiveButton("許可する") { _, _ ->
+                        ActivityCompat.requestPermissions(
+                            this, denied.toTypedArray(), PERMISSION_REQUEST_CODE
+                        )
+                    }
+                    .setNegativeButton("キャンセル", null)
+                    .show()
+            } else {
+                ActivityCompat.requestPermissions(this, denied.toTypedArray(), PERMISSION_REQUEST_CODE)
             }
         }
     }
 
     override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
+        requestCode: Int, permissions: Array<out String>, grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == PERMISSION_REQUEST_CODE) {
@@ -393,12 +227,37 @@ class MainActivity : AppCompatActivity() {
                 SnipeForegroundService.start(this)
                 Toast.makeText(this, "Bluetooth権限が許可されました", Toast.LENGTH_SHORT).show()
             } else {
-                Toast.makeText(
-                    this,
-                    "一部の権限が拒否されました。Switch接続に問題が発生する可能性があります。",
-                    Toast.LENGTH_LONG
-                ).show()
+                Toast.makeText(this, "一部の権限が拒否されました。", Toast.LENGTH_LONG).show()
             }
+        }
+    }
+
+    // ============ Discoverable Intent 結果 ============
+
+    @Deprecated("onActivityResult")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        when (requestCode) {
+            BT_DISCOVERABLE_RC -> {
+                if (resultCode == RESULT_CANCELED) {
+                    sendToJS("bluetoothDiscovery", mapOf("status" to "cancelled"))
+                    Toast.makeText(this, "ペアリング待機がキャンセルされました", Toast.LENGTH_SHORT).show()
+                } else {
+                    // resultCode = discoverable 秒数 (正の値)
+                    sendToJS("bluetoothDiscovery", mapOf("status" to "active", "duration" to resultCode))
+                }
+            }
+            FILE_CHOOSER_RC -> {
+                fileChooserCallback?.onReceiveValue(
+                    WebChromeClient.FileChooserParams.parseResult(resultCode, data)
+                )
+                fileChooserCallback = null
+            }
+            PROGRAM_IMPORT_RC -> {
+                if (resultCode == RESULT_OK && data != null) {
+                    data.data?.let { uri -> importArduinoProgram(uri) }
+                }
+            }
+            else -> super.onActivityResult(requestCode, resultCode, data)
         }
     }
 
@@ -418,8 +277,7 @@ class MainActivity : AppCompatActivity() {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                             setAutoEnterEnabled(true)
                         }
-                    }
-                    .build()
+                    }.build()
                 enterPictureInPictureMode(params)
             } catch (e: Exception) {
                 Log.e("MainActivity", "PiP failed: ${e.message}", e)
@@ -434,7 +292,7 @@ class MainActivity : AppCompatActivity() {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
     }
 
-    // ============ Bluetooth / Arduino セットアップ ============
+    // ============ Bluetooth セットアップ ============
 
     private fun setupBluetoothListener() {
         bluetoothHIDController.listener = object : BluetoothHIDController.ControllerListener {
@@ -442,59 +300,31 @@ class MainActivity : AppCompatActivity() {
                 sendToJS("bluetoothStatus", mapOf(
                     "status" to "connected",
                     "device" to device.address,
-                    "name" to (runCatching { device.name }.getOrDefault("Unknown"))
+                    "name"   to (runCatching { device.name }.getOrDefault("Nintendo Switch"))
                 ))
             }
-
             override fun onDisconnected() {
                 sendToJS("bluetoothStatus", mapOf("status" to "disconnected"))
             }
-
             override fun onError(message: String) {
                 sendToJS("bluetoothError", mapOf("message" to message))
                 runOnUiThread {
                     Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
                 }
             }
-
             override fun onStateChanged(state: String) {
                 sendToJS("bluetoothState", mapOf("state" to state))
             }
-
-            /** 未ペアリングSwitchへの初回接続: 操作ガイドをトーストで表示 */
-            override fun onBondingStarted(device: BluetoothDevice) {
-                runOnUiThread {
-                    Toast.makeText(
-                        this@MainActivity,
-                        "🔵 初回接続: Switch のペアリング画面で「さがす」を押してください\nMAC: ${device.address}",
-                        Toast.LENGTH_LONG
-                    ).show()
-                }
+            override fun onDiscoveryStarted() {
+                sendToJS("bluetoothDiscovery", mapOf("status" to "active"))
             }
-
-            /**
-             * ★ 追加: Android を Discoverable にするよう要求
-             *
-             * BluetoothHIDController が「未ペアリングSwitchのペアリングが必要」と
-             * 判断したときに呼ばれる。JoyConDroid の startHidDeviceDiscovery() に相当。
-             * ACTION_REQUEST_DISCOVERABLE で 60 秒間 Discoverable にする。
-             */
-            override fun onDiscoveryNeeded() {
-                runOnUiThread {
-                    requestDiscoverable(60)
-                }
-            }
-
-            /**
-             * ★ 追加: Switch への接続完了 → Discoverable 継続不要
-             */
             override fun onDiscoveryStopped() {
-                // Discoverable は自動的に期限切れになるため、明示的な停止は不要
-                // 必要なら requestDiscoverable(1) で即時終了させることも可能
-                Log.d("MainActivity", "接続完了 → Discoverable 解除不要 (自動期限切れ待ち)")
+                sendToJS("bluetoothDiscovery", mapOf("status" to "stopped"))
             }
         }
     }
+
+    // ============ Arduino セットアップ ============
 
     private fun setupArduinoListener() {
         arduinoManager.setListener(object : ArduinoAutomationManager.ExecutionListener {
@@ -532,8 +362,7 @@ class MainActivity : AppCompatActivity() {
         try {
             val json = JSONObject(data as Map<String, *>)
             val b64 = Base64.encodeToString(
-                json.toString().toByteArray(Charsets.UTF_8),
-                Base64.NO_WRAP
+                json.toString().toByteArray(Charsets.UTF_8), Base64.NO_WRAP
             )
             val js = """
                 (function(){
@@ -554,27 +383,8 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    @Deprecated("onActivityResult")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        when (requestCode) {
-            FILE_CHOOSER_RC -> {
-                fileChooserCallback?.onReceiveValue(
-                    WebChromeClient.FileChooserParams.parseResult(resultCode, data)
-                )
-                fileChooserCallback = null
-            }
-            PROGRAM_IMPORT_RC -> {
-                if (resultCode == RESULT_OK && data != null) {
-                    data.data?.let { uri -> importArduinoProgram(uri) }
-                }
-            }
-            else -> super.onActivityResult(requestCode, resultCode, data)
-        }
-    }
-
     private fun importArduinoProgram(uri: Uri) {
         try {
-            val contentResolver = contentResolver
             val displayName = DocumentsContract.getDocumentId(uri).substringAfterLast(":")
             val inputStream = contentResolver.openInputStream(uri) ?: return
             val fileName = displayName ?: "program_${System.currentTimeMillis()}.txt"
@@ -593,8 +403,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        // ★ Bluetooth ペアリングレシーバーを解除
-        try { unregisterReceiver(bondStateReceiver) } catch (_: Exception) {}
         bluetoothHIDController.cleanup()
         arduinoManager.cleanup()
         if (!isChangingConfigurations) {
@@ -651,14 +459,49 @@ class MainActivity : AppCompatActivity() {
             runOnUiThread { webView.evaluateJavascript(js, null) }
         }
 
-        // ---------- Bluetooth HID ----------
+        // ---------- Bluetooth HID (JoyConDroid 方式) ----------
 
+        /**
+         * ペアリング待機を開始する
+         *
+         * 処理の流れ:
+         *   1. BluetoothHIDController.startDiscovery() → BT名変更 + HID登録
+         *   2. HID 登録完了後に onDiscoveryStarted コールバック発火
+         *   3. (必要に応じて) MainActivity が ACTION_REQUEST_DISCOVERABLE を起動
+         *
+         * ACTION_REQUEST_DISCOVERABLE は Activity コンテキストから起動する必要があるため
+         * ここで startActivityForResult を呼ぶ。
+         */
         @JavascriptInterface
-        fun connectBluetoothSwitch(macAddress: String) {
-            Log.d("Bridge", "Connecting to: $macAddress")
-            bluetoothHIDController.connectToSwitch(macAddress)
+        fun startBluetoothDiscovery() {
+            Log.d("Bridge", "startBluetoothDiscovery")
+            bluetoothHIDController.startDiscovery()
+
+            // Android を 60 秒間 discoverable にする (Switch がスキャンできるようにする)
+            runOnUiThread {
+                try {
+                    val intent = Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE).apply {
+                        putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 60)
+                    }
+                    @Suppress("DEPRECATION")
+                    startActivityForResult(intent, BT_DISCOVERABLE_RC)
+                } catch (e: SecurityException) {
+                    Log.w("Bridge", "REQUEST_DISCOVERABLE permission denied: ${e.message}")
+                    sendToJS("bluetoothError", mapOf("message" to "Bluetoothのアドバタイズ権限がありません"))
+                } catch (e: Exception) {
+                    Log.w("Bridge", "REQUEST_DISCOVERABLE failed: ${e.message}")
+                }
+            }
         }
 
+        /** ペアリング待機を停止し BT 名を元に戻す */
+        @JavascriptInterface
+        fun stopBluetoothDiscovery() {
+            Log.d("Bridge", "stopBluetoothDiscovery")
+            bluetoothHIDController.stopDiscovery()
+        }
+
+        /** 切断 */
         @JavascriptInterface
         fun disconnectBluetoothSwitch() {
             bluetoothHIDController.disconnect()
@@ -666,7 +509,6 @@ class MainActivity : AppCompatActivity() {
 
         /**
          * 生バイト列で送信 (既存の手動HEX入力フォームから)
-         * buttonData: JSON文字列 {"data":"0,0,0,0,0,0,0"}
          */
         @JavascriptInterface
         fun sendControllerInput(buttonData: String) {
@@ -680,41 +522,25 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        /**
-         * ボタン名指定でプレス (pressCtrlBtn から呼ばれる)
-         * @param button  ボタン名 (例: "A", "B", "DPAD_UP", "HOME" ...)
-         * @param duration プレス保持時間 [ms]
-         *
-         * ✅ Fix3: release をメインスレッドではなく hidExecutor で送ることで
-         *         press→release の順序が保証される（スレッド競合回避）
-         */
         @JavascriptInterface
         fun pressButton(button: String, duration: Int) {
             Log.d("Bridge", "pressButton: $button for ${duration}ms")
             val pressReport   = buildHidReport(setOf(button))
             val releaseReport = buildHidReport()
             val holdMs = duration.toLong().coerceAtLeast(16L)
-
             bluetoothHIDController.sendControllerInput(pressReport)
             bluetoothHIDController.scheduleRelease(releaseReport, holdMs)
         }
 
-        /**
-         * 複数ボタン同時プレス (pressMultiBtn から呼ばれる)
-         * @param buttonsJson JSON配列文字列 (例: '["A","B"]')
-         * @param duration    プレス保持時間 [ms]
-         */
         @JavascriptInterface
         fun pressButtons(buttonsJson: String, duration: Int) {
             try {
                 val arr = JSONArray(buttonsJson)
                 val buttons = (0 until arr.length()).map { arr.getString(it) }.toSet()
                 Log.d("Bridge", "pressButtons: $buttons for ${duration}ms")
-
                 val pressReport   = buildHidReport(buttons)
                 val releaseReport = buildHidReport()
                 val holdMs = duration.toLong().coerceAtLeast(16L)
-
                 bluetoothHIDController.sendControllerInput(pressReport)
                 bluetoothHIDController.scheduleRelease(releaseReport, holdMs)
             } catch (e: Exception) {
@@ -722,26 +548,16 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        /**
-         * スティック傾け (tiltStick / アナログパッド から呼ばれる)
-         * @param side     "L" または "R"
-         * @param x        X軸 (-1.0〜1.0)
-         * @param y        Y軸 (-1.0〜1.0)
-         * @param duration 保持時間 [ms]
-         */
         @JavascriptInterface
         fun tiltStick(side: String, x: Double, y: Double, duration: Int) {
             Log.d("Bridge", "tiltStick: side=$side x=$x y=$y for ${duration}ms")
-
             val lx = if (side.uppercase() == "L") (x * 127).toInt() else 0
             val ly = if (side.uppercase() == "L") (y * 127).toInt() else 0
             val rx = if (side.uppercase() == "R") (x * 127).toInt() else 0
             val ry = if (side.uppercase() == "R") (y * 127).toInt() else 0
-
             val tiltReport    = buildHidReport(lx = lx, ly = ly, rx = rx, ry = ry)
             val releaseReport = buildHidReport()
             val holdMs = duration.toLong().coerceAtLeast(16L)
-
             bluetoothHIDController.sendControllerInput(tiltReport)
             bluetoothHIDController.scheduleRelease(releaseReport, holdMs)
         }
