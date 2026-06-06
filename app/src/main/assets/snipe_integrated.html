@@ -4337,6 +4337,38 @@ function _updateBtStatus(data) {
   }
 }
 
+// ★ 修正追加: Kotlin の sendToJS("bluetoothState", ...) に対応するコールバック
+// onStateChanged → 接続中・ペアリング中などの中間状態をステータス欄に表示する
+function bluetoothState(jsonStr) {
+  try {
+    const data = JSON.parse(jsonStr);
+    const statusDiv = document.getElementById('btStatus');
+    if (!statusDiv || !data.state) return;
+    statusDiv.style.cssText = 'padding:12px 14px;border-radius:6px;background:rgba(74,127,170,0.1);border:1px solid rgba(74,127,170,0.4);color:#7a9ab8;text-align:center;font-size:12px;font-weight:600;white-space:pre-wrap;';
+    statusDiv.innerHTML =
+      '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#7a9ab8;margin-right:6px;vertical-align:middle;"></span>'
+      + data.state.replace(/\n/g, '<br>');
+  } catch (e) {}
+}
+
+// ★ 修正追加: Kotlin の sendToJS("bluetoothError", ...) に対応するコールバック
+// onError → エラー内容をステータス欄に赤表示 + トーストで通知する
+function bluetoothError(jsonStr) {
+  try {
+    const data = JSON.parse(jsonStr);
+    const msg = data.message || '不明なエラー';
+    showToast('❌ ' + msg);
+    const statusDiv = document.getElementById('btStatus');
+    if (!statusDiv) return;
+    statusDiv.style.cssText = 'padding:12px 14px;border-radius:6px;background:rgba(220,53,69,0.12);border:1px solid rgba(220,53,69,0.5);color:#dc3545;text-align:center;font-size:12px;font-weight:600;white-space:pre-wrap;';
+    statusDiv.innerHTML =
+      '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#dc3545;margin-right:6px;vertical-align:middle;"></span>エラー: '
+      + msg.replace(/\n/g, '<br>');
+    const disconnectBtn = document.getElementById('btDisconnectBtn');
+    if (disconnectBtn) { disconnectBtn.disabled = true; disconnectBtn.style.opacity = '0.5'; }
+  } catch (e) {}
+}
+
 // =====================================================================
 // Switch マクロ管理 (⚙ マクロタブ)
 // =====================================================================
