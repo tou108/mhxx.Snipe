@@ -343,11 +343,24 @@ class BluetoothHIDController(private val context: Context) {
                                 if (target != null && !dev.address.equals(target.address, ignoreCase = true)) {
                                     Log.w(TAG, "★ 意図しないSwitch自動接続: ${dev.address} (期待: ${target.address}) → 即時切断")
                                     listener?.onStateChanged(
-                                        "⚠ 別のSwitch(${dev.address})が自動接続しました\n" +
-                                        "切断して ${target.address} に再接続中..."
+                                        "⚠ 旧Switch(${dev.address})が自動接続 → 切断して ${target.address} に再接続中..."
                                     )
                                     try { hid.disconnect(dev) } catch (e: Exception) {
                                         Log.e(TAG, "不要デバイス切断エラー: ${e.message}", e)
+                                    }
+                                    // ★ 修正①: 旧Switch切断後、targetへの接続を即時リトライ
+                                    // isConnectingToTarget=true のままCase3がスキップされる問題を回避する
+                                    hidExecutor.execute {
+                                        try { Thread.sleep(600) } catch (_: InterruptedException) {}
+                                        if (!deviceConnected && targetDevice?.address == target.address) {
+                                            Log.d(TAG, "旧Switch切断完了 → ${target.address} に即時リトライ")
+                                            isConnectingToTarget = true
+                                            try { hid.connect(target) }
+                                            catch (e: Exception) {
+                                                isConnectingToTarget = false
+                                                Log.e(TAG, "即時リトライエラー: ${e.message}", e)
+                                            }
+                                        }
                                     }
                                     return  // ← 接続完了として扱わない
                                 }
@@ -804,14 +817,15 @@ class BluetoothHIDController(private val context: Context) {
             if (isConnectingToTarget && !deviceConnected) {
                 isConnectingToTarget = false
                 Log.w(TAG, "★ HIDプロファイル接続タイムアウト: ${dev.address}")
-                val removed = removeBond(dev)
+                // ★ 修正②: タイムアウトでボンドを即削除しない
+                // 旧Switchの自動接続干渉が原因のタイムアウトでボンドを消すと再ペアリングが必要になる
+                // まず再試行を促す。それでも繋がらない場合のみSwitch側の削除を案内する。
                 listener?.onStateChanged(
-                    "⚠ HIDプロファイル接続タイムアウト (${dev.address})\n" +
-                    "BTクラシック接続は成立しましたが HID プロファイルを拒否されました\n" +
-                    (if (removed) "Androidのペアリングを自動削除しました ✓\n" else "") +
-                    "Switch本体: 設定 → コントローラーとセンサー\n" +
-                    "→「コントローラーの持ち方/順番を変える」→「コントローラー情報を削除」\n" +
-                    "削除後、再度「接続」ボタンを押してください"
+                    "⚠ 接続タイムアウト (${dev.address})\n" +
+                    "Android設定 → Bluetooth → 不要なSwitchのペアリングを削除してから\n" +
+                    "再度「接続」ボタンを押してください\n" +
+                    "それでも繋がらない場合: Switch本体 → 設定 → コントローラーとセンサー\n" +
+                    "→「コントローラーの持ち方/順番」→「コントローラー情報を削除」して再接続"
                 )
             }
         }, 10L, TimeUnit.SECONDS)
