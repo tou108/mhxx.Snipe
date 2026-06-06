@@ -1561,25 +1561,12 @@ button:disabled { opacity: 0.45; cursor: not-allowed !important; }
       </div>
     </div>
 
-    <div class="ctrl-section" style="padding-bottom:0;">
-      <div class="ctrl-section-title" style="display:flex;justify-content:space-between;align-items:center;">
-        <span>接続ログ</span>
-        <button onclick="clearBtLog()" style="font-size:10px;padding:2px 8px;background:transparent;border:1px solid var(--border2);color:var(--text3);border-radius:3px;cursor:pointer;font-family:var(--font);">クリア</button>
-      </div>
-      <div id="btLog" style="min-height:60px;max-height:100px;overflow-y:auto;background:var(--bg);border:1px solid var(--border2);border-radius:4px;padding:6px 8px;font-family:monospace;font-size:10px;line-height:1.6;color:var(--text2);"></div>
-    </div>
-
     <div class="ctrl-section">
       <div class="ctrl-section-title">接続設定</div>
-      <div style="margin-bottom:8px;">
+      <div style="margin-bottom:12px;">
         <label class="form-label">Switch の MAC アドレス</label>
         <input type="text" id="btMacAddress" placeholder="例: AA:BB:CC:DD:EE:FF" style="width:100%;font-family:monospace;">
-        <div style="font-size:10px;color:var(--text3);margin-top:4px;">Switch: 設定 → 本体 → Bluetooth → MACアドレス で確認</div>
-      </div>
-      <div style="margin-bottom:10px;padding:8px 10px;background:rgba(74,127,170,0.07);border:1px solid rgba(74,127,170,0.2);border-radius:4px;font-size:10px;color:var(--text3);line-height:1.7;">
-        <span style="color:var(--text2);font-weight:600;">💡 接続方法</span><br>
-        <span style="color:#ffaa00;">▶ 初回ペアリング:</span> Switch → 設定 → コントローラーとセンサー → コントローラーの持ち方/順番を変える → プロコントローラーで有線接続 → 以下の「接続」を押す → Switchの画面で「さがす」<br>
-        <span style="color:var(--text2);">▶ 再接続 (ペアリング済み):</span> MACアドレスを入力して「接続」を押す
+        <div style="font-size:10px;color:var(--text3);margin-top:4px;">Switch の設定画面から MAC アドレスを確認してください</div>
       </div>
       <div style="display:flex;gap:8px;">
         <button onclick="connectToSwitch()" class="search-btn" style="flex:1;">🔗 接続</button>
@@ -4301,75 +4288,16 @@ function _showOcrStatus(type, message) {
 // =====================================================================
 // Bluetooth / Switch 接続 (snipe_integrated より統合)
 // =====================================================================
-// =====================================================================
-// Bluetooth ログ & ステータス ヘルパー
-// =====================================================================
-
-/** 接続ログ欄に1行追加 (type: 'info' | 'success' | 'error') */
-function _addBtLog(msg, type) {
-  const log = document.getElementById('btLog');
-  if (!log) return;
-  const now = new Date();
-  const ts = ('0'+now.getHours()).slice(-2)+':'+('0'+now.getMinutes()).slice(-2)+':'+('0'+now.getSeconds()).slice(-2);
-  const line = document.createElement('div');
-  line.style.color = type === 'error' ? '#dc3545' : type === 'success' ? '#28a745' : 'var(--text2)';
-  line.textContent = '['+ts+'] '+msg;
-  log.appendChild(line);
-  log.scrollTop = log.scrollHeight;
-  while (log.children.length > 80) log.removeChild(log.firstChild);
-}
-
-function clearBtLog() {
-  const el = document.getElementById('btLog');
-  if (el) el.innerHTML = '';
-}
-
-/** ステータスバーを「接続中 (待機)」表示に切り替え */
-function _setBtStatusConnecting(label) {
-  const s = document.getElementById('btStatus');
-  if (!s) return;
-  s.style.cssText = 'padding:12px 14px;border-radius:6px;background:rgba(255,170,0,0.08);border:1px solid rgba(255,170,0,0.3);color:#ffaa00;text-align:center;font-size:12px;font-weight:600;';
-  s.innerHTML = '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#ffaa00;margin-right:6px;vertical-align:middle;animation:pulse 0.8s infinite;"></span>' + (label || '接続中...');
-}
-
-/** ステータスバーを「情報」表示に切り替え (すでに接続済みなら更新しない) */
-function _setBtStatusInfo(msg) {
-  const s = document.getElementById('btStatus');
-  if (!s) return;
-  if (s.innerHTML.indexOf('28a745') !== -1) return; // 接続済みなら上書きしない
-  s.style.cssText = 'padding:12px 14px;border-radius:6px;background:rgba(74,127,170,0.08);border:1px solid rgba(74,127,170,0.25);color:#7a9ab8;text-align:center;font-size:11px;font-weight:600;';
-  s.innerHTML = '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#7a9ab8;margin-right:6px;vertical-align:middle;animation:pulse 0.8s infinite;"></span>' + msg;
-}
-
-/** ステータスバーを「エラー」表示に切り替え */
-function _setBtStatusError(msg) {
-  const s = document.getElementById('btStatus');
-  if (!s) return;
-  s.style.cssText = 'padding:12px 14px;border-radius:6px;background:rgba(220,53,69,0.08);border:1px solid rgba(220,53,69,0.3);color:#dc3545;text-align:center;font-size:12px;font-weight:600;';
-  s.innerHTML = '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#dc3545;margin-right:6px;vertical-align:middle;"></span>エラー: ' + msg;
-  const btn = document.getElementById('btDisconnectBtn');
-  if (btn) { btn.disabled = true; btn.style.opacity = '0.5'; }
-}
-
-// =====================================================================
-// Bluetooth / Switch 接続 (Android → JS コールバックを含む)
-// =====================================================================
-
 function connectToSwitch() {
   const mac = document.getElementById('btMacAddress').value.trim();
   if (!mac) { showToast('⚠ MAC アドレスを入力してください'); return; }
-  _addBtLog('🔗 接続開始: ' + mac);
-  _setBtStatusConnecting();
+  showToast('📶 接続中...');
   if (window.Android && Android.connectBluetoothSwitch) {
     Android.connectBluetoothSwitch(mac);
-  } else {
-    _addBtLog('⚠ Androidブリッジ未接続 — アプリ内で実行してください', 'error');
-    _setBtStatusError('Androidブリッジ未接続');
   }
 }
 
 function disconnectFromSwitch() {
-  _addBtLog('🔌 切断要求...');
   if (window.Android && Android.disconnectBluetoothSwitch) {
     Android.disconnectBluetoothSwitch();
   }
@@ -4390,9 +4318,6 @@ function sendControllerInput() {
   }
 }
 
-// ----- Kotlin → JS コールバック -----
-
-/** 接続状態 (connected / disconnected) — MainActivity.sendToJS("bluetoothStatus", ...) */
 function bluetoothStatus(jsonStr) {
   try { _updateBtStatus(JSON.parse(jsonStr)); } catch (e) {}
 }
@@ -4405,39 +4330,43 @@ function _updateBtStatus(data) {
     statusDiv.style.cssText = 'padding:12px 14px;border-radius:6px;background:rgba(40,167,69,0.1);border:1px solid rgba(40,167,69,0.3);color:#28a745;text-align:center;font-size:12px;font-weight:600;';
     statusDiv.innerHTML = '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#28a745;margin-right:6px;vertical-align:middle;"></span>接続中: ' + (data.device || '');
     if (disconnectBtn) { disconnectBtn.disabled = false; disconnectBtn.style.opacity = '1'; }
-    _addBtLog('✅ 接続完了: ' + (data.device || ''), 'success');
   } else {
     statusDiv.style.cssText = 'padding:12px 14px;border-radius:6px;background:rgba(220,53,69,0.08);border:1px solid rgba(220,53,69,0.3);color:#dc3545;text-align:center;font-size:12px;font-weight:600;';
     statusDiv.innerHTML = '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#dc3545;margin-right:6px;vertical-align:middle;"></span>切断';
     if (disconnectBtn) { disconnectBtn.disabled = true; disconnectBtn.style.opacity = '0.5'; }
-    if (data.status === 'disconnected') _addBtLog('🔌 切断しました');
   }
 }
 
-/**
- * 中間ステータス変化 — MainActivity.sendToJS("bluetoothState", ...)
- * ★ この関数が存在しないと「さがす」案内など一切表示されない
- */
+// ★ 修正追加: Kotlin の sendToJS("bluetoothState", ...) に対応するコールバック
+// onStateChanged → 接続中・ペアリング中などの中間状態をステータス欄に表示する
 function bluetoothState(jsonStr) {
   try {
     const data = JSON.parse(jsonStr);
-    const msg = data.state || JSON.stringify(data);
-    _addBtLog('📍 ' + msg, 'info');
-    _setBtStatusInfo(msg);
-  } catch(e) {}
+    const statusDiv = document.getElementById('btStatus');
+    if (!statusDiv || !data.state) return;
+    statusDiv.style.cssText = 'padding:12px 14px;border-radius:6px;background:rgba(74,127,170,0.1);border:1px solid rgba(74,127,170,0.4);color:#7a9ab8;text-align:center;font-size:12px;font-weight:600;white-space:pre-wrap;';
+    statusDiv.innerHTML =
+      '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#7a9ab8;margin-right:6px;vertical-align:middle;"></span>'
+      + data.state.replace(/\n/g, '<br>');
+  } catch (e) {}
 }
 
-/**
- * エラー通知 — MainActivity.sendToJS("bluetoothError", ...)
- * ★ この関数が存在しないとエラーが一切表示されない
- */
+// ★ 修正追加: Kotlin の sendToJS("bluetoothError", ...) に対応するコールバック
+// onError → エラー内容をステータス欄に赤表示 + トーストで通知する
 function bluetoothError(jsonStr) {
   try {
     const data = JSON.parse(jsonStr);
-    const msg = data.message || JSON.stringify(data);
-    _addBtLog('❌ ' + msg, 'error');
-    _setBtStatusError(msg.length > 40 ? msg.slice(0,40)+'...' : msg);
-  } catch(e) {}
+    const msg = data.message || '不明なエラー';
+    showToast('❌ ' + msg);
+    const statusDiv = document.getElementById('btStatus');
+    if (!statusDiv) return;
+    statusDiv.style.cssText = 'padding:12px 14px;border-radius:6px;background:rgba(220,53,69,0.12);border:1px solid rgba(220,53,69,0.5);color:#dc3545;text-align:center;font-size:12px;font-weight:600;white-space:pre-wrap;';
+    statusDiv.innerHTML =
+      '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#dc3545;margin-right:6px;vertical-align:middle;"></span>エラー: '
+      + msg.replace(/\n/g, '<br>');
+    const disconnectBtn = document.getElementById('btDisconnectBtn');
+    if (disconnectBtn) { disconnectBtn.disabled = true; disconnectBtn.style.opacity = '0.5'; }
+  } catch (e) {}
 }
 
 // =====================================================================
