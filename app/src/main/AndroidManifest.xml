@@ -6,7 +6,7 @@
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
-    <!-- ★ 追加: 初回ペアリング時に Android 側を Discoverable にするために必要 (Android 12+) -->
+    <!-- JoyConDroid 方式: discoverable (アドバタイズ) に必要 -->
     <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
 
     <!-- 位置情報（Bluetoothスキャン用、Android 11以下） -->
