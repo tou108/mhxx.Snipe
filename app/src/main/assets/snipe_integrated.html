@@ -1564,15 +1564,21 @@ button:disabled { opacity: 0.45; cursor: not-allowed !important; }
     <div class="ctrl-section">
       <div class="ctrl-section-title">接続設定</div>
       <div style="margin-bottom:12px;">
-        <label class="form-label">Switch の MAC アドレス</label>
+        <label class="form-label">Switch の Bluetooth MACアドレス</label>
         <input type="text" id="btMacAddress" placeholder="例: AA:BB:CC:DD:EE:FF" style="width:100%;font-family:monospace;">
-        <div style="font-size:10px;color:var(--text3);margin-top:4px;">Switch の設定画面から MAC アドレスを確認してください</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:4px;line-height:1.6;">
+          ⚠ <b>WiFi MACではなくBluetooth MAC</b>を使用してください<br>
+          確認方法: Switch 設定 → インターネット → 本体情報 → Bluetooth MACアドレス
+        </div>
       </div>
-      <div style="display:flex;gap:8px;">
-        <button onclick="connectToSwitch()" class="search-btn" style="flex:1;">🔗 接続</button>
+      <div style="display:flex;gap:8px;margin-bottom:6px;">
+        <button onclick="connectToSwitch()" class="search-btn" style="flex:1;">🔗 接続 (MAC指定)</button>
         <button onclick="disconnectFromSwitch()" id="btDisconnectBtn" disabled
                 style="flex:1;padding:10px;background:rgba(220,53,69,0.1);border:1px solid rgba(220,53,69,0.35);color:var(--red);border-radius:4px;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font);opacity:0.5;">切断</button>
       </div>
+      <button onclick="autoDetectSwitch()" style="width:100%;padding:9px;background:rgba(0,180,150,0.12);border:1px solid rgba(0,180,150,0.4);color:#00c8a0;border-radius:4px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);">
+        🔍 自動検出でペアリング (MACアドレス不要・初めての方向け)
+      </button>
     </div>
 
     <div class="ctrl-section">
@@ -4290,10 +4296,17 @@ function _showOcrStatus(type, message) {
 // =====================================================================
 function connectToSwitch() {
   const mac = document.getElementById('btMacAddress').value.trim();
-  if (!mac) { showToast('⚠ MAC アドレスを入力してください'); return; }
+  if (!mac) { showToast('⚠ MACアドレスを入力するか「自動検出」を使ってください'); return; }
   showToast('📶 接続中...');
   if (window.Android && Android.connectBluetoothSwitch) {
     Android.connectBluetoothSwitch(mac);
+  }
+}
+
+function autoDetectSwitch() {
+  showToast('🔍 Switch自動検出中...\nSwitch のペアリング画面で「さがす」を押してください');
+  if (window.Android && Android.connectBluetoothSwitch) {
+    Android.connectBluetoothSwitch('');  // 空文字 = 自動検出モード
   }
 }
 
