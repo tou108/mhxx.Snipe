@@ -19,13 +19,13 @@ import java.util.concurrent.atomic.AtomicReference
  * 【JoyConDroid 方式に変更】
  *
  * ❌ 旧: Switch の MAC アドレスを手動入力して接続 (Android → Switch)
- * ✅ 新: Android を "Pro Controller" として検出可能にし、Switch 側からペアリング
+ * ✅ 新: Android を "Joy-Con (R)" として検出可能にし、Switch 側からペアリング
  *         (Switch → Android)
  *
  * 接続手順:
- *   1. startDiscovery() を呼ぶ → Android の BT 名を "Pro Controller" に変更し、
+ *   1. startDiscovery() を呼ぶ → Android の BT 名を "Joy-Con (R)" に変更し、
  *      discoverable モードを有効にする (60秒間)
- *   2. Switch 側でコントローラーの追加 → 「持ちかた/順番を変える」→「Pro Controller」
+ *   2. Switch 側で「コントローラーの持ちかた/順番を変える」画面を開く (自動スキャン開始)
  *   3. Switch が Android を発見してペアリング → 自動接続
  *   4. 切断後は Switch のペアリング情報を削除 → 次回もクリーンにペアリングできる
  */
@@ -37,7 +37,7 @@ class BluetoothHIDController(private val context: Context) {
         private const val NINTENDO_SWITCH = "Nintendo Switch"
 
         /** Switch が受け付ける BT デバイス名 */
-        private const val CONTROLLER_BT_NAME = "Pro Controller"
+        private const val CONTROLLER_BT_NAME = "Joy-Con (R)"
 
         /**
          * Nintendo Pro Controller HID ディスクリプタ
@@ -71,6 +71,23 @@ class BluetoothHIDController(private val context: Context) {
 
     /** 接続前の元の BT 名 (切断・クリーンアップ時に復元) */
     private var originalBtName: String? = null
+
+    /**
+     * 接続前の元の Bluetooth デバイスクラス (切断時に復元)
+     * -1 = 未取得または取得失敗
+     */
+    private var originalBtClass: Int = -1
+
+    /**
+     * Gamepad の Bluetooth Class of Device
+     * 0x002508 = Peripheral(Major:0x05) + Gamepad(Minor:0x02)
+     * Switch がコントローラーとして認識するために必要
+     *
+     * 設定方法: BluetoothAdapter.setBluetoothClass() は非公開APIのため
+     * リフレクションでアクセスする。Android 12以降は失敗する場合があるが、
+     * BluetoothHidDevice.registerApp() がOS内部でCoD設定を行う場合もある。
+     */
+    private val GAMEPAD_BT_CLASS = 0x002508
 
     // ----- リスナー -----
     var listener: ControllerListener? = null
@@ -130,11 +147,11 @@ class BluetoothHIDController(private val context: Context) {
     /**
      * ペアリング待機を開始する
      *
-     * 1. Android の BT 名を "Pro Controller" に変更
-     * 2. HID プロキシ取得 → HID アプリ登録
-     * 3. コールバック内で onAppStatusChanged → ControllerActivity.startHidDeviceDiscovery() 相当
-     *    → Androidを discoverable にする処理は呼び出し元 (MainActivity) が担当
-     *       (ACTION_REQUEST_DISCOVERABLE は Activity からしか起動できないため)
+     * 1. BT デバイスクラスを Gamepad (0x002508) に変更
+     * 2. Android の BT 名を "Joy-Con (R)" に変更
+     * 3. HID プロキシ取得 → HID アプリ登録
+     * 4. discoverable 化は呼び出し元 MainActivity が担当
+     *    (ACTION_REQUEST_DISCOVERABLE は Activity からしか起動できないため)
      */
     fun startDiscovery() {
         if (!hasPermission()) { listener?.onError("Bluetooth権限がありません"); return }
@@ -144,7 +161,10 @@ class BluetoothHIDController(private val context: Context) {
 
         listener?.onStateChanged("ペアリング待機準備中...")
 
-        // BT 名を "Pro Controller" に変更 (元の名前を保存)
+        // ① BTデバイスクラスを Gamepad (0x002508) に変更
+        applyGamepadBtClass()
+
+        // ② BT 名を "Joy-Con (R)" に変更 (元の名前を保存)
         try {
             val current = adapter.name
             if (current != CONTROLLER_BT_NAME) {
@@ -158,8 +178,9 @@ class BluetoothHIDController(private val context: Context) {
         hidExecutor.execute { initHidAndRegister() }
     }
 
-    /** ペアリング待機を停止し、BT 名を元に戻す */
+    /** ペアリング待機を停止し、BT 名と BT クラスを元に戻す */
     fun stopDiscovery() {
+        restoreBtClass()
         restoreBtName()
         listener?.onDiscoveryStopped()
         listener?.onStateChanged("ペアリング待機停止")
@@ -175,7 +196,66 @@ class BluetoothHIDController(private val context: Context) {
         }
     }
 
-    private fun getHidProxy(callback: (BluetoothHidDevice?) -> Unit) {
+    // ============================================================
+    // Bluetooth デバイスクラス (CoD) 設定
+    // ============================================================
+
+    /**
+     * 現在の CoD を保存し、Gamepad クラス (0x002508) に変更する
+     *
+     * BluetoothAdapter.setBluetoothClass() は非公開APIのためリフレクションを使用。
+     * - Android 9〜11: ほぼ成功
+     * - Android 12〜13: 機種依存
+     * - Android 14+: ブロックされる可能性あり
+     * 失敗しても BluetoothHidDevice.registerApp() 内部でOS側がCoD設定することがある。
+     */
+    private fun applyGamepadBtClass() {
+        try {
+            // 現在の CoD を取得して保存
+            val btClass = bluetoothAdapter?.bluetoothClass
+            if (btClass != null) {
+                val field = btClass.javaClass.getDeclaredField("mClass")
+                field.isAccessible = true
+                originalBtClass = field.getInt(btClass)
+                Log.d(TAG, "元のBTクラス: 0x${originalBtClass.toString(16).uppercase()}")
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "CoD 読み取り失敗: ${e.message}")
+        }
+
+        try {
+            val method = BluetoothAdapter::class.java.getDeclaredMethod(
+                "setBluetoothClass", Int::class.java
+            )
+            method.isAccessible = true
+            val result = method.invoke(bluetoothAdapter, GAMEPAD_BT_CLASS)
+            Log.d(TAG, "BTクラスをGamepad(0x002508)に変更: 結果=$result")
+            listener?.onStateChanged("BTデバイスクラスをGamepadに変更しました")
+        } catch (e: Exception) {
+            // 失敗しても続行 (registerApp内部でOSが設定する場合あり)
+            Log.w(TAG, "CoD 設定失敗 (Android14+では正常): ${e.message}")
+            listener?.onStateChanged("BTデバイスクラス変更スキップ (OS内部で設定)")
+        }
+    }
+
+    /** CoD を元の値に戻す */
+    private fun restoreBtClass() {
+        val original = originalBtClass
+        if (original < 0) return
+        try {
+            val method = BluetoothAdapter::class.java.getDeclaredMethod(
+                "setBluetoothClass", Int::class.java
+            )
+            method.isAccessible = true
+            method.invoke(bluetoothAdapter, original)
+            Log.d(TAG, "BTクラスを元に戻しました: 0x${original.toString(16).uppercase()}")
+        } catch (e: Exception) {
+            Log.w(TAG, "CoD 復元失敗: ${e.message}")
+        }
+        originalBtClass = -1
+    }
+
+
         if (serviceConnected && bluetoothHidDevice != null) { callback(bluetoothHidDevice); return }
         bluetoothAdapter?.getProfileProxy(context, object : BluetoothProfile.ServiceListener {
             override fun onServiceConnected(profile: Int, proxy: BluetoothProfile?) {
@@ -263,8 +343,8 @@ class BluetoothHIDController(private val context: Context) {
                         BluetoothProfile.STATE_DISCONNECTED -> {
                             deviceConnected = false; connectedDevice = null
                             stopScheduler()
-                            // JoyConDroid と同様: ペアリング情報を削除して次回クリーン接続
                             unpairDevice(dev)
+                            restoreBtClass()
                             restoreBtName()
                             listener?.onDisconnected()
                         }
@@ -334,7 +414,7 @@ class BluetoothHIDController(private val context: Context) {
                 val macBytes = macStr.split(":").map { it.toInt(16).toByte() }
                 val info = ByteArray(12).apply {
                     this[0] = 0x04; this[1] = 0x21
-                    this[2] = 0x03; this[3] = 0x02
+                    this[2] = 0x02; this[3] = 0x02  // 0x01=Joy-Con(L)  0x02=Joy-Con(R)  0x03=Pro
                     for (i in 0..5) this[4 + i] = macBytes.getOrElse(5 - i) { 0 }
                     this[10] = 0x01; this[11] = 0x01
                 }
@@ -476,6 +556,7 @@ class BluetoothHIDController(private val context: Context) {
                 bluetoothHidDevice?.unregisterApp()
             } catch (e: Exception) { Log.e(TAG, "disconnect error", e) }
             deviceConnected = false; connectedDevice = null; appRegistered = false
+            restoreBtClass()
             restoreBtName()
             listener?.onDisconnected()
         }
