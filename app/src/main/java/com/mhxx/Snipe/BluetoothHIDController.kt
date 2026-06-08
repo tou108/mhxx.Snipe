@@ -8,7 +8,6 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
 import androidx.core.app.ActivityCompat
-import java.lang.reflect.Method
 import java.util.concurrent.*
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
@@ -16,32 +15,43 @@ import java.util.concurrent.atomic.AtomicReference
 /**
  * Nintendo Switch用 Bluetooth HID コントローラー
  *
- * 【JoyConDroid 方式に変更】
+ * 【旧バージョンからの根本的な変更点】
  *
- * ❌ 旧: Switch の MAC アドレスを手動入力して接続 (Android → Switch)
- * ✅ 新: Android を "Joy-Con (R)" として検出可能にし、Switch 側からペアリング
- *         (Switch → Android)
+ * ❌ 旧: 汎用 HID Gamepad ディスクリプタ
+ * ✅ 新: Nintendo Switch が唯一受け付ける Nintendo 独自ディスクリプタ (JoyConDroid と同一)
  *
- * 接続手順:
- *   1. startDiscovery() を呼ぶ → Android の BT 名を "Joy-Con (R)" に変更し、
- *      discoverable モードを有効にする (60秒間)
- *   2. Switch 側で「コントローラーの持ちかた/順番を変える」画面を開く (自動スキャン開始)
- *   3. Switch が Android を発見してペアリング → 自動接続
- *   4. 切断後は Switch のペアリング情報を削除 → 次回もクリーンにペアリングできる
+ * ❌ 旧: sendReport(device, reportId=0, 7バイト)
+ * ✅ 新: sendReport(device, 0x30, 48バイト) / sendReport(device, 0x21, 48バイト)
+ *
+ * ❌ 旧: サブコマンドハンドラなし
+ * ✅ 新: Switch が送ってくる Output Report (0x01) に含まれるサブコマンドすべてに応答
+ *       (応答しないと Switch は入力を永久に無視する)
+ *
+ * ❌ 旧: ボタンデータが 7バイト汎用形式
+ * ✅ 新: 3バイトボタン + 12bit アナログスティック×2 = 9バイト (これを 48バイトレポートに埋め込む)
+ *
+ * ❌ 旧: 接続後にレポートを送り続けない
+ * ✅ 新: 接続直後に 0x3F Simple HID ハンドシェイク → 0x30 Full Report を 15ms ごとに送信
  */
 @SuppressLint("MissingPermission")
 class BluetoothHIDController(private val context: Context) {
 
     companion object {
         private const val TAG = "BluetoothHIDController"
-        private const val NINTENDO_SWITCH = "Nintendo Switch"
-
-        /** Switch が受け付ける BT デバイス名 */
-        private const val CONTROLLER_BT_NAME = "Joy-Con (R)"
 
         /**
-         * Nintendo Pro Controller HID ディスクリプタ
+         * Nintendo Pro Controller / Joy-Con 共通 HID ディスクリプタ
          * 出典: JoyConDroid (ControllerType.java) / dekuNukem Nintendo Switch Reverse Engineering
+         *
+         * Switch はこのバイト列以外を持つデバイスを「コントローラー」として認識しない。
+         * 含まれる Report ID:
+         *   0x21 = Subcommand Reply (Input, 48 bytes)
+         *   0x30 = Standard Full Report (Input, 48 bytes)  ← メインレポート
+         *   0x31 = NFC/IR Report (Input, 361 bytes)
+         *   0x3F = Simple HID Report (Input, 11 bytes)    ← ハンドシェイク用
+         *   0x01 = Rumble + Subcommand (Output, 48 bytes) ← Switch からのコマンド受信
+         *   0x10 = Rumble Only (Output, 48 bytes)
+         *   0x11 = NFC/IR MCU Data (Output, 48 bytes)
          */
         private const val DESCRIPTOR_HEX =
             "05010905a1010601ff852109217508953081028530093075089530810285310931750896690181028532" +
@@ -50,51 +60,30 @@ class BluetoothHIDController(private val context: Context) {
             "0601ff850109017508953091028510091075089530910285110911750895309102851209127508953091" +
             "02c0"
 
-        // QoS 設定 (JoyConDroid と同値)
-        private const val QOS_TOKEN_RATE       = 21720
-        private const val QOS_TOKEN_BUCKET     = 362
-        private const val QOS_PEAK_BANDWIDTH   = 21720
-        private const val QOS_LATENCY          = 16667
-        private const val QOS_DELAY_VARIATION  = 16667
+        private val MAC_REGEX = Regex("^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$")
     }
 
     // ----- BT 基盤 -----
     private var bluetoothAdapter: BluetoothAdapter? = null
     private var bluetoothHidDevice: BluetoothHidDevice? = null
+    // コールバック + サブコマンド処理を同一スレッドで行う BT 専用 Executor
     private val hidExecutor: ExecutorService = Executors.newSingleThreadExecutor()
 
     // ----- 接続状態 -----
     @Volatile private var connectedDevice: BluetoothDevice? = null
+    @Volatile private var targetDevice: BluetoothDevice? = null
     @Volatile private var deviceConnected = false
-    private var appRegistered = false
-    private var serviceConnected = false
-
-    /** 接続前の元の BT 名 (切断・クリーンアップ時に復元) */
-    private var originalBtName: String? = null
-
-    /**
-     * 接続前の元の Bluetooth デバイスクラス (切断時に復元)
-     * -1 = 未取得または取得失敗
-     */
-    private var originalBtClass: Int = -1
-
-    /**
-     * Gamepad の Bluetooth Class of Device
-     * 0x002508 = Peripheral(Major:0x05) + Gamepad(Minor:0x02)
-     * Switch がコントローラーとして認識するために必要
-     *
-     * 設定方法: BluetoothAdapter.setBluetoothClass() は非公開APIのため
-     * リフレクションでアクセスする。Android 12以降は失敗する場合があるが、
-     * BluetoothHidDevice.registerApp() がOS内部でCoD設定を行う場合もある。
-     */
-    private val GAMEPAD_BT_CLASS = 0x002508
+    @Volatile private var appRegistered = false   // @Volatile で hidExecutor 外からも安全に読める
+    @Volatile private var serviceConnected = false
 
     // ----- リスナー -----
     var listener: ControllerListener? = null
 
     // ----- レポート制御 -----
+    /** 各レポートに付与するタイマー値 (0–255 でインクリメント) */
     private val reportTimer = AtomicInteger(0)
 
+    /** true になると定期 Full Report 送信を開始する */
     @Volatile private var isFullReportMode = false
 
     /**
@@ -102,7 +91,7 @@ class BluetoothHIDController(private val context: Context) {
      *   [0] 右ボタン byte: Y=0x01, X=0x02, B=0x04, A=0x08, R=0x40, ZR=0x80
      *   [1] 中ボタン byte: MINUS=0x01, PLUS=0x02, R_STICK=0x04, L_STICK=0x08, HOME=0x10, CAPTURE=0x20
      *   [2] 左ボタン byte: DOWN=0x01, UP=0x02, RIGHT=0x04, LEFT=0x08, L=0x40, ZL=0x80
-     *   [3–5] 左スティック: 12bit X+Y packed, 中立=0x800
+     *   [3–5] 左スティック: 12bit X (LE) + 12bit Y (LE), 中立 = 0x800
      *   [6–8] 右スティック: 同上
      */
     private val currentButtonState = AtomicReference(ByteArray(9).also { setStickCenter(it) })
@@ -118,10 +107,6 @@ class BluetoothHIDController(private val context: Context) {
         fun onDisconnected()
         fun onError(message: String)
         fun onStateChanged(state: String)
-        /** ペアリング待機中 (discoverable になった) */
-        fun onDiscoveryStarted()
-        /** ペアリング待機終了 */
-        fun onDiscoveryStopped()
     }
 
     init {
@@ -130,8 +115,12 @@ class BluetoothHIDController(private val context: Context) {
     }
 
     // ============================================================
-    // 権限チェック
+    // 接続
     // ============================================================
+
+    private fun normalizeMac(mac: String) = mac.trim().replace("-", ":").uppercase()
+    private fun isValidMac(mac: String) = MAC_REGEX.matches(mac)
+
     private fun hasPermission(): Boolean =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
             ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) ==
@@ -140,122 +129,19 @@ class BluetoothHIDController(private val context: Context) {
             ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH) ==
                     PackageManager.PERMISSION_GRANTED
 
-    // ============================================================
-    // 接続 (JoyConDroid 方式: Switch が Android を発見してペアリング)
-    // ============================================================
-
-    /**
-     * ペアリング待機を開始する
-     *
-     * 1. BT デバイスクラスを Gamepad (0x002508) に変更
-     * 2. Android の BT 名を "Joy-Con (R)" に変更
-     * 3. HID プロキシ取得 → HID アプリ登録
-     * 4. discoverable 化は呼び出し元 MainActivity が担当
-     *    (ACTION_REQUEST_DISCOVERABLE は Activity からしか起動できないため)
-     */
-    fun startDiscovery() {
+    fun connectToSwitch(macAddress: String) {
         if (!hasPermission()) { listener?.onError("Bluetooth権限がありません"); return }
-        val adapter = bluetoothAdapter
-            ?: run { listener?.onError("Bluetoothがサポートされていません"); return }
+        val mac = normalizeMac(macAddress)
+        if (!isValidMac(mac)) { listener?.onError("無効なMACアドレス: $macAddress"); return }
+        val adapter = bluetoothAdapter ?: run { listener?.onError("Bluetoothがサポートされていません"); return }
         if (!adapter.isEnabled) { listener?.onError("Bluetoothが無効です"); return }
-
-        listener?.onStateChanged("ペアリング待機準備中...")
-
-        // ① BTデバイスクラスを Gamepad (0x002508) に変更
-        applyGamepadBtClass()
-
-        // ② BT 名を "Joy-Con (R)" に変更 (元の名前を保存)
-        try {
-            val current = adapter.name
-            if (current != CONTROLLER_BT_NAME) {
-                originalBtName = current
-                adapter.name = CONTROLLER_BT_NAME
-            }
-        } catch (e: SecurityException) {
-            Log.w(TAG, "BT name change failed: ${e.message}")
-        }
-
-        hidExecutor.execute { initHidAndRegister() }
+        val device = try { adapter.getRemoteDevice(mac) }
+                     catch (e: Exception) { listener?.onError("デバイスエラー: ${e.message}"); return }
+        listener?.onStateChanged("接続準備中...")
+        hidExecutor.execute { connectToDevice(device) }
     }
 
-    /** ペアリング待機を停止し、BT 名と BT クラスを元に戻す */
-    fun stopDiscovery() {
-        restoreBtClass()
-        restoreBtName()
-        listener?.onDiscoveryStopped()
-        listener?.onStateChanged("ペアリング待機停止")
-    }
-
-    private fun restoreBtName() {
-        val original = originalBtName ?: return
-        try {
-            bluetoothAdapter?.name = original
-            originalBtName = null
-        } catch (e: SecurityException) {
-            Log.w(TAG, "BT name restore failed: ${e.message}")
-        }
-    }
-
-    // ============================================================
-    // Bluetooth デバイスクラス (CoD) 設定
-    // ============================================================
-
-    /**
-     * 現在の CoD を保存し、Gamepad クラス (0x002508) に変更する
-     *
-     * BluetoothAdapter.setBluetoothClass() は非公開APIのためリフレクションを使用。
-     * - Android 9〜11: ほぼ成功
-     * - Android 12〜13: 機種依存
-     * - Android 14+: ブロックされる可能性あり
-     * 失敗しても BluetoothHidDevice.registerApp() 内部でOS側がCoD設定することがある。
-     */
-    private fun applyGamepadBtClass() {
-        try {
-            // 現在の CoD を取得して保存
-            val btClass = bluetoothAdapter?.bluetoothClass
-            if (btClass != null) {
-                val field = btClass.javaClass.getDeclaredField("mClass")
-                field.isAccessible = true
-                originalBtClass = field.getInt(btClass)
-                Log.d(TAG, "元のBTクラス: 0x${originalBtClass.toString(16).uppercase()}")
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "CoD 読み取り失敗: ${e.message}")
-        }
-
-        try {
-            val method = BluetoothAdapter::class.java.getDeclaredMethod(
-                "setBluetoothClass", Int::class.java
-            )
-            method.isAccessible = true
-            val result = method.invoke(bluetoothAdapter, GAMEPAD_BT_CLASS)
-            Log.d(TAG, "BTクラスをGamepad(0x002508)に変更: 結果=$result")
-            listener?.onStateChanged("BTデバイスクラスをGamepadに変更しました")
-        } catch (e: Exception) {
-            // 失敗しても続行 (registerApp内部でOSが設定する場合あり)
-            Log.w(TAG, "CoD 設定失敗 (Android14+では正常): ${e.message}")
-            listener?.onStateChanged("BTデバイスクラス変更スキップ (OS内部で設定)")
-        }
-    }
-
-    /** CoD を元の値に戻す */
-    private fun restoreBtClass() {
-        val original = originalBtClass
-        if (original < 0) return
-        try {
-            val method = BluetoothAdapter::class.java.getDeclaredMethod(
-                "setBluetoothClass", Int::class.java
-            )
-            method.isAccessible = true
-            method.invoke(bluetoothAdapter, original)
-            Log.d(TAG, "BTクラスを元に戻しました: 0x${original.toString(16).uppercase()}")
-        } catch (e: Exception) {
-            Log.w(TAG, "CoD 復元失敗: ${e.message}")
-        }
-        originalBtClass = -1
-    }
-
-
+    private fun getHidProxy(callback: (BluetoothHidDevice?) -> Unit) {
         if (serviceConnected && bluetoothHidDevice != null) { callback(bluetoothHidDevice); return }
         bluetoothAdapter?.getProfileProxy(context, object : BluetoothProfile.ServiceListener {
             override fun onServiceConnected(profile: Int, proxy: BluetoothProfile?) {
@@ -273,127 +159,102 @@ class BluetoothHIDController(private val context: Context) {
         }, BluetoothProfile.HID_DEVICE)
     }
 
-    private fun initHidAndRegister() {
+    private fun connectToDevice(device: BluetoothDevice) {
+        targetDevice = device
         getHidProxy { hid ->
             if (hid == null) { listener?.onError("HIDプロキシが利用できません"); return@getHidProxy }
             if (appRegistered) {
-                // 登録済みなら discoverable 通知だけ出す
-                listener?.onDiscoveryStarted()
-                listener?.onStateChanged("Switch からのペアリングを待機中...")
+                try { hid.connect(device) }
+                catch (e: Exception) { listener?.onError("接続エラー: ${e.message}") }
                 return@getHidProxy
             }
-            registerHidApp(hid)
-        }
-    }
+            try {
+                // ★ Nintendo 専用ディスクリプタ
+                val descriptor = DESCRIPTOR_HEX.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
 
-    private fun registerHidApp(hid: BluetoothHidDevice) {
-        try {
-            val descriptor = DESCRIPTOR_HEX.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+                // ─────────────────────────────────────────────────────────────
+                // Class of Device (CoD) の計算:
+                //   Android は subclass 値から CoD を自動計算する
+                //   SUBCLASS1_GAMEPAD = 0x08
+                //   CoD = 0x002500 | (0x08 & 0xFC) = 0x002500 | 0x08 = 0x002508
+                //     Major Device Class: Peripheral (0x0500)
+                //     Minor Device Class: Gamepad    (0x0008)
+                //   → Nintendo Switch が期待する CoD 0x002508 と一致
+                // ─────────────────────────────────────────────────────────────
+                val sdp = BluetoothHidDeviceAppSdpSettings(
+                    "Pro Controller",                    // Switch が認識するデバイス名 (完全一致が必要)
+                    "Pro Controller",                    // 説明
+                    "Nintendo Co., Ltd.",                // Switch が期待するメーカー名
+                    BluetoothHidDevice.SUBCLASS1_GAMEPAD, // 0x08 → CoD = 0x002508 (Peripheral/Gamepad)
+                    descriptor
+                )
+                val qos = BluetoothHidDeviceAppQosSettings(
+                    BluetoothHidDeviceAppQosSettings.SERVICE_GUARANTEED,
+                    21720, 362, 21720, 16667, 16667
+                )
 
-            val sdp = BluetoothHidDeviceAppSdpSettings(
-                "Wireless Gamepad",    // HID 名 (SDP レコード)
-                "Gamepad",             // 説明
-                "Nintendo",            // プロバイダ
-                0x08.toByte(),         // SubClass: Gamepad
-                descriptor
-            )
-            val qos = BluetoothHidDeviceAppQosSettings(
-                BluetoothHidDeviceAppQosSettings.SERVICE_GUARANTEED,
-                QOS_TOKEN_RATE, QOS_TOKEN_BUCKET, QOS_PEAK_BANDWIDTH,
-                QOS_LATENCY, QOS_DELAY_VARIATION
-            )
+                hid.registerApp(sdp, null, qos, hidExecutor, object : BluetoothHidDevice.Callback() {
 
-            hid.registerApp(sdp, null, qos, hidExecutor, object : BluetoothHidDevice.Callback() {
-
-                override fun onAppStatusChanged(pluggedDevice: BluetoothDevice?, registered: Boolean) {
-                    appRegistered = registered
-                    if (registered) {
-                        // 既にペアリング済みの Switch があれば直接接続を試みる
-                        val bondedSwitch = findBondedSwitch()
-                        if (bondedSwitch != null) {
-                            try { hid.connect(bondedSwitch) }
-                            catch (e: Exception) { Log.w(TAG, "connect bonded: ${e.message}") }
+                    override fun onAppStatusChanged(pluggedDevice: BluetoothDevice?, registered: Boolean) {
+                        appRegistered = registered
+                        if (registered) {
+                            // 登録成功 → Switch への接続を開始
+                            val target = targetDevice
+                            if (target != null) {
+                                try { hid.connect(target) }
+                                catch (e: Exception) { listener?.onError("接続開始エラー: ${e.message}") }
+                            }
                         } else {
-                            // Switch からの発見を待つ → discoverable 開始を通知
-                            listener?.onDiscoveryStarted()
-                            listener?.onStateChanged("Switch からのペアリングを待機中...")
-                        }
-                    }
-                }
-
-                override fun onConnectionStateChanged(dev: BluetoothDevice, state: Int) {
-                    // JoyConDroid と同様: "Nintendo Switch" からの接続のみ受け付ける
-                    val devName = try { dev.name } catch (_: Exception) { "" }
-                    if (!NINTENDO_SWITCH.equals(devName, ignoreCase = true)) {
-                        Log.d(TAG, "非Switch デバイスを無視: $devName")
-                        return
-                    }
-
-                    when (state) {
-                        BluetoothProfile.STATE_CONNECTED -> {
-                            deviceConnected = true; connectedDevice = dev
-                            listener?.onDiscoveryStopped()
-                            listener?.onConnected(dev)
-                            startHandshake()
-                        }
-                        BluetoothProfile.STATE_CONNECTING  ->
-                            listener?.onStateChanged("接続中...")
-                        BluetoothProfile.STATE_DISCONNECTING ->
-                            listener?.onStateChanged("切断中...")
-                        BluetoothProfile.STATE_DISCONNECTED -> {
-                            deviceConnected = false; connectedDevice = null
+                            // 登録解除 (disconnect() 後 or Switch 側からの強制解除)
+                            Log.d(TAG, "App unregistered")
                             stopScheduler()
-                            unpairDevice(dev)
-                            restoreBtClass()
-                            restoreBtName()
-                            listener?.onDisconnected()
                         }
                     }
-                }
 
-                override fun onGetReport(dev: BluetoothDevice, type: Byte, id: Byte, bufferSize: Int) {
-                    try { hid.replyReport(dev, type, id, buildFullReport()) }
-                    catch (e: Exception) { Log.e(TAG, "replyReport error", e) }
-                }
-
-                override fun onSetReport(dev: BluetoothDevice, type: Byte, id: Byte, data: ByteArray) {
-                    try { hid.reportError(dev, BluetoothHidDevice.ERROR_RSP_SUCCESS) }
-                    catch (e: Exception) { Log.e(TAG, "reportError error", e) }
-                }
-
-                override fun onInterruptData(dev: BluetoothDevice, reportId: Byte, data: ByteArray) {
-                    if (reportId == 0x01.toByte() && data.size >= 10) {
-                        handleSubcommand(dev, data)
+                    override fun onConnectionStateChanged(dev: BluetoothDevice, state: Int) {
+                        when (state) {
+                            BluetoothProfile.STATE_CONNECTED -> {
+                                deviceConnected = true; connectedDevice = dev
+                                listener?.onConnected(dev)
+                                // 接続直後: Simple HID ハンドシェイク開始
+                                startHandshake()
+                            }
+                            BluetoothProfile.STATE_CONNECTING  -> listener?.onStateChanged("接続中...")
+                            BluetoothProfile.STATE_DISCONNECTING -> listener?.onStateChanged("切断中...")
+                            BluetoothProfile.STATE_DISCONNECTED -> {
+                                deviceConnected = false; connectedDevice = null
+                                stopScheduler()
+                                listener?.onDisconnected()
+                            }
+                        }
                     }
-                }
-            })
-        } catch (e: Exception) { listener?.onError("HID登録エラー: ${e.message}") }
-    }
 
-    /** ペアリング済み "Nintendo Switch" デバイスを探す (JoyConDroid の getConnectedNintendoSwitch 相当) */
-    private fun findBondedSwitch(): BluetoothDevice? {
-        return try {
-            bluetoothAdapter?.bondedDevices?.firstOrNull {
-                NINTENDO_SWITCH.equals(try { it.name } catch (_: Exception) { "" }, ignoreCase = true)
-            }
-        } catch (e: SecurityException) {
-            Log.w(TAG, "bondedDevices access denied: ${e.message}")
-            null
-        }
-    }
+                    /** Switch から GET_REPORT が来た場合 — 現在状態を返す */
+                    override fun onGetReport(dev: BluetoothDevice, type: Byte, id: Byte, bufferSize: Int) {
+                        try { hid.replyReport(dev, type, id, buildFullReport()) }
+                        catch (e: Exception) { Log.e(TAG, "replyReport error", e) }
+                    }
 
-    /**
-     * ペアリング情報を削除 (JoyConDroid の unpairDevice 相当)
-     * Switch 側のペアリング情報は Switch 本体側で管理されているため、
-     * Android 側で removeBond を呼ぶことで次回クリーンにペアリングできる。
-     */
-    private fun unpairDevice(device: BluetoothDevice) {
-        try {
-            val m: Method = device.javaClass.getMethod("removeBond")
-            m.invoke(device)
-            Log.d(TAG, "Unpaired: ${device.address}")
-        } catch (e: Exception) {
-            Log.w(TAG, "Unpair failed: ${e.message}")
+                    override fun onSetReport(dev: BluetoothDevice, type: Byte, id: Byte, data: ByteArray) {
+                        try { hid.reportError(dev, BluetoothHidDevice.ERROR_RSP_SUCCESS) }
+                        catch (e: Exception) { Log.e(TAG, "reportError error", e) }
+                    }
+
+                    /**
+                     * ★ Switch からの Output Report を受信する
+                     *   reportId=0x01: Rumble + Subcommand  ← サブコマンド処理が必要
+                     *   reportId=0x10: Rumble only          ← 無視でよい
+                     *   reportId=0x11: NFC/IR               ← 無視でよい
+                     *
+                     * このコールバックへの応答なしでは Switch は入力を受け付けない。
+                     */
+                    override fun onInterruptData(dev: BluetoothDevice, reportId: Byte, data: ByteArray) {
+                        if (reportId == 0x01.toByte() && data.size >= 10) {
+                            handleSubcommand(dev, data)
+                        }
+                    }
+                })
+            } catch (e: Exception) { listener?.onError("接続エラー: ${e.message}") }
         }
     }
 
@@ -401,31 +262,49 @@ class BluetoothHIDController(private val context: Context) {
     // サブコマンド処理 (Switch → Android)
     // ============================================================
 
+    /**
+     * Output Report 0x01 のペイロード構造:
+     *   data[0]   = global packet counter
+     *   data[1–8] = rumble data (L+R, 4 bytes each)
+     *   data[9]   = subcommand ID
+     *   data[10–] = subcommand arguments
+     */
     private fun handleSubcommand(dev: BluetoothDevice, data: ByteArray) {
         val timer = data[0]
         val subCmd = data[9]
         Log.d(TAG, "SubCmd: 0x${(subCmd.toInt() and 0xFF).toString(16).uppercase()}")
 
         when (subCmd) {
+            // 0x01: Bluetooth manual pairing
             0x01.toByte() -> ack(dev, timer, subCmd, 0x81.toByte())
+
+            // 0x02: Request device info
             0x02.toByte() -> {
                 val macStr = try { bluetoothAdapter?.address ?: "00:00:00:00:00:00" }
                              catch (_: Exception) { "00:00:00:00:00:00" }
                 val macBytes = macStr.split(":").map { it.toInt(16).toByte() }
                 val info = ByteArray(12).apply {
-                    this[0] = 0x04; this[1] = 0x21
-                    this[2] = 0x02; this[3] = 0x02  // 0x01=Joy-Con(L)  0x02=Joy-Con(R)  0x03=Pro
+                    this[0] = 0x04; this[1] = 0x21          // firmware ver
+                    this[2] = 0x03; this[3] = 0x02          // Pro Controller
                     for (i in 0..5) this[4 + i] = macBytes.getOrElse(5 - i) { 0 }
-                    this[10] = 0x01; this[11] = 0x01
+                    this[10] = 0x01; this[11] = 0x01        // SPI colors
                 }
                 subcmdReply(dev, timer, 0x82.toByte(), subCmd, info)
             }
+
+            // 0x03: Set input report mode → Full Report Mode へ切り替え
             0x03.toByte() -> {
                 ack(dev, timer, subCmd, 0x80.toByte())
                 if (!isFullReportMode) switchToFullReportMode()
             }
+
+            // 0x04: Trigger buttons elapsed time
             0x04.toByte() -> subcmdReply(dev, timer, 0x83.toByte(), subCmd, ByteArray(8))
+
+            // 0x08: Set shipment mode
             0x08.toByte() -> ack(dev, timer, subCmd, 0x80.toByte())
+
+            // 0x10: SPI flash read → ゼロ埋めで応答
             0x10.toByte() -> {
                 val len = if (data.size >= 15) (data[14].toInt() and 0xFF) else 0
                 val reply = ByteArray(5 + len)
@@ -436,18 +315,42 @@ class BluetoothHIDController(private val context: Context) {
                 if (data.size >= 15) reply[4] = data[14]
                 subcmdReply(dev, timer, 0x90.toByte(), subCmd, reply)
             }
+
+            // 0x11: SPI flash write
             0x11.toByte() -> ack(dev, timer, subCmd, 0x80.toByte())
+
+            // 0x21: Set NFC/IR MCU config
             0x21.toByte() -> subcmdReply(dev, timer, 0xA0.toByte(), subCmd, ByteArray(34))
+
+            // 0x22: Set NFC/IR MCU state
             0x22.toByte() -> ack(dev, timer, subCmd, 0x80.toByte())
+
+            // 0x30: Set player lights
             0x30.toByte() -> ack(dev, timer, subCmd, 0x80.toByte())
+
+            // 0x38: Set HOME light
             0x38.toByte() -> ack(dev, timer, subCmd, 0x80.toByte())
+
+            // 0x40: Enable IMU (6-axis)
             0x40.toByte() -> ack(dev, timer, subCmd, 0x80.toByte())
+
+            // 0x41: Set IMU sensitivity
             0x41.toByte() -> ack(dev, timer, subCmd, 0x80.toByte())
+
+            // 0x42: Write IMU registers
             0x42.toByte() -> ack(dev, timer, subCmd, 0x80.toByte())
+
+            // 0x43: Read IMU registers
             0x43.toByte() -> ack(dev, timer, subCmd, 0x80.toByte())
+
+            // 0x48: Enable vibration
             0x48.toByte() -> ack(dev, timer, subCmd, 0x80.toByte())
+
+            // 0x50: Get regulated voltage
             0x50.toByte() -> subcmdReply(dev, timer, 0x80.toByte(), subCmd,
-                byteArrayOf(0x08, 0x07, 0x00, 0x00))
+                byteArrayOf(0x08, 0x07, 0x00, 0x00)) // ~1800mV
+
+            // その他: 汎用 ACK
             else -> ack(dev, timer, subCmd, 0x80.toByte())
         }
     }
@@ -456,12 +359,26 @@ class BluetoothHIDController(private val context: Context) {
         subcmdReply(dev, timer, ack, subCmd, ByteArray(0))
     }
 
+    /**
+     * Subcommand Reply (Report ID 0x21, 48 bytes) を送信する
+     *
+     * レイアウト:
+     *   buf[0]     = timer
+     *   buf[1]     = battery (0x8E = full + BT connected)
+     *   buf[2–4]   = buttons (all 0)
+     *   buf[5–7]   = left stick center (0x800)
+     *   buf[8–10]  = right stick center (0x800)
+     *   buf[11]    = vibrator (0xB0)
+     *   buf[12]    = ACK byte
+     *   buf[13]    = subcommand ID
+     *   buf[14–47] = subcommand reply data (最大 34 bytes)
+     */
     private fun subcmdReply(dev: BluetoothDevice, timer: Byte, ack: Byte, subCmd: Byte, extra: ByteArray) {
         val buf = ByteArray(48)
         buf[0]  = timer
         buf[1]  = 0x8E.toByte()
-        setStickCenter(buf, offset = 5)
-        setStickCenter(buf, offset = 8)
+        setStickCenter(buf, offset = 5)   // left stick center at buf[5–7]
+        setStickCenter(buf, offset = 8)   // right stick center at buf[8–10]
         buf[11] = 0xB0.toByte()
         buf[12] = ack
         buf[13] = subCmd
@@ -481,6 +398,18 @@ class BluetoothHIDController(private val context: Context) {
         }
     }
 
+    /**
+     * Standard Full Report (0x30, 48 bytes) を currentButtonState から生成する
+     *
+     * レイアウト:
+     *   buf[0]     = timer (インクリメント)
+     *   buf[1]     = battery/connection (0x8E)
+     *   buf[2–4]   = buttons (3 bytes, Nintendo Pro Controller ビット配置)
+     *   buf[5–7]   = left stick  (12bit X + 12bit Y packed)
+     *   buf[8–10]  = right stick (12bit X + 12bit Y packed)
+     *   buf[11]    = vibrator input report (0xB0)
+     *   buf[12–47] = IMU data (すべて 0)
+     */
     private fun buildFullReport(): ByteArray {
         val buf = ByteArray(48)
         buf[0]  = (reportTimer.incrementAndGet() and 0xFF).toByte()
@@ -491,12 +420,23 @@ class BluetoothHIDController(private val context: Context) {
         return buf
     }
 
+    /**
+     * ボタン/スティック状態を Switch に送信する (public API)
+     *
+     * @param buttonData 9バイト配列 (buildHidReport() の戻り値を渡す)
+     *   [0] 右ボタン  [1] 中ボタン  [2] 左ボタン
+     *   [3–5] 左スティック 12bit   [6–8] 右スティック 12bit
+     */
     fun sendControllerInput(buttonData: ByteArray) {
         val dev = connectedDevice ?: run { Log.w(TAG, "未接続"); return }
         if (buttonData.size >= 9) currentButtonState.set(buttonData.copyOf(9))
         rawSend(dev, 0x30, buildFullReport())
     }
 
+    /**
+     * 指定ミリ秒後にリリースレポートを送信する
+     * hidExecutor で実行することで press → sleep → release の順序を保証する
+     */
     fun scheduleRelease(releaseReport: ByteArray, delayMs: Long) {
         hidExecutor.execute {
             try { Thread.sleep(delayMs) } catch (_: InterruptedException) {}
@@ -508,11 +448,22 @@ class BluetoothHIDController(private val context: Context) {
     // ハンドシェイク & 定期レポート
     // ============================================================
 
+    /**
+     * 接続直後に Simple HID (0x3F) レポートを送り続け Switch を "目覚め" させる。
+     * Switch が 0x03 (set input report mode) を送ってきたら isFullReportMode=true になり終了。
+     *
+     * hidExecutor と別スレッドで実行することで、onInterruptData コールバックの処理を
+     * ブロックしないようにする。
+     */
     private fun startHandshake() {
         Thread({
             var count = 0
             while (!isFullReportMode && deviceConnected && count < 100) {
                 val dev = connectedDevice ?: break
+                // Simple HID レポート (11 bytes):
+                //   buf[0–1] = buttons (0)
+                //   buf[2]   = hat switch neutral (0x08)
+                //   buf[3–10]= sticks at center (0x8000 LE per axis)
                 val buf = ByteArray(11).apply {
                     this[2] = 0x08
                     this[4] = 0x80.toByte(); this[6] = 0x80.toByte()
@@ -525,6 +476,7 @@ class BluetoothHIDController(private val context: Context) {
         }, "BT-Handshake").also { it.isDaemon = true; it.start() }
     }
 
+    /** 0x30 Full Report を 15ms (≒66Hz) ごとに送信開始する */
     private fun switchToFullReportMode() {
         isFullReportMode = true
         Log.d(TAG, "Full Report Mode 開始 (15ms/report)")
@@ -549,15 +501,17 @@ class BluetoothHIDController(private val context: Context) {
     // ============================================================
 
     fun disconnect() {
+        targetDevice = null
         stopScheduler()
+        // appRegistered を先にリセットして、切断中に connectToSwitch が呼ばれても
+        // registerApp を重複して呼ばないようにする
+        appRegistered = false
         hidExecutor.execute {
             try {
                 connectedDevice?.let { bluetoothHidDevice?.disconnect(it) }
                 bluetoothHidDevice?.unregisterApp()
             } catch (e: Exception) { Log.e(TAG, "disconnect error", e) }
-            deviceConnected = false; connectedDevice = null; appRegistered = false
-            restoreBtClass()
-            restoreBtName()
+            deviceConnected = false; connectedDevice = null
             listener?.onDisconnected()
         }
     }
@@ -571,6 +525,14 @@ class BluetoothHIDController(private val context: Context) {
     // ユーティリティ
     // ============================================================
 
+    /**
+     * 12bit スティックの中立値 (0x800 = 2048) をバイト配列に書き込む
+     * 12bit X + 12bit Y を 3バイトにパック:
+     *   byte[offset+0] = X[7:0]
+     *   byte[offset+1] = X[11:8] | (Y[3:0] << 4)
+     *   byte[offset+2] = Y[11:4]
+     * X=2048=0x800, Y=2048=0x800 → 0x00, 0x08, 0x80
+     */
     private fun setStickCenter(buf: ByteArray, offset: Int = 3) {
         buf[offset]     = 0x00
         buf[offset + 1] = 0x08
