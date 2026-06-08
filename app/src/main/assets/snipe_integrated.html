@@ -1462,7 +1462,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed !important; }
       <div class="ctrl-section-title" style="display:flex;justify-content:space-between;align-items:center;">
         <span>💾 保存済みマクロ</span>
         <div style="display:flex;gap:5px;">
-          <button onclick="importMacroJson()" style="padding:3px 7px;background:var(--panel2);border:1px solid var(--border2);color:var(--text2);border-radius:3px;font-size:10px;cursor:pointer;font-family:var(--font);">📥 読込</button>
+          <button id="macroImportBtn" onclick="handleImportClick()" style="padding:3px 7px;background:var(--panel2);border:1px solid var(--border2);color:var(--text2);border-radius:3px;font-size:10px;cursor:pointer;font-family:var(--font);" title="マクロ読込（Switch接続時は.inoファイル対応）">📥 読込</button>
           <button onclick="exportMacroJson()" style="padding:3px 7px;background:var(--panel2);border:1px solid var(--border2);color:var(--text2);border-radius:3px;font-size:10px;cursor:pointer;font-family:var(--font);">📤 書出</button>
         </div>
       </div>
@@ -1582,6 +1582,64 @@ button:disabled { opacity: 0.45; cursor: not-allowed !important; }
         <input type="text" id="btButtonInput" value="00 00 7f 7f" placeholder="例: 01 00 7f 7f" style="width:100%;font-family:monospace;">
       </div>
       <button onclick="sendControllerInput()" class="search-btn">📤 送信</button>
+    </div>
+
+    <!-- ====== .ino マクロ管理 (Switch接続時のみ表示) ====== -->
+    <div class="ctrl-section" id="inoMacroSection" style="display:none;">
+      <div class="ctrl-section-title" style="color:var(--teal); display:flex; align-items:center; gap:8px;">
+        <span>🎮 .ino マクロ</span>
+        <span style="font-size:9px;background:var(--teal);color:#000;padding:1px 6px;border-radius:3px;font-weight:700;letter-spacing:1px;">SWITCH接続中</span>
+      </div>
+
+      <!-- ファイル情報バナー -->
+      <div id="inoFileInfo" style="display:none; padding:8px 10px; background:rgba(32,201,151,0.06); border:1px solid rgba(32,201,151,0.25); border-radius:4px; margin-bottom:10px; font-size:11px;">
+        <div style="display:flex; align-items:center; gap:6px; margin-bottom:3px;">
+          <span style="font-size:13px;">📄</span>
+          <span id="inoFileName" style="font-weight:700; color:var(--teal); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></span>
+        </div>
+        <div id="inoFileStats" style="color:var(--text3); font-size:10px;"></div>
+      </div>
+
+      <!-- ファイル選択ボタン -->
+      <button onclick="importInoMacro()" class="search-btn" style="width:100%; margin-bottom:10px; background:linear-gradient(135deg,#1a3a2a,#1a7a5a,#20c997,#1a7a5a,#1a3a2a); border-color:#20c997; color:#e0fff8;">
+        📂 .ino ファイルを開く
+      </button>
+
+      <!-- 関数一覧 -->
+      <div style="font-size:10px; color:var(--text3); letter-spacing:1px; text-transform:uppercase; margin-bottom:5px;">関数リスト</div>
+      <div id="inoFuncList" style="max-height:180px; overflow-y:auto; border:1px solid var(--border); border-radius:4px; font-size:11px;">
+        <div style="padding:16px; text-align:center; color:var(--text3);">ファイルを開くと関数一覧が表示されます</div>
+      </div>
+
+      <!-- 選択関数プレビュー＆実行 -->
+      <div id="inoFuncPreview" style="display:none; margin-top:10px;">
+        <div style="font-size:10px; color:var(--text3); margin-bottom:4px;">
+          選択中: <span id="inoSelectedFuncName" style="color:var(--teal); font-weight:700;"></span>
+          &nbsp;<span id="inoSelectedStepCount" style="color:var(--text3);"></span>
+        </div>
+        <div id="inoFuncPreviewContent" class="macro-steps-preview"
+             style="max-height:60px; overflow-y:auto; padding:4px 6px; background:rgba(0,0,0,0.2); border:1px solid var(--border); border-radius:3px; margin-bottom:8px;">
+        </div>
+        <div style="display:flex; gap:6px;">
+          <button id="inoExecBtn" onclick="executeInoFunc()"
+                  style="flex:1; padding:9px; background:rgba(32,201,151,0.18); border:1px solid var(--teal); color:var(--teal); border-radius:4px; font-size:12px; font-weight:700; cursor:pointer; font-family:var(--font);">
+            ▶ 実行
+          </button>
+          <button id="inoStopBtn" onclick="stopInoExec()"
+                  style="display:none; flex:1; padding:9px; background:rgba(220,53,69,0.18); border:1px solid var(--red); color:var(--red); border-radius:4px; font-size:12px; font-weight:700; cursor:pointer; font-family:var(--font);">
+            ⏹ 停止
+          </button>
+          <button onclick="saveInoFuncAsMacro()"
+                  style="padding:9px 12px; background:var(--panel2); border:1px solid var(--border2); color:var(--text2); border-radius:4px; font-size:11px; cursor:pointer; font-family:var(--font);">
+            💾 保存
+          </button>
+        </div>
+      </div>
+
+      <!-- 実行ログ -->
+      <div id="inoRunLog"
+           style="display:none; margin-top:8px; max-height:90px; overflow-y:auto; padding:6px 8px; background:rgba(0,0,0,0.25); border:1px solid var(--border); border-radius:3px; font-size:10px; font-family:monospace; line-height:1.8; color:var(--text2);">
+      </div>
     </div>
   </div>
 </div><!-- /tab-bt -->
@@ -3780,14 +3838,22 @@ function executeStep(step) {
   } else if (step.type === 'stick') {
     _parentAb('tiltStick', step.side, step.x || 0, step.y || 0, step.duration || 500);
     try { window.parent.postMessage({ type: 'tiltStick', side: step.side, x: step.x||0, y: step.y||0, duration: step.duration||500 }, '*'); } catch(e) {}
+  } else if (step.type === 'setstick') {
+    // .inoの SwitchController().setStickTiltRatio 対応
+    _parentAb('setStick', step.side || 'L', step.x || 0, step.y || 0);
+    try { window.parent.postMessage({ type: 'setStick', side: step.side||'L', x: step.x||0, y: step.y||0 }, '*'); } catch(e) {}
   }
+  // delay/wait/comment はタイミング制御のみ (executeStep での実アクション不要)
 }
 
 function getStepDuration(step) {
-  if (step.type === 'wait') return step.ms || 100;
-  if (step.type === 'press') return (step.duration || 100) + 30;
+  if (step.type === 'wait')     return step.ms || 100;
+  if (step.type === 'delay')    return step.ms || 100;   // .ino delay()
+  if (step.type === 'press')    return (step.duration || 100) + 30;
   if (step.type === 'multipress') return (step.duration || 100) + 30;
-  if (step.type === 'stick') return (step.duration || 500) + 30;
+  if (step.type === 'stick')    return (step.duration || 500) + 30;
+  if (step.type === 'setstick') return 50;
+  if (step.type === 'comment')  return 0;
   return 100;
 }
 
@@ -3878,6 +3944,614 @@ function exportMacroJson() {
   a.href = url; a.download = 'macros.json'; a.click();
   URL.revokeObjectURL(url);
   showToast('📤 マクロをエクスポートしました');
+}
+
+// =====================================================================
+// 読込ボタン動的切替 (JSON ↔ .ino)
+// =====================================================================
+function _updateImportBtnLabel() {
+  var btn = document.getElementById('macroImportBtn');
+  if (!btn) return;
+  if (btConnected) {
+    btn.textContent = '📥 .ino読込';
+    btn.style.borderColor = 'var(--teal)';
+    btn.style.color       = 'var(--teal)';
+    btn.title = 'Switch接続中 — .inoマクロファイルを読み込みます';
+  } else {
+    btn.textContent = '📥 読込';
+    btn.style.borderColor = '';
+    btn.style.color       = '';
+    btn.title = 'JSONマクロファイルを読み込みます';
+  }
+}
+
+/** 読込ボタン クリックディスパッチャ */
+function handleImportClick() {
+  if (btConnected) {
+    importInoMacro();
+  } else {
+    importMacroJson();
+  }
+}
+
+// =====================================================================
+// .ino マクロ インポート＆パーサー
+// =====================================================================
+var _inoParsed = null; // 最後にパースしたファイルの結果
+
+/** Switch接続時専用: .inoファイルを開いてパース */
+function importInoMacro() {
+  var input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.ino,.cpp,.h,.txt';
+  input.onchange = function(e) {
+    var file = e.target.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(ev) {
+      try {
+        var src = ev.target.result;
+        var result = _parseInoFile(src);
+        if (!result.success) {
+          showToast('❌ パースエラー: ' + result.error);
+          _inoLog('❌ ' + result.error);
+          return;
+        }
+        _inoParsed = result;
+        _showInoFileInfo(file.name, result);
+        showToast('📥 ' + file.name + ' 読み込み完了（' + result.funcList.length + '関数）');
+        // コントローラータブのマクロリストにも追加
+        result.funcList.forEach(function(fn) {
+          if (fn.steps.length > 0) {
+            savedMacros.push({ name: '[.ino] ' + fn.name, steps: fn.steps, createdAt: Date.now() });
+          }
+        });
+        renderMacroList();
+        switchTab('bt'); // BTタブに戻る
+      } catch(e2) {
+        showToast('❌ インポートエラー: ' + e2.message);
+        _inoLog('❌ ' + e2.message);
+      }
+    };
+    reader.readAsText(file, 'UTF-8');
+  };
+  input.click();
+}
+
+/** ファイル情報 + 関数リストをBTタブに描画 */
+function _showInoFileInfo(fileName, result) {
+  var infoEl   = document.getElementById('inoFileInfo');
+  var nameEl   = document.getElementById('inoFileName');
+  var statsEl  = document.getElementById('inoFileStats');
+  var listEl   = document.getElementById('inoFuncList');
+  if (!infoEl || !listEl) return;
+
+  infoEl.style.display = '';
+  if (nameEl)  nameEl.textContent  = fileName;
+  if (statsEl) statsEl.textContent =
+    '関数: ' + result.funcList.length + '  /  合計ステップ: ' +
+    result.funcList.reduce(function(a, f){ return a + f.steps.length; }, 0) +
+    '  /  定数: dlc=' + (result.consts.dlc !== undefined ? result.consts.dlc : '?') +
+    ' ball=' + (result.consts.ball_number !== undefined ? result.consts.ball_number : '?');
+
+  // 関数一覧を描画
+  listEl.innerHTML = result.funcList.length === 0
+    ? '<div style="padding:14px;text-align:center;color:var(--text3);">実行可能な関数がありません</div>'
+    : result.funcList.map(function(fn, i) {
+        var esc = fn.name.replace(/'/g, "\\'");
+        var isSetup = fn.name === 'setup';
+        return '<div style="padding:8px 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;cursor:pointer;transition:background 0.1s;" ' +
+          'onclick="selectInoFunc(' + i + ')" id="inoFuncItem_' + i + '">' +
+          '<div style="flex:1;overflow:hidden;">' +
+            '<span style="font-weight:' + (isSetup ? '700' : '500') + ';color:' + (isSetup ? 'var(--teal)' : 'var(--text)') + ';font-size:12px;">' +
+              (isSetup ? '⚙ ' : '▸ ') + fn.name + '()' +
+            '</span>' +
+            '<span style="font-size:10px;color:var(--text3);margin-left:6px;">' + fn.steps.length + 'steps</span>' +
+          '</div>' +
+          '<button onclick="event.stopPropagation();quickRunInoFunc(' + i + ')" ' +
+            'style="padding:3px 8px;background:rgba(32,201,151,0.12);border:1px solid var(--teal);color:var(--teal);border-radius:3px;font-size:10px;cursor:pointer;font-family:var(--font);">▶</button>' +
+        '</div>';
+      }).join('');
+
+  // setup() を自動選択
+  var setupIdx = result.funcList.findIndex(function(f){ return f.name === 'setup'; });
+  if (setupIdx >= 0) selectInoFunc(setupIdx);
+
+  _inoLog('✅ ' + fileName + ' パース完了 — ' + result.funcList.length + '関数');
+}
+
+var _inoSelectedFuncIdx = -1;
+
+/** 関数を選択してプレビュー表示 */
+function selectInoFunc(idx) {
+  _inoSelectedFuncIdx = idx;
+  if (!_inoParsed) return;
+  var fn = _inoParsed.funcList[idx];
+  if (!fn) return;
+
+  // ハイライト
+  document.querySelectorAll('[id^="inoFuncItem_"]').forEach(function(el) {
+    el.style.background = '';
+    el.style.borderLeft = '';
+  });
+  var selEl = document.getElementById('inoFuncItem_' + idx);
+  if (selEl) { selEl.style.background = 'rgba(32,201,151,0.08)'; selEl.style.borderLeft = '3px solid var(--teal)'; }
+
+  // プレビュー
+  var preview = document.getElementById('inoFuncPreview');
+  var nameEl  = document.getElementById('inoSelectedFuncName');
+  var cntEl   = document.getElementById('inoSelectedStepCount');
+  var prevCnt = document.getElementById('inoFuncPreviewContent');
+  if (preview) preview.style.display = '';
+  if (nameEl)  nameEl.textContent = fn.name + '()';
+  if (cntEl)   cntEl.textContent  = '(' + fn.steps.length + 'ステップ)';
+  if (prevCnt) {
+    prevCnt.innerHTML = fn.steps.slice(0, 30).map(function(s) {
+      if (s.type === 'press')    return '<span class="macro-step-badge" style="color:var(--steel2);">' + s.button + '</span>';
+      if (s.type === 'multipress') return '<span class="macro-step-badge" style="color:#ff8040;">[' + s.buttons.join('+') + ']</span>';
+      if (s.type === 'stick')    return '<span class="macro-step-badge" style="color:var(--teal);">' + s.side + '🕹</span>';
+      if (s.type === 'setstick') return '<span class="macro-step-badge" style="color:var(--accent2);">set🕹</span>';
+      if (s.type === 'delay' || s.type === 'wait') return '<span class="macro-step-badge" style="color:var(--text3);">⏱' + s.ms + '</span>';
+      if (s.type === 'comment')  return '<span class="macro-step-badge" style="color:var(--text3);font-style:italic;">' + s.text.substring(0,12) + '</span>';
+      return '';
+    }).join('') + (fn.steps.length > 30 ? '<span class="macro-step-badge" style="color:var(--text3);">+' + (fn.steps.length - 30) + '</span>' : '');
+  }
+}
+
+/** 関数を直接実行 (リストの▶ボタン) */
+function quickRunInoFunc(idx) {
+  selectInoFunc(idx);
+  executeInoFunc();
+}
+
+/** 選択中の関数を実行 */
+function executeInoFunc() {
+  if (!_inoParsed || _inoSelectedFuncIdx < 0) { showToast('⚠ 関数を選択してください'); return; }
+  var fn = _inoParsed.funcList[_inoSelectedFuncIdx];
+  if (!fn || fn.steps.length === 0) { showToast('⚠ 実行可能なステップがありません'); return; }
+
+  var logEl = document.getElementById('inoRunLog');
+  if (logEl) logEl.style.display = '';
+  _inoLog('▶ ' + fn.name + '() 実行開始 — ' + fn.steps.length + 'ステップ');
+
+  var execBtn = document.getElementById('inoExecBtn');
+  var stopBtn = document.getElementById('inoStopBtn');
+  if (execBtn) execBtn.style.display = 'none';
+  if (stopBtn) stopBtn.style.display = '';
+
+  executeMacroSteps(fn.steps, 1);
+  showToast('▶ [.ino] ' + fn.name + '() 実行中 (' + fn.steps.length + 'steps)');
+
+  // 推定終了時間後にUIリセット
+  var totalMs = fn.steps.reduce(function(a, s){ return a + getStepDuration(s); }, 0);
+  setTimeout(function() {
+    if (execBtn) execBtn.style.display = '';
+    if (stopBtn) stopBtn.style.display = 'none';
+    _inoLog('✅ ' + fn.name + '() 完了');
+  }, totalMs + 500);
+}
+
+/** .ino実行を停止 */
+function stopInoExec() {
+  stopMacroPlay();
+  var execBtn = document.getElementById('inoExecBtn');
+  var stopBtn = document.getElementById('inoStopBtn');
+  if (execBtn) execBtn.style.display = '';
+  if (stopBtn) stopBtn.style.display = 'none';
+  _inoLog('⏹ 停止しました');
+}
+
+/** 選択中の関数をコントローラータブのsavedMacrosに保存 */
+function saveInoFuncAsMacro() {
+  if (!_inoParsed || _inoSelectedFuncIdx < 0) { showToast('⚠ 関数を選択してください'); return; }
+  var fn = _inoParsed.funcList[_inoSelectedFuncIdx];
+  savedMacros.push({ name: '[.ino] ' + fn.name, steps: fn.steps.slice(), createdAt: Date.now() });
+  renderMacroList();
+  showToast('💾 "' + fn.name + '" をマクロリストに保存しました');
+}
+
+/** BTタブのログに1行追加 */
+function _inoLog(msg) {
+  var el = document.getElementById('inoRunLog');
+  if (!el) return;
+  el.style.display = '';
+  var now = new Date();
+  var ts = ('0' + now.getMinutes()).slice(-2) + ':' + ('0' + now.getSeconds()).slice(-2) + '.' + ('00' + now.getMilliseconds()).slice(-3);
+  var line = document.createElement('div');
+  line.style.color = msg.startsWith('✅') ? 'var(--teal)'
+    : msg.startsWith('❌') ? 'var(--red)'
+    : msg.startsWith('⏹') ? 'var(--yellow)'
+    : 'var(--text2)';
+  line.textContent = '[' + ts + '] ' + msg;
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+}
+
+// =====================================================================
+// .ino C++ → マクロステップ パーサー
+// =====================================================================
+
+/**
+ * .inoソースコード全体をパースし、各関数のステップ列を返す
+ * @returns {{ success:bool, error?:string, consts:{}, funcList:[{name,steps}], functions:{} }}
+ */
+function _parseInoFile(src) {
+  // 1. ブロックコメント除去
+  src = src.replace(/\/\*[\s\S]*?\*\//g, ' ');
+  // 2. 行コメント除去
+  src = src.replace(/\/\/[^\n]*/g, ' ');
+  // 3. 余分な空白を整理
+  src = src.replace(/\r\n/g, '\n');
+
+  // 4. 定数抽出
+  var consts = {};
+  src.replace(/const\s+int\s+(\w+)\s*=\s*(-?\d+)\s*;/g, function(_, n, v) {
+    consts[n] = parseInt(v, 10);
+  });
+  src.replace(/int\s+(\w+)\s*=\s*(-?\d+)\s*;/g, function(_, n, v) {
+    if (consts[n] === undefined) consts[n] = parseInt(v, 10);
+  });
+  src.replace(/char\s+(\w+)\s*\[\s*\]\s*=\s*"([^"]*)"/g, function(_, n, v) {
+    consts[n] = v;
+  });
+
+  // 5. 関数ボディ抽出
+  var rawFuncs = _extractFunctionBodies(src);
+  if (Object.keys(rawFuncs).length === 0) {
+    return { success: false, error: '関数定義が見つかりません' };
+  }
+  if (!rawFuncs['setup']) {
+    return { success: false, error: 'setup()関数が見つかりません' };
+  }
+
+  // 6. 各ユーザー関数をステップ列に変換
+  //    setup() から始まり、参照されたユーザー関数も個別にリスト化
+  var funcList = [];
+  var visited = {};
+
+  // まず setup() を展開
+  var setupSteps = [];
+  _flattenBody(rawFuncs['setup'], rawFuncs, consts, setupSteps, {}, 0);
+  funcList.push({ name: 'setup', steps: setupSteps });
+
+  // setup の直接呼び出し関数もリスト化
+  (rawFuncs['setup'].match(/\b([a-z_][a-zA-Z0-9_]*)\s*\(\s*\)/g) || []).forEach(function(call) {
+    var fname = call.replace(/\s*\(.*/, '').trim();
+    if (rawFuncs[fname] && fname !== 'setup' && fname !== 'loop' && !visited[fname]) {
+      visited[fname] = true;
+      var steps = [];
+      _flattenBody(rawFuncs[fname], rawFuncs, consts, steps, {}, 0);
+      funcList.push({ name: fname, steps: steps });
+    }
+  });
+
+  return {
+    success: true,
+    consts: consts,
+    functions: rawFuncs,
+    funcList: funcList
+  };
+}
+
+/** ソースから全関数定義を抽出 */
+function _extractFunctionBodies(src) {
+  var funcs = {};
+  // void/int/bool/char* funcName(params) { ... }
+  var re = /(?:void|int|bool|char\s*\*?)\s+([a-zA-Z_]\w*)\s*\([^)]*\)\s*\{/g;
+  var m;
+  while ((m = re.exec(src)) !== null) {
+    var name = m[1];
+    if (name === 'main') continue; // skip
+    var body = _extractBraceBody(src, m.index + m[0].length);
+    if (body !== null) funcs[name] = body;
+  }
+  return funcs;
+}
+
+/** startIdx の位置（開き括弧の次）から対応する閉じ括弧まで抽出 */
+function _extractBraceBody(src, startIdx) {
+  var depth = 1, i = startIdx;
+  while (i < src.length && depth > 0) {
+    if (src[i] === '{') depth++;
+    else if (src[i] === '}') depth--;
+    i++;
+  }
+  return depth === 0 ? src.substring(startIdx, i - 1) : null;
+}
+
+/** ボディを文 (compound含む) に分割 */
+function _splitStatements(body) {
+  var stmts = [], current = '', depth = 0, i = 0;
+  while (i < body.length) {
+    var c = body[i];
+    if (c === '{') {
+      depth++;
+      current += c;
+    } else if (c === '}') {
+      depth--;
+      current += c;
+      if (depth === 0) {
+        // else が続くかチェック
+        var ahead = body.substring(i + 1).replace(/^[\s\n]+/, '');
+        if (!ahead.startsWith('else')) {
+          if (current.trim()) stmts.push(current.trim());
+          current = '';
+        }
+      }
+    } else if (c === ';' && depth === 0) {
+      if (current.trim()) stmts.push(current.trim());
+      current = '';
+    } else {
+      current += c;
+    }
+    i++;
+  }
+  if (current.trim()) stmts.push(current.trim());
+  return stmts;
+}
+
+var _BTN_MAP = {
+  'A':'A','B':'B','X':'X','Y':'Y',
+  'L':'L','R':'R','ZL':'ZL','ZR':'ZR',
+  'PLUS':'PLUS','MINUS':'MINUS',
+  'HOME':'HOME','CAPTURE':'CAPTURE',
+  'L_STICK':'L_STICK','R_STICK':'R_STICK'
+};
+var _HAT_MAP = {
+  'UP':       ['DPAD_UP'],
+  'DOWN':     ['DPAD_DOWN'],
+  'LEFT':     ['DPAD_LEFT'],
+  'RIGHT':    ['DPAD_RIGHT'],
+  'UP_RIGHT': ['DPAD_UP','DPAD_RIGHT'],
+  'UP_LEFT':  ['DPAD_UP','DPAD_LEFT'],
+  'LEFT_UP':  ['DPAD_UP','DPAD_LEFT'],
+  'DOWN_RIGHT':['DPAD_DOWN','DPAD_RIGHT'],
+  'DOWN_LEFT': ['DPAD_DOWN','DPAD_LEFT'],
+  'LEFT_DOWN': ['DPAD_DOWN','DPAD_LEFT']
+};
+
+/** 定数式を評価（既知の consts のみ対応） */
+function _evalInoExpr(expr, consts) {
+  // 変数を定数値に置換
+  var e = expr.trim();
+  Object.keys(consts).forEach(function(k) {
+    if (typeof consts[k] === 'number') {
+      e = e.replace(new RegExp('\\b' + k + '\\b', 'g'), String(consts[k]));
+    }
+  });
+  try {
+    // 数値・比較・論理演算のみ許可
+    if (/^[\d\s\+\-\*\/\%\(\)\<\>\=\!\&\|]+$/.test(e)) {
+      return !!eval(e); // jshint ignore:line
+    }
+  } catch(e2) {}
+  return null; // 不明
+}
+
+/** 最大ステップ数 (無限展開防止) */
+var _INO_MAX_STEPS = 5000;
+
+/**
+ * 関数ボディを再帰的にフラット化してステップ列に変換
+ * @param {string} body 関数本体テキスト
+ * @param {{}} rawFuncs 全関数定義マップ
+ * @param {{}} consts 定数マップ
+ * @param {Array} steps 出力ステップ配列
+ * @param {{}} visited 再帰深さ管理
+ * @param {number} depth 現在の再帰深さ
+ */
+function _flattenBody(body, rawFuncs, consts, steps, visited, depth) {
+  if (depth > 40 || steps.length >= _INO_MAX_STEPS) return;
+  var stmts = _splitStatements(body);
+
+  for (var si = 0; si < stmts.length; si++) {
+    if (steps.length >= _INO_MAX_STEPS) break;
+    var stmt = stmts[si].trim();
+    if (!stmt) continue;
+
+    // ---- if / else ----
+    if (/^if\s*\(/.test(stmt)) {
+      _handleIfStmt(stmt, rawFuncs, consts, steps, visited, depth);
+      continue;
+    }
+
+    // ---- while (簡易: 最大20回展開) ----
+    var whileM = stmt.match(/^while\s*\(([^)]+)\)\s*\{([\s\S]*)\}$/);
+    if (whileM) {
+      var condVal = _evalInoExpr(whileM[1], consts);
+      if (condVal !== false) {
+        for (var wi = 0; wi < 20 && steps.length < _INO_MAX_STEPS; wi++) {
+          _flattenBody(whileM[2], rawFuncs, consts, steps, Object.assign({}, visited), depth + 1);
+        }
+      }
+      continue;
+    }
+
+    // ---- for (簡易: 最大50回展開) ----
+    var forM = stmt.match(/^for\s*\([^;]*;\s*[^;]*;\s*[^)]*\)\s*\{([\s\S]*)\}$/);
+    if (forM) {
+      for (var fi = 0; fi < 50 && steps.length < _INO_MAX_STEPS; fi++) {
+        _flattenBody(forM[1], rawFuncs, consts, steps, Object.assign({}, visited), depth + 1);
+      }
+      continue;
+    }
+
+    // ---- delay(ms) ----
+    var delayM = stmt.match(/^delay\s*\(\s*(\d+)\s*\)$/);
+    if (delayM) { steps.push({ type:'delay', ms: parseInt(delayM[1], 10) }); continue; }
+
+    // ---- pushButton(Button::X, dur [, count]) ----
+    var pbM = stmt.match(/^pushButton\s*\(\s*Button::(\w+)\s*,\s*(\d+)(?:\s*,\s*(\d+))?\s*\)$/);
+    if (pbM) {
+      var btn = _BTN_MAP[pbM[1]] || pbM[1];
+      var dur = parseInt(pbM[2], 10);
+      var cnt = pbM[3] ? parseInt(pbM[3], 10) : 1;
+      for (var pi = 0; pi < cnt; pi++) {
+        steps.push({ type:'press', button: btn, duration: dur });
+        if (pi < cnt - 1) steps.push({ type:'delay', ms: 100 });
+      }
+      continue;
+    }
+
+    // ---- pushHatButton(Hat::DIR, dur [, count]) ----
+    var phM = stmt.match(/^pushHatButton\s*\(\s*Hat::(\w+)\s*,\s*(\d+)(?:\s*,\s*(\d+))?\s*\)$/);
+    if (phM) {
+      var btns = _HAT_MAP[phM[1]] || ['DPAD_UP'];
+      var dur  = parseInt(phM[2], 10);
+      var cnt  = phM[3] ? parseInt(phM[3], 10) : 1;
+      for (var hi = 0; hi < cnt; hi++) {
+        if (btns.length === 1) steps.push({ type:'press', button: btns[0], duration: dur });
+        else                   steps.push({ type:'multipress', buttons: btns, duration: dur });
+        if (hi < cnt - 1) steps.push({ type:'delay', ms: 100 });
+      }
+      continue;
+    }
+
+    // ---- pushHatButtonContinuous(Hat::DIR, dur) ----
+    var phcM = stmt.match(/^pushHatButtonContinuous\s*\(\s*Hat::(\w+)\s*,\s*(\d+)\s*\)$/);
+    if (phcM) {
+      var btns = _HAT_MAP[phcM[1]] || ['DPAD_UP'];
+      var dur  = parseInt(phcM[2], 10);
+      if (btns.length === 1) steps.push({ type:'press', button: btns[0], duration: dur });
+      else                   steps.push({ type:'multipress', buttons: btns, duration: dur });
+      continue;
+    }
+
+    // ---- tiltJoystick(lx, ly, rx, ry, dur) ----
+    var tjM = stmt.match(/^tiltJoystick\s*\(\s*(-?\d+)\s*,\s*(-?\d+)\s*,\s*(-?\d+)\s*,\s*(-?\d+)\s*,\s*(\d+)\s*\)$/);
+    if (tjM) {
+      var lx = parseInt(tjM[1], 10) / 100;
+      var ly = parseInt(tjM[2], 10) / 100;
+      var dur = parseInt(tjM[5], 10);
+      steps.push({ type:'stick', side:'L', x: lx, y: ly, duration: dur });
+      continue;
+    }
+
+    // ---- SwitchController().setStickTiltRatio(lx, ly, rx, ry) ----
+    var ssM = stmt.match(/SwitchController\(\)\.setStickTiltRatio\s*\(\s*(-?\d+)\s*,\s*(-?\d+)\s*,\s*(-?\d+)\s*,\s*(-?\d+)\s*\)/);
+    if (ssM) {
+      var lx = parseInt(ssM[1], 10) / 100;
+      var ly = parseInt(ssM[2], 10) / 100;
+      steps.push({ type:'setstick', side:'L', x: lx, y: ly });
+      continue;
+    }
+
+    // ---- SwitchController().pressButton(Button::X) ----
+    var scpM = stmt.match(/SwitchController\(\)\.pressButton\s*\(\s*Button::(\w+)\s*\)/);
+    if (scpM) {
+      steps.push({ type:'press', button: _BTN_MAP[scpM[1]] || scpM[1], duration: 100 });
+      continue;
+    }
+
+    // ---- SwitchController().releaseButton(Button::X) ----
+    // → ステップとしては表現不可。100msのdelay扱い
+    var scrM = stmt.match(/SwitchController\(\)\.releaseButton\s*\(\s*Button::(\w+)\s*\)/);
+    if (scrM) { steps.push({ type:'delay', ms: 100 }); continue; }
+
+    // ---- runStraightWithA(lx, ly, n) / runStraightWithB(lx, ly, n) ----
+    var rsM = stmt.match(/^runStraightWith([AB])\s*\(\s*(-?\d+)\s*,\s*(-?\d+)\s*,\s*(\d+)\s*\)$/);
+    if (rsM) {
+      var face = rsM[1];
+      var lx   = parseInt(rsM[2], 10) / 100;
+      var ly   = parseInt(rsM[3], 10) / 100;
+      var rn   = Math.min(parseInt(rsM[4], 10), 2000); // 無限防止
+      steps.push({ type:'setstick', side:'L', x: lx, y: ly });
+      steps.push({ type:'delay', ms: 1000 });
+      for (var ri = 0; ri < rn; ri++) {
+        steps.push({ type:'press', button: face, duration: 100 });
+        if (ri < rn - 1) steps.push({ type:'delay', ms: 100 });
+      }
+      steps.push({ type:'setstick', side:'L', x: 0, y: 0 });
+      continue;
+    }
+
+    // ---- ユーザー定義関数呼び出し funcName() ----
+    var callM = stmt.match(/^([a-zA-Z_]\w*)\s*\(\s*\)$/);
+    if (callM) {
+      var fname = callM[1];
+      if (rawFuncs[fname] && fname !== 'setup' && fname !== 'loop') {
+        if (!visited[fname]) {
+          steps.push({ type:'comment', text: '// → ' + fname + '()' });
+          var subVisited = Object.assign({}, visited);
+          subVisited[fname] = true;
+          _flattenBody(rawFuncs[fname], rawFuncs, consts, steps, subVisited, depth + 1);
+        }
+      }
+      continue;
+    }
+    // その他は無視 (break; continue; 複雑な式 etc.)
+  }
+}
+
+/** if (...) { then } [else { else }] を処理 */
+function _handleIfStmt(stmt, rawFuncs, consts, steps, visited, depth) {
+  // 条件部を取り出す
+  var condStart = stmt.indexOf('(');
+  if (condStart < 0) return;
+  var condEnd = _findMatchingParen(stmt, condStart);
+  if (condEnd < 0) return;
+  var cond = stmt.substring(condStart + 1, condEnd);
+
+  // then ブロック
+  var rest = stmt.substring(condEnd + 1).trim();
+  var thenBody = '', elseBody = '';
+
+  if (rest.startsWith('{')) {
+    var thenEnd = _findMatchingBrace(rest, 0);
+    thenBody = rest.substring(1, thenEnd);
+    rest = rest.substring(thenEnd + 1).replace(/^\s*/, '');
+  } else {
+    // ブレースなしの1文 then
+    var semi = rest.indexOf(';');
+    thenBody = semi >= 0 ? rest.substring(0, semi) : rest;
+    rest = semi >= 0 ? rest.substring(semi + 1) : '';
+  }
+
+  if (/^\s*else\s*/.test(rest)) {
+    rest = rest.replace(/^\s*else\s*/, '');
+    if (rest.startsWith('{')) {
+      var elseEnd = _findMatchingBrace(rest, 0);
+      elseBody = rest.substring(1, elseEnd);
+    } else {
+      elseBody = rest;
+    }
+  }
+
+  // 条件評価
+  var condVal = _evalInoExpr(cond, consts);
+  if (condVal === true) {
+    _flattenBody(thenBody, rawFuncs, consts, steps, Object.assign({}, visited), depth + 1);
+  } else if (condVal === false) {
+    if (elseBody) _flattenBody(elseBody, rawFuncs, consts, steps, Object.assign({}, visited), depth + 1);
+  } else {
+    // 評価不能: then/else 両方インライン（短い方だけ）
+    var thenSteps = [], elseSteps = [];
+    _flattenBody(thenBody, rawFuncs, consts, thenSteps, Object.assign({}, visited), depth + 1);
+    if (elseBody) _flattenBody(elseBody, rawFuncs, consts, elseSteps, Object.assign({}, visited), depth + 1);
+    // より短い方（またはthen）を採用
+    var chosen = (elseSteps.length > 0 && elseSteps.length < thenSteps.length) ? elseSteps : thenSteps;
+    chosen.forEach(function(s){ steps.push(s); });
+  }
+}
+
+function _findMatchingParen(s, start) {
+  var depth = 0, i = start;
+  while (i < s.length) {
+    if (s[i] === '(') depth++;
+    else if (s[i] === ')') { depth--; if (depth === 0) return i; }
+    i++;
+  }
+  return -1;
+}
+
+function _findMatchingBrace(s, start) {
+  var depth = 0, i = start;
+  while (i < s.length) {
+    if (s[i] === '{') depth++;
+    else if (s[i] === '}') { depth--; if (depth === 0) return i; }
+    i++;
+  }
+  return s.length - 1;
 }
 
 
@@ -4322,19 +4996,26 @@ function bluetoothStatus(jsonStr) {
   try { _updateBtStatus(JSON.parse(jsonStr)); } catch (e) {}
 }
 
+var btConnected = false; // Switch接続状態
+
 function _updateBtStatus(data) {
   const statusDiv = document.getElementById('btStatus');
   const disconnectBtn = document.getElementById('btDisconnectBtn');
   if (!statusDiv) return;
   if (data.status === 'connected') {
+    btConnected = true;
     statusDiv.style.cssText = 'padding:12px 14px;border-radius:6px;background:rgba(40,167,69,0.1);border:1px solid rgba(40,167,69,0.3);color:#28a745;text-align:center;font-size:12px;font-weight:600;';
     statusDiv.innerHTML = '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#28a745;margin-right:6px;vertical-align:middle;"></span>接続中: ' + (data.device || '');
     if (disconnectBtn) { disconnectBtn.disabled = false; disconnectBtn.style.opacity = '1'; }
   } else {
+    btConnected = false;
     statusDiv.style.cssText = 'padding:12px 14px;border-radius:6px;background:rgba(220,53,69,0.08);border:1px solid rgba(220,53,69,0.3);color:#dc3545;text-align:center;font-size:12px;font-weight:600;';
     statusDiv.innerHTML = '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#dc3545;margin-right:6px;vertical-align:middle;"></span>切断';
     if (disconnectBtn) { disconnectBtn.disabled = true; disconnectBtn.style.opacity = '0.5'; }
   }
+  _updateImportBtnLabel();
+  var inoSec = document.getElementById('inoMacroSection');
+  if (inoSec) inoSec.style.display = btConnected ? '' : 'none';
 }
 
 // =====================================================================
