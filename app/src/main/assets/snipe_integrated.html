@@ -4197,7 +4197,8 @@ function _parseInoFile(src) {
 
   // 5. 関数ボディ抽出
   var rawFuncs = _extractFunctionBodies(src);
-  if (Object.keys(rawFuncs).length === 0) {
+  var realFuncCount = Object.keys(rawFuncs).filter(function(k){ return !k.startsWith('_params_'); }).length;
+  if (realFuncCount === 0) {
     return { success: false, error: '関数定義が見つかりません' };
   }
   if (!rawFuncs['setup']) {
@@ -4214,16 +4215,19 @@ function _parseInoFile(src) {
   _flattenBody(rawFuncs['setup'], rawFuncs, consts, setupSteps, {}, 0);
   funcList.push({ name: 'setup', steps: setupSteps });
 
-  // setup の直接呼び出し関数もリスト化
-  (rawFuncs['setup'].match(/\b([a-z_][a-zA-Z0-9_]*)\s*\(\s*\)/g) || []).forEach(function(call) {
-    var fname = call.replace(/\s*\(.*/, '').trim();
-    if (rawFuncs[fname] && fname !== 'setup' && fname !== 'loop' && !visited[fname]) {
+  // setup の直接呼び出し関数もリスト化（引数あり呼び出しも含む）
+  var setupCallRe = /\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/g;
+  var cm;
+  while ((cm = setupCallRe.exec(rawFuncs['setup'])) !== null) {
+    var fname = cm[1];
+    if (rawFuncs[fname] && !fname.startsWith('_params_') &&
+        fname !== 'setup' && fname !== 'loop' && !visited[fname]) {
       visited[fname] = true;
       var steps = [];
       _flattenBody(rawFuncs[fname], rawFuncs, consts, steps, {}, 0);
       funcList.push({ name: fname, steps: steps });
     }
-  });
+  }
 
   return {
     success: true,
@@ -4233,17 +4237,30 @@ function _parseInoFile(src) {
   };
 }
 
-/** ソースから全関数定義を抽出 */
+/** ソースから全関数定義を抽出（パラメータ名も保存） */
 function _extractFunctionBodies(src) {
   var funcs = {};
   // void/int/bool/char* funcName(params) { ... }
-  var re = /(?:void|int|bool|char\s*\*?)\s+([a-zA-Z_]\w*)\s*\([^)]*\)\s*\{/g;
+  var re = /(?:void|int|bool|char\s*\*?)\s+([a-zA-Z_]\w*)\s*\(([^)]*)\)\s*\{/g;
   var m;
   while ((m = re.exec(src)) !== null) {
     var name = m[1];
     if (name === 'main') continue; // skip
     var body = _extractBraceBody(src, m.index + m[0].length);
-    if (body !== null) funcs[name] = body;
+    if (body !== null) {
+      funcs[name] = body;
+      // パラメータ名を _params_<name> キーで保存
+      var paramStr = m[2].trim();
+      var paramNames = [];
+      if (paramStr) {
+        paramStr.split(',').forEach(function(p) {
+          var parts = p.trim().split(/[\s\*]+/);
+          var pname = parts[parts.length - 1].replace(/[^a-zA-Z0-9_]/, '');
+          if (pname) paramNames.push(pname);
+        });
+      }
+      funcs['_params_' + name] = paramNames;
+    }
   }
   return funcs;
 }
@@ -4295,19 +4312,22 @@ var _BTN_MAP = {
   'L':'L','R':'R','ZL':'ZL','ZR':'ZR',
   'PLUS':'PLUS','MINUS':'MINUS',
   'HOME':'HOME','CAPTURE':'CAPTURE',
-  'L_STICK':'L_STICK','R_STICK':'R_STICK'
+  'L_STICK':'L_STICK','R_STICK':'R_STICK',
+  'LCLICK':'L_STICK','RCLICK':'R_STICK'
 };
 var _HAT_MAP = {
-  'UP':       ['DPAD_UP'],
-  'DOWN':     ['DPAD_DOWN'],
-  'LEFT':     ['DPAD_LEFT'],
-  'RIGHT':    ['DPAD_RIGHT'],
-  'UP_RIGHT': ['DPAD_UP','DPAD_RIGHT'],
-  'UP_LEFT':  ['DPAD_UP','DPAD_LEFT'],
-  'LEFT_UP':  ['DPAD_UP','DPAD_LEFT'],
-  'DOWN_RIGHT':['DPAD_DOWN','DPAD_RIGHT'],
-  'DOWN_LEFT': ['DPAD_DOWN','DPAD_LEFT'],
-  'LEFT_DOWN': ['DPAD_DOWN','DPAD_LEFT']
+  'UP':         ['DPAD_UP'],
+  'DOWN':       ['DPAD_DOWN'],
+  'LEFT':       ['DPAD_LEFT'],
+  'RIGHT':      ['DPAD_RIGHT'],
+  'UP_RIGHT':   ['DPAD_UP','DPAD_RIGHT'],
+  'RIGHT_UP':   ['DPAD_UP','DPAD_RIGHT'],
+  'UP_LEFT':    ['DPAD_UP','DPAD_LEFT'],
+  'LEFT_UP':    ['DPAD_UP','DPAD_LEFT'],
+  'DOWN_RIGHT': ['DPAD_DOWN','DPAD_RIGHT'],
+  'RIGHT_DOWN': ['DPAD_DOWN','DPAD_RIGHT'],
+  'DOWN_LEFT':  ['DPAD_DOWN','DPAD_LEFT'],
+  'LEFT_DOWN':  ['DPAD_DOWN','DPAD_LEFT']
 };
 
 /** 定数式を評価（既知の consts のみ対応） */
@@ -4328,8 +4348,34 @@ function _evalInoExpr(expr, consts) {
   return null; // 不明
 }
 
+/** 定数式を数値として評価 */
+function _evalInoExprNum(expr, consts) {
+  var e = expr.trim();
+  Object.keys(consts).forEach(function(k) {
+    if (typeof consts[k] === 'number') {
+      e = e.replace(new RegExp('\\b' + k + '\\b', 'g'), String(consts[k]));
+    }
+  });
+  try {
+    if (/^[\d\s\+\-\*\/\%\(\)]+$/.test(e)) {
+      var v = eval(e); // jshint ignore:line
+      return (typeof v === 'number' && isFinite(v)) ? Math.floor(v) : null;
+    }
+  } catch(e2) {}
+  var n = parseInt(e, 10);
+  return isNaN(n) ? null : n;
+}
+
+/** 引数リストを数値配列に変換 */
+function _parseArgList(argsStr, consts) {
+  if (!argsStr || !argsStr.trim()) return [];
+  return argsStr.split(',').map(function(a) {
+    return _evalInoExprNum(a.trim(), consts);
+  });
+}
+
 /** 最大ステップ数 (無限展開防止) */
-var _INO_MAX_STEPS = 5000;
+var _INO_MAX_STEPS = 50000;
 
 /**
  * 関数ボディを再帰的にフラット化してステップ列に変換
@@ -4343,11 +4389,21 @@ var _INO_MAX_STEPS = 5000;
 function _flattenBody(body, rawFuncs, consts, steps, visited, depth) {
   if (depth > 40 || steps.length >= _INO_MAX_STEPS) return;
   var stmts = _splitStatements(body);
+  // ローカルスコープの定数コピー（ローカル変数宣言を追加するため）
+  consts = Object.assign({}, consts);
 
   for (var si = 0; si < stmts.length; si++) {
     if (steps.length >= _INO_MAX_STEPS) break;
     var stmt = stmts[si].trim();
     if (!stmt) continue;
+
+    // ---- ローカル変数宣言 int/long var = expr ----
+    var localVarM = stmt.match(/^(?:(?:const\s+)?(?:int|long|unsigned(?:\s+int)?)\s+)(\w+)\s*=\s*(.+)$/);
+    if (localVarM) {
+      var lv = _evalInoExprNum(localVarM[2], consts);
+      if (lv !== null) consts[localVarM[1]] = lv;
+      continue;
+    }
 
     // ---- if / else ----
     if (/^if\s*\(/.test(stmt)) {
@@ -4355,23 +4411,57 @@ function _flattenBody(body, rawFuncs, consts, steps, visited, depth) {
       continue;
     }
 
-    // ---- while (簡易: 最大20回展開) ----
+    // ---- while (ループ変数の更新を追跡して正確な回数を展開) ----
     var whileM = stmt.match(/^while\s*\(([^)]+)\)\s*\{([\s\S]*)\}$/);
     if (whileM) {
-      var condVal = _evalInoExpr(whileM[1], consts);
-      if (condVal !== false) {
-        for (var wi = 0; wi < 20 && steps.length < _INO_MAX_STEPS; wi++) {
-          _flattenBody(whileM[2], rawFuncs, consts, steps, Object.assign({}, visited), depth + 1);
+      var wCond = whileM[1];
+      var wBody = whileM[2];
+      var wConsts = Object.assign({}, consts);
+      var maxIter = 200;
+      for (var wi = 0; wi < maxIter && steps.length < _INO_MAX_STEPS; wi++) {
+        // 条件チェック
+        var wCondVal = _evalInoExpr(wCond, wConsts);
+        if (wCondVal === false) break;
+        // ボディのステップを展開
+        _flattenBody(wBody, rawFuncs, wConsts, steps, Object.assign({}, visited), depth + 1);
+        // ボディ内の代入文 (var = expr) を wConsts に反映
+        var assignRe = /(\w+)\s*=\s*([^;{]+)/g;
+        var am;
+        while ((am = assignRe.exec(wBody)) !== null) {
+          var aname = am[1].trim();
+          var aval = _evalInoExprNum(am[2].trim(), wConsts);
+          if (aval !== null && wConsts[aname] !== undefined) {
+            wConsts[aname] = aval;
+          }
         }
+        // 無限ループ防止: 条件が評価不能な場合は20回で打ち切り
+        if (wCondVal === null && wi >= 19) break;
       }
       continue;
     }
 
-    // ---- for (簡易: 最大50回展開) ----
-    var forM = stmt.match(/^for\s*\([^;]*;\s*[^;]*;\s*[^)]*\)\s*\{([\s\S]*)\}$/);
+    // ---- for (実際のループ回数を抽出) ----
+    var forM = stmt.match(/^for\s*\(\s*(?:(?:int|long|unsigned)\s+)?(\w+)\s*=\s*(-?\d+)\s*;\s*\1\s*(<|<=|!=)\s*([^;]+)\s*;[^)]*\)\s*\{([\s\S]*)\}$/);
     if (forM) {
+      var initVal  = parseInt(forM[2], 10);
+      var op       = forM[3];
+      var limitNum = _evalInoExprNum(forM[4], consts);
+      if (limitNum === null) limitNum = 10; // 評価不能時フォールバック
+      var loopCount;
+      if (op === '<')  loopCount = limitNum - initVal;
+      else if (op === '<=') loopCount = limitNum - initVal + 1;
+      else              loopCount = Math.abs(limitNum - initVal);
+      loopCount = Math.max(0, Math.min(loopCount, 200));
+      for (var fi = 0; fi < loopCount && steps.length < _INO_MAX_STEPS; fi++) {
+        _flattenBody(forM[5], rawFuncs, consts, steps, Object.assign({}, visited), depth + 1);
+      }
+      continue;
+    }
+    // ---- for (パターン不一致のフォールバック: 最大50回) ----
+    var forFbM = stmt.match(/^for\s*\([^;]*;[^;]*;[^)]*\)\s*\{([\s\S]*)\}$/);
+    if (forFbM) {
       for (var fi = 0; fi < 50 && steps.length < _INO_MAX_STEPS; fi++) {
-        _flattenBody(forM[1], rawFuncs, consts, steps, Object.assign({}, visited), depth + 1);
+        _flattenBody(forFbM[1], rawFuncs, consts, steps, Object.assign({}, visited), depth + 1);
       }
       continue;
     }
@@ -4381,11 +4471,12 @@ function _flattenBody(body, rawFuncs, consts, steps, visited, depth) {
     if (delayM) { steps.push({ type:'delay', ms: parseInt(delayM[1], 10) }); continue; }
 
     // ---- pushButton(Button::X, dur [, count]) ----
-    var pbM = stmt.match(/^pushButton\s*\(\s*Button::(\w+)\s*,\s*(\d+)(?:\s*,\s*(\d+))?\s*\)$/);
+    var pbM = stmt.match(/^pushButton\s*\(\s*Button::(\w+)\s*,\s*([^,)]+)(?:\s*,\s*([^)]+))?\s*\)$/);
     if (pbM) {
       var btn = _BTN_MAP[pbM[1]] || pbM[1];
-      var dur = parseInt(pbM[2], 10);
-      var cnt = pbM[3] ? parseInt(pbM[3], 10) : 1;
+      var dur = _evalInoExprNum(pbM[2], consts) || 100;
+      var cnt = pbM[3] ? (_evalInoExprNum(pbM[3], consts) || 1) : 1;
+      cnt = Math.max(1, Math.min(cnt, 2000));
       for (var pi = 0; pi < cnt; pi++) {
         steps.push({ type:'press', button: btn, duration: dur });
         if (pi < cnt - 1) steps.push({ type:'delay', ms: 100 });
@@ -4394,11 +4485,12 @@ function _flattenBody(body, rawFuncs, consts, steps, visited, depth) {
     }
 
     // ---- pushHatButton(Hat::DIR, dur [, count]) ----
-    var phM = stmt.match(/^pushHatButton\s*\(\s*Hat::(\w+)\s*,\s*(\d+)(?:\s*,\s*(\d+))?\s*\)$/);
+    var phM = stmt.match(/^pushHatButton\s*\(\s*Hat::(\w+)\s*,\s*([^,)]+)(?:\s*,\s*([^)]+))?\s*\)$/);
     if (phM) {
       var btns = _HAT_MAP[phM[1]] || ['DPAD_UP'];
-      var dur  = parseInt(phM[2], 10);
-      var cnt  = phM[3] ? parseInt(phM[3], 10) : 1;
+      var dur  = _evalInoExprNum(phM[2], consts) || 100;
+      var cnt  = phM[3] ? (_evalInoExprNum(phM[3], consts) || 1) : 1;
+      cnt = Math.max(1, Math.min(cnt, 500));
       for (var hi = 0; hi < cnt; hi++) {
         if (btns.length === 1) steps.push({ type:'press', button: btns[0], duration: dur });
         else                   steps.push({ type:'multipress', buttons: btns, duration: dur });
@@ -4408,10 +4500,10 @@ function _flattenBody(body, rawFuncs, consts, steps, visited, depth) {
     }
 
     // ---- pushHatButtonContinuous(Hat::DIR, dur) ----
-    var phcM = stmt.match(/^pushHatButtonContinuous\s*\(\s*Hat::(\w+)\s*,\s*(\d+)\s*\)$/);
+    var phcM = stmt.match(/^pushHatButtonContinuous\s*\(\s*Hat::(\w+)\s*,\s*([^)]+)\s*\)$/);
     if (phcM) {
       var btns = _HAT_MAP[phcM[1]] || ['DPAD_UP'];
-      var dur  = parseInt(phcM[2], 10);
+      var dur  = _evalInoExprNum(phcM[2], consts) || 1000;
       if (btns.length === 1) steps.push({ type:'press', button: btns[0], duration: dur });
       else                   steps.push({ type:'multipress', buttons: btns, duration: dur });
       continue;
@@ -4428,18 +4520,39 @@ function _flattenBody(body, rawFuncs, consts, steps, visited, depth) {
     }
 
     // ---- SwitchController().setStickTiltRatio(lx, ly, rx, ry) ----
-    var ssM = stmt.match(/SwitchController\(\)\.setStickTiltRatio\s*\(\s*(-?\d+)\s*,\s*(-?\d+)\s*,\s*(-?\d+)\s*,\s*(-?\d+)\s*\)/);
+    var ssM = stmt.match(/SwitchController\(\)\.setStickTiltRatio\s*\(([^)]+)\)/);
     if (ssM) {
-      var lx = parseInt(ssM[1], 10) / 100;
-      var ly = parseInt(ssM[2], 10) / 100;
-      steps.push({ type:'setstick', side:'L', x: lx, y: ly });
+      var ssArgs = ssM[1].split(',');
+      if (ssArgs.length >= 4) {
+        var lx = (_evalInoExprNum(ssArgs[0], consts) || 0) / 100;
+        var ly = (_evalInoExprNum(ssArgs[1], consts) || 0) / 100;
+        var rx = (_evalInoExprNum(ssArgs[2], consts) || 0) / 100;
+        var ry = (_evalInoExprNum(ssArgs[3], consts) || 0) / 100;
+        steps.push({ type:'setstick', side:'L', x: lx, y: ly });
+        if (rx !== 0 || ry !== 0) {
+          steps.push({ type:'setstick', side:'R', x: rx, y: ry });
+        }
+      }
       continue;
     }
 
     // ---- SwitchController().pressButton(Button::X) ----
+    // delay(N) + releaseButton() が続く場合はホールドとして統合
     var scpM = stmt.match(/SwitchController\(\)\.pressButton\s*\(\s*Button::(\w+)\s*\)/);
     if (scpM) {
-      steps.push({ type:'press', button: _BTN_MAP[scpM[1]] || scpM[1], duration: 100 });
+      var btn = _BTN_MAP[scpM[1]] || scpM[1];
+      var holdDur = 100; // デフォルト
+      if (si + 2 < stmts.length) {
+        var nextS  = stmts[si + 1].trim();
+        var afterS = stmts[si + 2].trim();
+        var dM2 = nextS.match(/^delay\s*\(\s*(\d+)\s*\)$/);
+        var rM  = afterS.match(/SwitchController\(\)\.releaseButton\s*\(\s*Button::(\w+)\s*\)/);
+        if (dM2 && rM && rM[1] === scpM[1]) {
+          holdDur = parseInt(dM2[1], 10);
+          si += 2; // delay と releaseButton をスキップ
+        }
+      }
+      steps.push({ type:'press', button: btn, duration: holdDur });
       continue;
     }
 
@@ -4465,7 +4578,7 @@ function _flattenBody(body, rawFuncs, consts, steps, visited, depth) {
       continue;
     }
 
-    // ---- ユーザー定義関数呼び出し funcName() ----
+    // ---- ユーザー定義関数呼び出し（引数なし）----
     var callM = stmt.match(/^([a-zA-Z_]\w*)\s*\(\s*\)$/);
     if (callM) {
       var fname = callM[1];
@@ -4476,6 +4589,29 @@ function _flattenBody(body, rawFuncs, consts, steps, visited, depth) {
           subVisited[fname] = true;
           _flattenBody(rawFuncs[fname], rawFuncs, consts, steps, subVisited, depth + 1);
         }
+      }
+      continue;
+    }
+
+    // ---- ユーザー定義関数呼び出し（引数あり）----
+    var callArgsM = stmt.match(/^([a-zA-Z_]\w*)\s*\(([^)]+)\)$/);
+    if (callArgsM) {
+      var fname = callArgsM[1];
+      var argsRaw = callArgsM[2];
+      if (rawFuncs[fname] && fname !== 'setup' && fname !== 'loop') {
+        steps.push({ type:'comment', text: '// → ' + fname + '(...)' });
+        var subVisited2 = Object.assign({}, visited);
+        subVisited2[fname] = true;
+        // パラメータを定数として展開
+        var localConsts = Object.assign({}, consts);
+        var paramNames = rawFuncs['_params_' + fname] || [];
+        var argVals = _parseArgList(argsRaw, consts);
+        paramNames.forEach(function(pname, i) {
+          if (i < argVals.length && argVals[i] !== null) {
+            localConsts[pname] = argVals[i];
+          }
+        });
+        _flattenBody(rawFuncs[fname], rawFuncs, localConsts, steps, subVisited2, depth + 1);
       }
       continue;
     }
