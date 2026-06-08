@@ -6,8 +6,6 @@
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
-    <!-- JoyConDroid 方式: discoverable (アドバタイズ) に必要 -->
-    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
 
     <!-- 位置情報（Bluetoothスキャン用、Android 11以下） -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
