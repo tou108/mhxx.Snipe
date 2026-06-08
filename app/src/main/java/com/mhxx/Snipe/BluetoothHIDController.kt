@@ -73,8 +73,8 @@ class BluetoothHIDController(private val context: Context) {
     @Volatile private var connectedDevice: BluetoothDevice? = null
     @Volatile private var targetDevice: BluetoothDevice? = null
     @Volatile private var deviceConnected = false
-    @Volatile private var appRegistered = false   // @Volatile で hidExecutor 外からも安全に読める
-    @Volatile private var serviceConnected = false
+    private var appRegistered = false
+    private var serviceConnected = false
 
     // ----- リスナー -----
     var listener: ControllerListener? = null
@@ -172,20 +172,11 @@ class BluetoothHIDController(private val context: Context) {
                 // ★ Nintendo 専用ディスクリプタ
                 val descriptor = DESCRIPTOR_HEX.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
 
-                // ─────────────────────────────────────────────────────────────
-                // Class of Device (CoD) の計算:
-                //   Android は subclass 値から CoD を自動計算する
-                //   SUBCLASS1_GAMEPAD = 0x08
-                //   CoD = 0x002500 | (0x08 & 0xFC) = 0x002500 | 0x08 = 0x002508
-                //     Major Device Class: Peripheral (0x0500)
-                //     Minor Device Class: Gamepad    (0x0008)
-                //   → Nintendo Switch が期待する CoD 0x002508 と一致
-                // ─────────────────────────────────────────────────────────────
                 val sdp = BluetoothHidDeviceAppSdpSettings(
-                    "Pro Controller",                    // Switch が認識するデバイス名 (完全一致が必要)
-                    "Pro Controller",                    // 説明
-                    "Nintendo Co., Ltd.",                // Switch が期待するメーカー名
-                    BluetoothHidDevice.SUBCLASS1_GAMEPAD, // 0x08 → CoD = 0x002508 (Peripheral/Gamepad)
+                    "Pro Controller",     // Switch が認識するデバイス名 (完全一致が必要)
+                    "Pro Controller",     // 説明
+                    "Nintendo Co., Ltd.", // Switch が期待するメーカー名
+                    0x08,                 // SubClass: Gamepad
                     descriptor
                 )
                 val qos = BluetoothHidDeviceAppQosSettings(
@@ -197,17 +188,9 @@ class BluetoothHIDController(private val context: Context) {
 
                     override fun onAppStatusChanged(pluggedDevice: BluetoothDevice?, registered: Boolean) {
                         appRegistered = registered
-                        if (registered) {
-                            // 登録成功 → Switch への接続を開始
-                            val target = targetDevice
-                            if (target != null) {
-                                try { hid.connect(target) }
-                                catch (e: Exception) { listener?.onError("接続開始エラー: ${e.message}") }
-                            }
-                        } else {
-                            // 登録解除 (disconnect() 後 or Switch 側からの強制解除)
-                            Log.d(TAG, "App unregistered")
-                            stopScheduler()
+                        if (registered && targetDevice != null) {
+                            try { hid.connect(targetDevice!!) }
+                            catch (e: Exception) { listener?.onError("接続開始エラー: ${e.message}") }
                         }
                     }
 
@@ -503,15 +486,12 @@ class BluetoothHIDController(private val context: Context) {
     fun disconnect() {
         targetDevice = null
         stopScheduler()
-        // appRegistered を先にリセットして、切断中に connectToSwitch が呼ばれても
-        // registerApp を重複して呼ばないようにする
-        appRegistered = false
         hidExecutor.execute {
             try {
                 connectedDevice?.let { bluetoothHidDevice?.disconnect(it) }
                 bluetoothHidDevice?.unregisterApp()
             } catch (e: Exception) { Log.e(TAG, "disconnect error", e) }
-            deviceConnected = false; connectedDevice = null
+            deviceConnected = false; connectedDevice = null; appRegistered = false
             listener?.onDisconnected()
         }
     }
