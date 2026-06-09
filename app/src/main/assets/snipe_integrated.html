@@ -863,6 +863,38 @@ body.light-mode .app-header {
 .ctrl-section-title { font-size: 11px; color: var(--steel2); letter-spacing: 1px; margin-bottom: 10px; font-weight: 600; }
 button:disabled { opacity: 0.45; cursor: not-allowed !important; }
 .tab-page > div { flex: 1; }
+
+/* ===== スマブラ CPU タブ ===== */
+.smash-char-panel { width:220px;min-width:160px;border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;flex-shrink:0; }
+.smash-char-item {
+  display:flex;align-items:center;justify-content:space-between;
+  padding:7px 10px;border-bottom:1px solid rgba(255,255,255,0.04);
+  cursor:pointer;font-size:12px;color:var(--text2);transition:all 0.12s;
+  touch-action:manipulation;-webkit-tap-highlight-color:transparent;
+}
+.smash-char-item:hover { background:rgba(255,107,107,0.08);color:var(--text); }
+.smash-char-item.active { background:rgba(255,107,107,0.14);color:#ff8080;border-left:2px solid #ff6b6b; }
+.smash-char-badge { background:#ff6b6b;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:10px;min-width:16px;text-align:center; }
+.smash-macro-item {
+  padding:8px 10px;border-bottom:1px solid rgba(255,255,255,0.05);cursor:pointer;
+  transition:background 0.12s;
+}
+.smash-macro-item:hover { background:rgba(255,255,255,0.04); }
+.smash-macro-item.active { background:rgba(32,201,151,0.08);border-left:2px solid var(--teal); }
+.smash-rec-btn {
+  padding:5px 7px;background:rgba(255,107,107,0.12);border:1px solid rgba(255,107,107,0.4);
+  color:#ff8080;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;
+  font-family:var(--font);transition:all 0.12s;touch-action:manipulation;min-width:36px;text-align:center;
+}
+.smash-rec-btn:hover { background:rgba(255,107,107,0.25);color:#ffaaaa; }
+.smash-rec-btn.pressed { background:rgba(255,107,107,0.5);transform:scale(0.95); }
+.smash-video-wrap { background:#000;border-radius:6px;overflow:hidden;position:relative;aspect-ratio:16/9;max-height:180px; }
+.smash-video-wrap video { width:100%;height:100%;display:block;object-fit:contain; }
+.smash-video-placeholder { display:flex;align-items:center;justify-content:center;height:100%;color:var(--text3);font-size:12px;flex-direction:column;gap:6px; }
+.smash-dpad { display:grid;grid-template-columns:repeat(3,32px);grid-template-rows:repeat(3,32px);gap:2px; }
+.smash-dpad-btn { width:32px;height:32px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.08);border:1px solid var(--border2);border-radius:4px;cursor:pointer;font-size:14px;color:var(--text2);touch-action:manipulation; }
+.smash-dpad-btn:active { background:rgba(255,107,107,0.3);color:#ff8080; }
+.smash-cpu-status { padding:8px 12px;border-radius:5px;background:rgba(0,0,0,0.2);border:1px solid var(--border);font-size:11px;margin-top:8px; }
 </style>
 </head>
 <body>
@@ -881,6 +913,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed !important; }
 
   <div class="main-tab" data-tab="bt" onclick="switchTab('bt')">📶 Switch接続</div>
   <div class="main-tab" data-tab="swsh" onclick="switchTab('swsh')">🎮 SWSH自動</div>
+  <div class="main-tab" data-tab="smash" onclick="switchTab('smash')">🥊 スマブラCPU</div>
 
 </div>
 
@@ -1770,6 +1803,249 @@ button:disabled { opacity: 0.45; cursor: not-allowed !important; }
     </div>
   </div>
 </div><!-- /tab-swsh -->
+
+<!-- =================== TAB: スマブラCPU =================== -->
+<div class="tab-page" id="tab-smash" style="flex-direction:row;overflow:hidden;">
+
+  <!-- ===== LEFT: キャラクター選択 ===== -->
+  <div class="smash-char-panel">
+    <div class="sec-title" style="color:#ff8080;flex-shrink:0;">
+      <span class="dot" style="background:#ff6b6b;"></span>キャラクター
+    </div>
+    <div style="padding:6px;flex-shrink:0;">
+      <input type="text" id="smashCharSearch" placeholder="🔍 キャラ検索..."
+             style="width:100%;font-size:11px;"
+             oninput="smashFilterChars()">
+    </div>
+    <div id="smashCharGrid" style="flex:1;overflow-y:auto;"></div>
+  </div>
+
+  <!-- ===== RIGHT: メインパネル ===== -->
+  <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
+
+    <!-- 選択中キャラ ヘッダー -->
+    <div style="padding:10px 14px;border-bottom:1px solid var(--border);background:rgba(255,107,107,0.05);display:flex;align-items:center;gap:10px;flex-shrink:0;">
+      <span id="smashSelectedName" style="font-size:14px;font-weight:700;color:#ff8080;">--- キャラクター未選択 ---</span>
+      <span id="smashMacroCount" style="font-size:11px;color:var(--text2);"></span>
+      <div style="margin-left:auto;display:flex;gap:6px;">
+        <button onclick="smashImportTimingJson()" style="padding:4px 9px;background:var(--panel2);border:1px solid var(--border2);color:var(--text2);border-radius:3px;font-size:10px;cursor:pointer;font-family:var(--font);" title="JSONタイミングファイルをインポート">📥 JSONインポート</button>
+        <button onclick="smashExportAllMacros()" style="padding:4px 9px;background:var(--panel2);border:1px solid var(--border2);color:var(--text2);border-radius:3px;font-size:10px;cursor:pointer;font-family:var(--font);" title="全マクロをエクスポート">📤 全エクスポート</button>
+      </div>
+    </div>
+
+    <div style="flex:1;overflow-y:auto;">
+
+      <!-- ====== 動画インポート ====== -->
+      <div class="ctrl-section">
+        <div class="ctrl-section-title" style="color:#ff9f43;">🎬 動画インポート（プロ選手の操作映像）</div>
+        <div style="display:flex;align-items:center;gap:7px;margin-bottom:8px;">
+          <button onclick="smashOpenVideo()" style="padding:7px 14px;background:linear-gradient(135deg,#4a2a10,#ff9f43,#4a2a10);border:1px solid #ff9f43;color:#fff;border-radius:4px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);">📂 動画を選択</button>
+          <span id="smashVideoName" style="font-size:11px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px;"></span>
+        </div>
+        <!-- Video Player -->
+        <div class="smash-video-wrap">
+          <div id="smashVideoPlaceholder" class="smash-video-placeholder">
+            <span style="font-size:28px;">🎬</span>
+            <span>プロ選手の操作動画をインポート</span>
+            <span style="font-size:10px;color:var(--text3);">MP4 / MOV / WebM</span>
+          </div>
+          <video id="smashVideoEl" style="display:none;width:100%;max-height:180px;" controls playsinline></video>
+        </div>
+        <!-- Video controls -->
+        <div id="smashVideoControls" style="display:none;margin-top:6px;">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+            <button onclick="document.getElementById('smashVideoEl').currentTime=0;document.getElementById('smashVideoEl').play();"
+                    style="padding:4px 10px;background:rgba(32,201,151,0.15);border:1px solid var(--teal);color:var(--teal);border-radius:3px;font-size:11px;cursor:pointer;font-family:var(--font);">▶ 最初から再生</button>
+            <button onclick="document.getElementById('smashVideoEl').pause();"
+                    style="padding:4px 10px;background:var(--panel2);border:1px solid var(--border2);color:var(--text2);border-radius:3px;font-size:11px;cursor:pointer;font-family:var(--font);">⏸ 一時停止</button>
+            <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);">
+              速度: <select id="smashVideoSpeed" onchange="document.getElementById('smashVideoEl').playbackRate=parseFloat(this.value);"
+                     style="font-size:11px;padding:2px 4px;width:70px;">
+                <option value="0.25">0.25x</option>
+                <option value="0.5">0.5x</option>
+                <option value="0.75">0.75x</option>
+                <option value="1" selected>1.0x</option>
+                <option value="1.5">1.5x</option>
+              </select>
+            </label>
+            <span id="smashVideoTime" style="font-size:11px;color:var(--text3);font-family:monospace;">00:00</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ====== 記録モード ====== -->
+      <div class="ctrl-section">
+        <div class="ctrl-section-title" style="color:#ff6b6b;">⏺ 入力記録</div>
+
+        <!-- 記録開始ボタン -->
+        <div id="smashRecBtns" style="display:flex;gap:7px;margin-bottom:8px;flex-wrap:wrap;">
+          <button id="smashRecStartBtn" onclick="smashStartRec('standalone')"
+                  style="flex:1;min-width:120px;padding:8px;background:rgba(220,53,69,0.15);border:1px solid var(--red);color:var(--red);border-radius:4px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);">
+            ⏺ 単独記録
+          </button>
+          <button id="smashRecSyncBtn" onclick="smashStartRec('sync')"
+                  style="flex:1;min-width:120px;padding:8px;background:rgba(255,159,67,0.15);border:1px solid #ff9f43;color:#ff9f43;border-radius:4px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);" title="動画と同期して記録します">
+            🎬 動画と同期記録
+          </button>
+          <button id="smashRecStopBtn" onclick="smashStopRec()"
+                  style="display:none;flex:1;min-width:120px;padding:8px;background:rgba(220,53,69,0.4);border:1px solid var(--red);color:#fff;border-radius:4px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);">
+            ⏹ 記録停止
+          </button>
+          <button id="smashRecDiscardBtn" onclick="smashDiscardRec()"
+                  style="display:none;padding:8px 12px;background:var(--panel2);border:1px solid var(--border2);color:var(--text2);border-radius:4px;font-size:11px;cursor:pointer;font-family:var(--font);">
+            ✕ 破棄
+          </button>
+        </div>
+
+        <!-- 記録中ステータス -->
+        <div id="smashRecStatus" style="display:none;padding:7px 10px;background:rgba(220,53,69,0.1);border:1px solid rgba(220,53,69,0.35);border-radius:4px;font-size:11px;margin-bottom:8px;">
+          <span style="display:inline-block;width:8px;height:8px;background:var(--red);border-radius:50%;margin-right:5px;animation:smashRecBlink 0.8s infinite;"></span>
+          記録中... <span id="smashRecStepCount" style="font-weight:700;color:var(--red);">0</span> ステップ
+        </div>
+
+        <!-- クイック入力ボタン (記録/Switch送信両用) -->
+        <div style="margin-bottom:8px;">
+          <div style="font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">クイック入力ボタン</div>
+          <!-- Face buttons -->
+          <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:5px;">
+            <button class="smash-rec-btn" onclick="smashRecBtn('B')" style="background:rgba(255,107,107,0.15);color:#ff8080;border-color:rgba(255,107,107,0.5);">B</button>
+            <button class="smash-rec-btn" onclick="smashRecBtn('A')" style="background:rgba(100,149,237,0.15);color:#7aa2e8;border-color:rgba(100,149,237,0.5);">A</button>
+            <button class="smash-rec-btn" onclick="smashRecBtn('Y')" style="background:rgba(255,200,100,0.15);color:#ffc864;border-color:rgba(255,200,100,0.5);">Y</button>
+            <button class="smash-rec-btn" onclick="smashRecBtn('X')" style="background:rgba(100,200,100,0.15);color:#80d880;border-color:rgba(100,200,100,0.5);">X</button>
+            <button class="smash-rec-btn" onclick="smashRecBtn('L')">L</button>
+            <button class="smash-rec-btn" onclick="smashRecBtn('R')">R</button>
+            <button class="smash-rec-btn" onclick="smashRecBtn('ZL')">ZL</button>
+            <button class="smash-rec-btn" onclick="smashRecBtn('ZR')">ZR</button>
+            <button class="smash-rec-btn" onclick="smashRecBtn('PLUS')" style="color:var(--teal);border-color:rgba(32,201,151,0.5);">＋</button>
+            <button class="smash-rec-btn" onclick="smashRecBtn('MINUS')">−</button>
+          </div>
+          <!-- D-Pad -->
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <div>
+              <div style="font-size:10px;color:var(--text3);margin-bottom:3px;">十字キー</div>
+              <div class="smash-dpad">
+                <div></div>
+                <div class="smash-dpad-btn" onclick="smashRecBtn('DPAD_UP')">↑</div>
+                <div></div>
+                <div class="smash-dpad-btn" onclick="smashRecBtn('DPAD_LEFT')">←</div>
+                <div class="smash-dpad-btn" style="font-size:8px;color:var(--text3);">D</div>
+                <div class="smash-dpad-btn" onclick="smashRecBtn('DPAD_RIGHT')">→</div>
+                <div></div>
+                <div class="smash-dpad-btn" onclick="smashRecBtn('DPAD_DOWN')">↓</div>
+                <div></div>
+              </div>
+            </div>
+            <!-- L Stick quick -->
+            <div>
+              <div style="font-size:10px;color:var(--accent2);margin-bottom:3px;">L スティック</div>
+              <div class="smash-dpad">
+                <div></div>
+                <div class="smash-dpad-btn" onclick="smashRecStick('L',0,-1)">↑</div>
+                <div></div>
+                <div class="smash-dpad-btn" onclick="smashRecStick('L',-1,0)">←</div>
+                <div class="smash-dpad-btn" onclick="smashRecStick('L',0,0)" style="font-size:10px;">○</div>
+                <div class="smash-dpad-btn" onclick="smashRecStick('L',1,0)">→</div>
+                <div></div>
+                <div class="smash-dpad-btn" onclick="smashRecStick('L',0,1)">↓</div>
+                <div></div>
+              </div>
+            </div>
+            <!-- R Stick quick -->
+            <div>
+              <div style="font-size:10px;color:var(--purple2);margin-bottom:3px;">R スティック</div>
+              <div class="smash-dpad">
+                <div></div>
+                <div class="smash-dpad-btn" onclick="smashRecStick('R',0,-1)">↑</div>
+                <div></div>
+                <div class="smash-dpad-btn" onclick="smashRecStick('R',-1,0)">←</div>
+                <div class="smash-dpad-btn" onclick="smashRecStick('R',0,0)" style="font-size:10px;">○</div>
+                <div class="smash-dpad-btn" onclick="smashRecStick('R',1,0)">→</div>
+                <div></div>
+                <div class="smash-dpad-btn" onclick="smashRecStick('R',0,1)">↓</div>
+                <div></div>
+              </div>
+            </div>
+            <!-- Duration -->
+            <div>
+              <div style="font-size:10px;color:var(--text3);margin-bottom:3px;">押下時間</div>
+              <div style="display:flex;align-items:center;gap:4px;">
+                <input type="number" id="smashRecDur" value="100" min="30" max="2000" style="width:60px;font-size:11px;">
+                <span style="font-size:10px;color:var(--text3);">ms</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 保存エリア -->
+        <div id="smashRecSaveArea" style="display:none;padding:10px;background:rgba(32,201,151,0.06);border:1px solid rgba(32,201,151,0.25);border-radius:4px;">
+          <div style="font-size:11px;color:var(--teal);margin-bottom:6px;">✅ 記録完了 — <span id="smashRecSaveStepCount" style="font-weight:700;"></span></div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <input type="text" id="smashRecSaveName" placeholder="マクロ名（例: Zackray ピカチュウ Game1）" style="flex:1;min-width:150px;font-size:11px;">
+            <button onclick="smashSaveRec()" style="padding:7px 14px;background:var(--teal);border:none;color:#000;border-radius:4px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);">💾 保存</button>
+            <button onclick="smashDiscardRec()" style="padding:7px 10px;background:var(--panel2);border:1px solid var(--border2);color:var(--text2);border-radius:4px;font-size:11px;cursor:pointer;font-family:var(--font);">✕</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ====== 保存済みマクロ ====== -->
+      <div class="ctrl-section">
+        <div class="ctrl-section-title" style="display:flex;align-items:center;justify-content:space-between;">
+          <span>💾 保存済みマクロ</span>
+          <span id="smashMacroListTitle" style="font-size:10px;color:var(--text3);"></span>
+        </div>
+        <div id="smashMacroListEl"></div>
+      </div>
+
+      <!-- ====== CPU制御 ====== -->
+      <div class="ctrl-section">
+        <div class="ctrl-section-title" style="color:#48dbfb;">🤖 CPU制御（Switch送信）</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+          <div>
+            <label class="form-label">使用マクロ</label>
+            <select id="smashCpuMacroSelect" style="width:100%;font-size:11px;">
+              <option value="-1">-- キャラを選択 --</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label">開始ディレイ (ms)</label>
+            <input type="number" id="smashCpuDelay" value="3000" min="0" max="30000" style="width:100%;font-size:11px;" title="キャラ選択確定後に何ms待って入力を開始するか">
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
+          <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2);cursor:pointer;">
+            <input type="checkbox" id="smashCpuLoop"> ∞ ループ再生
+          </label>
+          <div style="display:flex;align-items:center;gap:5px;">
+            <label style="font-size:11px;color:var(--text2);">ループ間隔</label>
+            <input type="number" id="smashCpuLoopInterval" value="300" min="0" max="5000" style="width:60px;font-size:11px;">
+            <span style="font-size:10px;color:var(--text3);">ms</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:8px;">
+          <button id="smashCpuStartBtn" onclick="smashStartCpu()"
+                  style="flex:1;padding:10px;background:linear-gradient(135deg,#0a2a3a,#0a6a9a,#48dbfb,#0a6a9a,#0a2a3a);border:1px solid #48dbfb;color:#fff;border-radius:4px;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font);">
+            🤖 CPU制御開始
+          </button>
+          <button id="smashCpuStopBtn" onclick="smashStopCpu(false)"
+                  style="display:none;flex:1;padding:10px;background:rgba(220,53,69,0.2);border:1px solid var(--red);color:var(--red);border-radius:4px;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font);">
+            ⏹ 停止
+          </button>
+        </div>
+        <div id="smashCpuStatus" style="display:none;" class="smash-cpu-status"></div>
+        <!-- 使い方ガイド -->
+        <div style="padding:8px 10px;background:rgba(72,219,251,0.04);border:1px solid rgba(72,219,251,0.2);border-radius:4px;font-size:10px;color:var(--text3);line-height:1.7;margin-top:8px;">
+          <strong style="color:#48dbfb;">使い方:</strong><br>
+          1. 動画をインポートしてプロ選手の操作を確認<br>
+          2. キャラクターを選択して「動画と同期記録」または「単独記録」を開始<br>
+          3. 動画を見ながらクイックボタンで入力を記録 → 保存<br>
+          4. Switchで対戦を開始し CPUキャラを選択<br>
+          5. 「CPU制御開始」を押すと記録した入力をSwitchに送信
+        </div>
+      </div>
+
+    </div><!-- /overflow-y:auto -->
+  </div><!-- /right panel -->
+</div><!-- /tab-smash -->
 
 <script>
 'use strict';
@@ -6139,12 +6415,523 @@ function swshLoadFile() {
 }
 
 /**
- * Android 側の ArduinoAutomationManager から呼ばれるコールバック
- * Android.getStoredProgram の結果を非同期で受け取る場合に使用
+ * onSwshProgramLoaded: Android 側の ArduinoAutomationManager から呼ばれるコールバック
  */
 function onSwshProgramLoaded(prog, src) {
   swshSetSource(prog, src);
 }
+
+// =====================================================================
+// 🥊 スマブラ CPU 機能
+// スマブラ プロ選手の動画を見ながら入力を記録し
+// Switch接続時にCPUキャラクターとして同じ操作を再現する
+// =====================================================================
+
+/** スマブラ全キャラクター一覧 (SSBU 89体) */
+const SSBU_CHARS = [
+  {id:'mario',jp:'マリオ'},{id:'donkey',jp:'ドンキーコング'},{id:'link',jp:'リンク'},
+  {id:'samus',jp:'サムス'},{id:'darksamus',jp:'ダークサムス'},{id:'yoshi',jp:'ヨッシー'},
+  {id:'kirby',jp:'カービィ'},{id:'fox',jp:'フォックス'},{id:'pikachu',jp:'ピカチュウ'},
+  {id:'luigi',jp:'ルイージ'},{id:'ness',jp:'ネス'},{id:'falcon',jp:'C.ファルコン'},
+  {id:'jigglypuff',jp:'プリン'},{id:'peach',jp:'ピーチ'},{id:'daisy',jp:'デイジー'},
+  {id:'bowser',jp:'クッパ'},{id:'iceclimbers',jp:'アイスクライマー'},{id:'sheik',jp:'シーク'},
+  {id:'zelda',jp:'ゼルダ'},{id:'drmario',jp:'ドクターマリオ'},{id:'pichu',jp:'ピチュー'},
+  {id:'falco',jp:'ファルコ'},{id:'marth',jp:'マルス'},{id:'lucina',jp:'ルシナ'},
+  {id:'younglink',jp:'ヤングリンク'},{id:'ganondorf',jp:'ガノンドロフ'},{id:'mewtwo',jp:'ミュウツー'},
+  {id:'roy',jp:'ロイ'},{id:'chrom',jp:'クロム'},{id:'gamewatch',jp:'G&W'},
+  {id:'metaknight',jp:'メタナイト'},{id:'pit',jp:'ピット'},{id:'darkpit',jp:'ブラックピット'},
+  {id:'zss',jp:'ZSサムス'},{id:'wario',jp:'ワリオ'},{id:'snake',jp:'スネーク'},
+  {id:'ike',jp:'アイク'},{id:'pktrainer',jp:'ポケモントレーナー'},{id:'diddykong',jp:'ディディーコング'},
+  {id:'lucas',jp:'リュカ'},{id:'sonic',jp:'ソニック'},{id:'dedede',jp:'デデデ'},
+  {id:'olimar',jp:'オリマー'},{id:'lucario',jp:'ルカリオ'},{id:'rob',jp:'R.O.B.'},
+  {id:'toonlink',jp:'トゥーンリンク'},{id:'wolf',jp:'ウルフ'},{id:'villager',jp:'むらびと'},
+  {id:'megaman',jp:'ロックマン'},{id:'wiifit',jp:'Wiiフィット'},{id:'rosalina',jp:'ロゼッタ&チコ'},
+  {id:'littlemac',jp:'リトルマック'},{id:'greninja',jp:'ゲッコウガ'},{id:'palutena',jp:'パルテナ'},
+  {id:'pacman',jp:'パックマン'},{id:'robin',jp:'ルフレ'},{id:'shulk',jp:'シュルク'},
+  {id:'bowserjr',jp:'クッパJr.'},{id:'duckhunt',jp:'ダックハント'},{id:'ryu',jp:'リュウ'},
+  {id:'ken',jp:'ケン'},{id:'cloud',jp:'クラウド'},{id:'corrin',jp:'カムイ'},
+  {id:'bayonetta',jp:'ベヨネッタ'},{id:'inkling',jp:'インクリング'},{id:'ridley',jp:'リドリー'},
+  {id:'simon',jp:'シモン'},{id:'richter',jp:'リヒター'},{id:'kingkrool',jp:'キングクルール'},
+  {id:'isabelle',jp:'しずえ'},{id:'incineroar',jp:'ガオガエン'},{id:'piranha',jp:'パックンフラワー'},
+  {id:'joker',jp:'ジョーカー'},{id:'hero',jp:'勇者'},{id:'banjo',jp:'バンジョー&カズーイ'},
+  {id:'terry',jp:'テリー'},{id:'byleth',jp:'ベレトス'},{id:'minmin',jp:'ミンミン'},
+  {id:'steve',jp:'スティーブ'},{id:'sephiroth',jp:'セフィロス'},{id:'pyra',jp:'ホムラ/ヒカリ'},
+  {id:'kazuya',jp:'カズヤ'},{id:'sora',jp:'ソラ'},
+  {id:'mii_brawler',jp:'Mii格闘タイプ'},{id:'mii_sword',jp:'Mii剣術タイプ'},{id:'mii_gun',jp:'Mii射撃タイプ'}
+];
+
+// ----- 状態変数 -----
+var smashCurrentChar    = null;  // 選択中キャラ {id, jp}
+var smashRecActive      = false; // 記録中か
+var smashRecMode        = 'standalone'; // 'standalone' | 'sync'
+var smashRecStartTs     = 0;     // Date.now() @ 記録開始
+var smashRecVideoTime0  = 0;     // ビデオ currentTime @ 記録開始 (sync用)
+var smashRecTimesteps   = [];    // [{type,button/side/x/y,duration,videoTime,wallTime}]
+var smashRecInterval_   = null;  // setInterval handle
+var smashCpuActive      = false; // CPU制御中か
+var smashCpuTimers_     = [];    // setTimeout handles for CPU
+var smashSelMacroIdx    = -1;    // 選択マクロIndex
+
+// ----- LocalStorage ヘルパー -----
+function smashSaveMacro(charId, name, steps) {
+  var key = 'smash_macro_' + charId;
+  var list = smashGetCharMacros(charId);
+  list.push({ name: name, steps: steps, createdAt: Date.now() });
+  try { localStorage.setItem(key, JSON.stringify(list)); } catch(e) {}
+}
+function smashGetCharMacros(charId) {
+  try { return JSON.parse(localStorage.getItem('smash_macro_' + charId) || '[]'); }
+  catch(e) { return []; }
+}
+function smashDeleteMacroAt(charId, idx) {
+  var list = smashGetCharMacros(charId);
+  list.splice(idx, 1);
+  try { localStorage.setItem('smash_macro_' + charId, JSON.stringify(list)); } catch(e) {}
+}
+
+// ----- UI: キャラグリッド -----
+function smashInit() {
+  smashRenderCharGrid('');
+  smashUpdateMainPanel();
+}
+function smashFilterChars() {
+  var q = (document.getElementById('smashCharSearch').value || '').toLowerCase();
+  smashRenderCharGrid(q);
+}
+function smashRenderCharGrid(filter) {
+  var el = document.getElementById('smashCharGrid');
+  if (!el) return;
+  var chars = filter
+    ? SSBU_CHARS.filter(function(c){ return c.jp.toLowerCase().indexOf(filter) >= 0 || c.id.indexOf(filter) >= 0; })
+    : SSBU_CHARS;
+  el.innerHTML = chars.map(function(c) {
+    var macros = smashGetCharMacros(c.id);
+    var isSel  = smashCurrentChar && smashCurrentChar.id === c.id;
+    return '<div class="smash-char-item ' + (isSel ? 'active' : '') + '" onclick="smashSelectChar(\'' + c.id + '\')">' +
+      '<span>' + c.jp + '</span>' +
+      (macros.length ? '<span class="smash-char-badge">' + macros.length + '</span>' : '') +
+      '</div>';
+  }).join('');
+}
+function smashSelectChar(charId) {
+  smashCurrentChar  = SSBU_CHARS.find(function(c){ return c.id === charId; }) || null;
+  smashSelMacroIdx  = -1;
+  smashRenderCharGrid(document.getElementById('smashCharSearch').value || '');
+  smashUpdateMainPanel();
+}
+function smashUpdateMainPanel() {
+  var nameEl  = document.getElementById('smashSelectedName');
+  var countEl = document.getElementById('smashMacroCount');
+  var titleEl = document.getElementById('smashMacroListTitle');
+  if (!smashCurrentChar) {
+    if (nameEl)  nameEl.textContent  = '--- キャラクター未選択 ---';
+    if (countEl) countEl.textContent = '';
+    if (titleEl) titleEl.textContent = '';
+    var listEl = document.getElementById('smashMacroListEl');
+    if (listEl) listEl.innerHTML = '<div style="padding:14px;color:var(--text3);text-align:center;">左のリストからキャラクターを選択してください</div>';
+    return;
+  }
+  var macros = smashGetCharMacros(smashCurrentChar.id);
+  if (nameEl)  nameEl.textContent  = smashCurrentChar.jp;
+  if (countEl) countEl.textContent = macros.length ? 'マクロ: ' + macros.length + ' 件' : '';
+  if (titleEl) titleEl.textContent = smashCurrentChar.jp;
+  smashRenderMacroList();
+  smashUpdateCpuSelect();
+}
+function smashRenderMacroList() {
+  var el = document.getElementById('smashMacroListEl');
+  if (!el || !smashCurrentChar) return;
+  var macros = smashGetCharMacros(smashCurrentChar.id);
+  if (!macros.length) {
+    el.innerHTML = '<div style="padding:14px;color:var(--text3);text-align:center;font-size:11px;">まだマクロがありません<br>記録または JSON ファイルをインポートしてください</div>';
+    return;
+  }
+  el.innerHTML = macros.map(function(m, i) {
+    var steps = m.steps ? m.steps.length : 0;
+    var isSel = smashSelMacroIdx === i;
+    var date  = m.createdAt ? new Date(m.createdAt).toLocaleDateString('ja-JP') : '';
+    return '<div class="smash-macro-item ' + (isSel ? 'active' : '') + '" onclick="smashSelectMacro(' + i + ')">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+        '<span style="font-weight:600;font-size:12px;color:' + (isSel ? 'var(--teal)' : 'var(--text)') + ';">' + smashEsc(m.name) + '</span>' +
+        '<div style="display:flex;gap:4px;">' +
+          '<button onclick="event.stopPropagation();smashPlayMacroDirectly(' + i + ')" style="padding:2px 7px;background:rgba(40,167,69,0.2);border:1px solid var(--green);color:var(--green);border-radius:3px;font-size:10px;cursor:pointer;font-family:var(--font);" title="今すぐ実行">▶</button>' +
+          '<button onclick="event.stopPropagation();smashExportMacro(' + i + ')" style="padding:2px 7px;background:var(--panel2);border:1px solid var(--border2);color:var(--text2);border-radius:3px;font-size:10px;cursor:pointer;font-family:var(--font);" title="JSONエクスポート">💾</button>' +
+          '<button onclick="event.stopPropagation();smashDeleteMacroUI(' + i + ')" style="padding:2px 7px;background:rgba(220,53,69,0.15);border:1px solid rgba(220,53,69,0.4);color:var(--red);border-radius:3px;font-size:10px;cursor:pointer;font-family:var(--font);" title="削除">🗑</button>' +
+        '</div>' +
+      '</div>' +
+      '<div style="font-size:10px;color:var(--text3);margin-top:2px;">' + steps + ' ステップ ・ ' + date + '</div>' +
+    '</div>';
+  }).join('');
+}
+function smashSelectMacro(idx) {
+  smashSelMacroIdx = idx;
+  smashRenderMacroList();
+  smashUpdateCpuSelect();
+}
+function smashDeleteMacroUI(idx) {
+  if (!smashCurrentChar) return;
+  if (!confirm('「' + (smashGetCharMacros(smashCurrentChar.id)[idx] || {name:''}).name + '」を削除しますか？')) return;
+  smashDeleteMacroAt(smashCurrentChar.id, idx);
+  if (smashSelMacroIdx >= idx) smashSelMacroIdx = Math.max(-1, smashSelMacroIdx - 1);
+  smashUpdateMainPanel();
+  smashRenderCharGrid(document.getElementById('smashCharSearch').value || '');
+}
+function smashUpdateCpuSelect() {
+  var sel = document.getElementById('smashCpuMacroSelect');
+  if (!sel) return;
+  if (!smashCurrentChar) { sel.innerHTML = '<option value="-1">-- キャラを選択 --</option>'; return; }
+  var macros = smashGetCharMacros(smashCurrentChar.id);
+  if (!macros.length) { sel.innerHTML = '<option value="-1">-- マクロなし --</option>'; return; }
+  sel.innerHTML = macros.map(function(m, i) { return '<option value="' + i + '">' + smashEsc(m.name) + '</option>'; }).join('');
+  if (smashSelMacroIdx >= 0 && smashSelMacroIdx < macros.length) sel.value = smashSelMacroIdx;
+}
+function smashEsc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ----- 動画 -----
+function smashOpenVideo() {
+  var input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'video/*';
+  input.onchange = function(e) {
+    var file = e.target.files && e.target.files[0];
+    if (!file) return;
+    var vid  = document.getElementById('smashVideoEl');
+    var ph   = document.getElementById('smashVideoPlaceholder');
+    var ctrl = document.getElementById('smashVideoControls');
+    var name = document.getElementById('smashVideoName');
+    vid.src = URL.createObjectURL(file);
+    vid.style.display = 'block';
+    if (ph)   ph.style.display   = 'none';
+    if (ctrl) ctrl.style.display = '';
+    if (name) name.textContent   = file.name;
+    // ビデオ時刻表示
+    vid.ontimeupdate = function() {
+      var t = document.getElementById('smashVideoTime');
+      if (t) t.textContent = smashFmtTime(vid.currentTime) + ' / ' + smashFmtTime(vid.duration || 0);
+    };
+    showToast('🎬 ' + file.name);
+  };
+  input.click();
+}
+function smashFmtTime(s) {
+  s = isNaN(s) ? 0 : Math.floor(s);
+  var m = Math.floor(s / 60), sec = s % 60;
+  return (m < 10 ? '0' : '') + m + ':' + (sec < 10 ? '0' : '') + sec;
+}
+
+// ----- 記録 -----
+function smashStartRec(mode) {
+  if (!smashCurrentChar) { showToast('⚠ キャラクターを選択してください'); return; }
+  if (smashRecActive) return;
+  smashRecMode       = mode;
+  smashRecActive     = true;
+  smashRecTimesteps  = [];
+  smashRecStartTs    = Date.now();
+
+  var vid = document.getElementById('smashVideoEl');
+  if (mode === 'sync' && vid && vid.src && vid.readyState >= 1) {
+    smashRecVideoTime0 = vid.currentTime;
+    vid.play().catch(function(){});
+    showToast('▶ 動画再生 & 同期記録開始');
+  } else {
+    smashRecVideoTime0 = 0;
+    showToast('⏺ 記録開始');
+  }
+
+  document.getElementById('smashRecStartBtn').style.display   = 'none';
+  document.getElementById('smashRecSyncBtn').style.display    = 'none';
+  document.getElementById('smashRecStopBtn').style.display    = '';
+  document.getElementById('smashRecDiscardBtn').style.display = '';
+  document.getElementById('smashRecStatus').style.display     = '';
+  document.getElementById('smashRecSaveArea').style.display   = 'none';
+
+  smashRecInterval_ = setInterval(function() {
+    var el = document.getElementById('smashRecStepCount');
+    if (el) el.textContent = smashRecTimesteps.length;
+  }, 250);
+}
+function smashStopRec() {
+  if (!smashRecActive) return;
+  smashRecActive = false;
+  clearInterval(smashRecInterval_);
+
+  var vid = document.getElementById('smashVideoEl');
+  if (smashRecMode === 'sync' && vid) vid.pause();
+
+  document.getElementById('smashRecStartBtn').style.display   = '';
+  document.getElementById('smashRecSyncBtn').style.display    = '';
+  document.getElementById('smashRecStopBtn').style.display    = 'none';
+  document.getElementById('smashRecDiscardBtn').style.display = 'none';
+  document.getElementById('smashRecStatus').style.display     = 'none';
+
+  if (!smashRecTimesteps.length) { showToast('⚠ 記録ステップが 0 件です'); return; }
+
+  var stepsEl = document.getElementById('smashRecSaveStepCount');
+  if (stepsEl) stepsEl.textContent = smashRecTimesteps.length + ' ステップ';
+  document.getElementById('smashRecSaveArea').style.display = '';
+}
+function smashDiscardRec() {
+  smashRecActive = false;
+  clearInterval(smashRecInterval_);
+  smashRecTimesteps = [];
+  document.getElementById('smashRecStartBtn').style.display   = '';
+  document.getElementById('smashRecSyncBtn').style.display    = '';
+  document.getElementById('smashRecStopBtn').style.display    = 'none';
+  document.getElementById('smashRecDiscardBtn').style.display = 'none';
+  document.getElementById('smashRecStatus').style.display     = 'none';
+  document.getElementById('smashRecSaveArea').style.display   = 'none';
+  showToast('🗑 記録を破棄しました');
+}
+
+/** ボタン押下を記録 (クイックボタン経由) */
+function smashRecBtn(btn) {
+  var dur = parseInt(document.getElementById('smashRecDur').value) || 100;
+  if (smashRecActive) {
+    var vid  = document.getElementById('smashVideoEl');
+    var vt   = (smashRecMode === 'sync' && vid && vid.src) ? vid.currentTime : 0;
+    var wt   = Date.now() - smashRecStartTs;
+    smashRecTimesteps.push({ type:'press', button:btn, duration:dur, videoTime:vt, wallTime:wt });
+  }
+  // Switch にも送信
+  _parentAb('pressButton', btn, dur);
+  showToast('🎮 ' + btn + ' (' + dur + 'ms)');
+}
+/** スティック傾けを記録 */
+function smashRecStick(side, x, y) {
+  var dur = 300;
+  if (smashRecActive) {
+    var vid = document.getElementById('smashVideoEl');
+    var vt  = (smashRecMode === 'sync' && vid && vid.src) ? vid.currentTime : 0;
+    var wt  = Date.now() - smashRecStartTs;
+    smashRecTimesteps.push({ type:'stick', side:side, x:x, y:y, duration:dur, videoTime:vt, wallTime:wt });
+  }
+  _parentAb('tiltStick', side, x, y, dur);
+  var dir = x === 0 && y === 0 ? '中立' : '(' + x + ',' + y + ')';
+  showToast('🕹 ' + side + 'スティック ' + dir);
+}
+
+/** 保存: タイムスタンプ付きステップ → マクロステップ変換 */
+function smashSaveRec() {
+  if (!smashCurrentChar || !smashRecTimesteps.length) return;
+  var nameEl = document.getElementById('smashRecSaveName');
+  var name   = (nameEl && nameEl.value.trim()) ||
+               (smashCurrentChar.jp + '_' + new Date().toLocaleDateString('ja-JP'));
+
+  var steps = smashConvertTimestepsToMacro(smashRecTimesteps, smashRecMode);
+  smashSaveMacro(smashCurrentChar.id, name, steps);
+  showToast('💾 保存: ' + name + ' (' + steps.length + ' ステップ)');
+
+  smashRecTimesteps = [];
+  if (nameEl) nameEl.value = '';
+  document.getElementById('smashRecSaveArea').style.display = 'none';
+
+  smashUpdateMainPanel();
+  smashRenderCharGrid(document.getElementById('smashCharSearch').value || '');
+}
+
+/**
+ * タイムスタンプ付きステップをマクロ再生用ステップ列に変換。
+ * 同期モード時はビデオ時刻、単独モード時は壁時計時刻を基準に
+ * ステップ間に wait ステップを挿入する。
+ */
+function smashConvertTimestepsToMacro(tSteps, mode) {
+  if (!tSteps.length) return [];
+  var useVideo = mode === 'sync' && tSteps.some(function(s){ return s.videoTime > 0; });
+  var sorted = tSteps.slice().sort(function(a, b) {
+    return (useVideo ? a.videoTime : a.wallTime) - (useVideo ? b.videoTime : b.wallTime);
+  });
+
+  var result = [];
+  var cursor = 0; // ms already scheduled
+
+  sorted.forEach(function(s) {
+    var targetMs = useVideo ? s.videoTime * 1000 : s.wallTime;
+    var gap = Math.round(targetMs - cursor);
+    if (gap > 30) {
+      result.push({ type:'wait', ms: gap });
+      cursor += gap;
+    }
+    var dur = s.duration || (s.type === 'stick' ? 300 : 100);
+    if (s.type === 'stick') {
+      result.push({ type:'stick', side:s.side, x:s.x, y:s.y, duration:dur });
+    } else {
+      result.push({ type:'press', button:s.button, duration:dur });
+    }
+    cursor += dur + 30;
+  });
+  return result;
+}
+
+// ----- JSON インポート -----
+function smashImportTimingJson() {
+  if (!smashCurrentChar) { showToast('⚠ キャラクターを選択してください'); return; }
+  var input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json,.txt';
+  input.onchange = function(e) {
+    var file = e.target.files && e.target.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(ev) {
+      try {
+        var data  = JSON.parse(ev.target.result);
+        var steps = Array.isArray(data) ? data : (data.steps || []);
+        if (!steps.length) { showToast('⚠ ステップが見つかりません'); return; }
+        var macroName = (data.name || file.name.replace(/\.[^.]+$/, '')) + '_インポート';
+        smashSaveMacro(smashCurrentChar.id, macroName, steps);
+        showToast('📥 インポート完了: ' + macroName + ' (' + steps.length + ' ステップ)');
+        smashUpdateMainPanel();
+        smashRenderCharGrid(document.getElementById('smashCharSearch').value || '');
+      } catch(err) {
+        showToast('⚠ JSONパースエラー: ' + err.message);
+      }
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+// ----- マクロ エクスポート -----
+function smashExportMacro(idx) {
+  if (!smashCurrentChar) return;
+  var macros = smashGetCharMacros(smashCurrentChar.id);
+  var macro  = macros[idx];
+  if (!macro) return;
+  var data = JSON.stringify({ name:macro.name, character:smashCurrentChar.id, steps:macro.steps }, null, 2);
+  var a    = document.createElement('a');
+  a.href   = URL.createObjectURL(new Blob([data], { type:'application/json' }));
+  a.download = smashCurrentChar.id + '_' + macro.name.replace(/[\\/:*?"<>|]/g,'_') + '.json';
+  a.click();
+  showToast('💾 エクスポート: ' + macro.name);
+}
+function smashExportAllMacros() {
+  var all = [];
+  SSBU_CHARS.forEach(function(c) {
+    var macros = smashGetCharMacros(c.id);
+    macros.forEach(function(m) { all.push({ character:c.id, charJp:c.jp, name:m.name, steps:m.steps, createdAt:m.createdAt }); });
+  });
+  if (!all.length) { showToast('⚠ 保存済みマクロがありません'); return; }
+  var a    = document.createElement('a');
+  a.href   = URL.createObjectURL(new Blob([JSON.stringify(all, null, 2)], { type:'application/json' }));
+  a.download = 'smash_all_macros.json';
+  a.click();
+  showToast('📤 全マクロをエクスポート (' + all.length + ' 件)');
+}
+
+// ----- マクロ直接実行 (コントローラータブの executeMacroSteps を利用) -----
+function smashPlayMacroDirectly(idx) {
+  if (!smashCurrentChar) return;
+  var macros = smashGetCharMacros(smashCurrentChar.id);
+  var macro  = macros[idx];
+  if (!macro || !macro.steps.length) { showToast('⚠ マクロが空です'); return; }
+  executeMacroSteps(macro.steps.slice(), 1);
+  showToast('▶ ' + macro.name + ' 実行');
+}
+
+// ----- CPU 制御 -----
+function smashStartCpu() {
+  if (!smashCurrentChar) { showToast('⚠ キャラクターを選択してください'); return; }
+  var sel   = document.getElementById('smashCpuMacroSelect');
+  var idx   = sel ? parseInt(sel.value) : -1;
+  if (idx < 0) { showToast('⚠ マクロを選択してください'); return; }
+
+  var macros = smashGetCharMacros(smashCurrentChar.id);
+  var macro  = macros[idx];
+  if (!macro || !macro.steps.length) { showToast('⚠ マクロが空です'); return; }
+
+  var delay    = parseInt(document.getElementById('smashCpuDelay').value)        || 0;
+  var loop     = document.getElementById('smashCpuLoop').checked;
+  var loopWait = parseInt(document.getElementById('smashCpuLoopInterval').value) || 300;
+
+  smashCpuActive = true;
+  document.getElementById('smashCpuStartBtn').style.display = 'none';
+  document.getElementById('smashCpuStopBtn').style.display  = '';
+  document.getElementById('smashCpuStatus').style.display   = '';
+  document.getElementById('smashCpuStatus').innerHTML =
+    '<span style="color:var(--teal);">⏳ ' + delay + 'ms 後に開始... [' + smashCurrentChar.jp + '] ' + smashEsc(macro.name) + '</span>';
+
+  showToast('🤖 CPU制御開始: ' + smashCurrentChar.jp + ' / ' + macro.name);
+
+  var startTid = setTimeout(function() {
+    if (!smashCpuActive) return;
+    smashRunCpuLoop(macro.steps.slice(), loop, loopWait, 1);
+  }, delay);
+  smashCpuTimers_.push(startTid);
+}
+function smashRunCpuLoop(steps, loop, loopWait, loopN) {
+  if (!smashCpuActive) return;
+  var statusEl = document.getElementById('smashCpuStatus');
+  if (statusEl) statusEl.innerHTML =
+    '<span style="color:var(--teal);">▶ CPU制御中... ' +
+    (loop ? '∞ ループ #' + loopN : '(' + steps.length + ' ステップ)') + '</span>';
+
+  var t = 0;
+  steps.forEach(function(step) {
+    var tid = setTimeout(function() {
+      if (!smashCpuActive) return;
+      smashExecStep(step);
+    }, t);
+    smashCpuTimers_.push(tid);
+    t += getStepDuration(step);
+  });
+
+  if (loop) {
+    var nxtTid = setTimeout(function() {
+      if (!smashCpuActive) return;
+      smashRunCpuLoop(steps, loop, loopWait, loopN + 1);
+    }, t + loopWait);
+    smashCpuTimers_.push(nxtTid);
+  } else {
+    var doneTid = setTimeout(function() {
+      if (!smashCpuActive) return;
+      smashStopCpu(true);
+    }, t + 100);
+    smashCpuTimers_.push(doneTid);
+  }
+}
+function smashExecStep(step) {
+  if (!step) return;
+  if (step.type === 'press') {
+    _parentAb('pressButton', step.button, step.duration || 100);
+  } else if (step.type === 'multipress') {
+    _parentAb('pressButtons', step.buttons || [], step.duration || 100);
+  } else if (step.type === 'stick') {
+    _parentAb('tiltStick', step.side || 'L', step.x || 0, step.y || 0, step.duration || 300);
+  }
+  // wait/delay → getStepDuration() で処理済み
+}
+function smashStopCpu(fromDone) {
+  smashCpuTimers_.forEach(function(t){ clearTimeout(t); });
+  smashCpuTimers_ = [];
+  smashCpuActive  = false;
+  document.getElementById('smashCpuStartBtn').style.display = '';
+  document.getElementById('smashCpuStopBtn').style.display  = 'none';
+  var statusEl = document.getElementById('smashCpuStatus');
+  if (statusEl) {
+    statusEl.innerHTML = fromDone === true
+      ? '<span style="color:var(--green);">✅ CPU制御完了</span>'
+      : '<span style="color:var(--red);">⏹ 停止しました</span>';
+  }
+  showToast(fromDone === true ? '✅ CPU制御完了' : '⏹ CPU制御停止');
+}
+
+// ----- 点滅アニメ CSS インジェクト -----
+(function() {
+  var style = document.createElement('style');
+  style.textContent = '@keyframes smashRecBlink { 0%,100%{opacity:1} 50%{opacity:0.3} }';
+  document.head.appendChild(style);
+})();
+
+// 既存の DOMContentLoaded / load に追加
+(function() {
+  var origLoad = window.onload;
+  window.addEventListener('DOMContentLoaded', function() {
+    // DOMContentLoaded 後に初期化 (tab が非表示でも DOM は存在)
+    setTimeout(smashInit, 100);
+  });
+})();
 </script>
 </body>
 </html>
