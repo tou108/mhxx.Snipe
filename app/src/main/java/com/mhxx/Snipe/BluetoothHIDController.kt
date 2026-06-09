@@ -15,7 +15,7 @@ import java.util.concurrent.atomic.AtomicReference
 
 /**
  * Nintendo Switch用 Bluetooth HID コントローラー
- * Android 9 (API 28) ～ Android 16 (API 36) 対応 / ルート不要
+ * Android 9 (API 28) ～ Android 15 (API 35) 対応 / ルート不要
  *
  * ─────────────────────────────────────────────────────────────────
  * 【Class of Device 0x002508 強制設定について】
@@ -48,7 +48,6 @@ import java.util.concurrent.atomic.AtomicReference
  *
  *   Android  9-11 (API 28-30) : BLUETOOTH, BLUETOOTH_ADMIN, ACCESS_FINE_LOCATION
  *   Android 12-15 (API 31-35) : BLUETOOTH_CONNECT, BLUETOOTH_SCAN, BLUETOOTH_ADVERTISE
- *   Android 16+   (API 36+)   : 同上 (変更なし)
  *
  *   → AndroidManifest.xml に REQUIRED_PERMISSIONS_BELOW_S / REQUIRED_PERMISSIONS_S_PLUS
  *     の両方を宣言し、実行時に uses-permission の maxSdkVersion で分岐すること。
@@ -123,7 +122,7 @@ class BluetoothHIDController(private val context: Context) {
 
     // ── BT 基盤 ──────────────────────────────────────────────────────
     private var bluetoothAdapter: BluetoothAdapter? = null
-    private var bluetoothHidDevice: BluetoothHidDevice? = null
+    @Volatile private var bluetoothHidDevice: BluetoothHidDevice? = null
     /** コールバック + サブコマンド処理を同一スレッドで行う BT 専用 Executor */
     private val hidExecutor: ExecutorService = Executors.newSingleThreadExecutor()
 
@@ -132,7 +131,7 @@ class BluetoothHIDController(private val context: Context) {
     @Volatile private var targetDevice: BluetoothDevice? = null
     @Volatile private var deviceConnected  = false
     private var appRegistered    = false
-    private var serviceConnected = false
+    @Volatile private var serviceConnected = false
 
     // ── CoD 設定状態 ─────────────────────────────────────────────────
     /** true = 何らかの方法で CoD 設定を試みた */
@@ -153,7 +152,10 @@ class BluetoothHIDController(private val context: Context) {
      *   [3-5] 左スティック 12bit X+Y (中立 0x800)
      *   [6-8] 右スティック 12bit X+Y (中立 0x800)
      */
-    private val currentButtonState = AtomicReference(ByteArray(9).also { setStickCenter(it) })
+    private val currentButtonState = AtomicReference(ByteArray(9).also {
+        setStickCenter(it, offset = 3) // 左スティック中立
+        setStickCenter(it, offset = 6) // 右スティック中立 (未設定だと X=Y=0 で左上に倒れた状態)
+    })
 
     // ── 定期レポートスケジューラー ────────────────────────────────────
     @Volatile private var reportScheduler: ScheduledExecutorService? = null
