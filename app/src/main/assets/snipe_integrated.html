@@ -827,6 +827,37 @@ body.light-mode .app-header {
   text-align: center;
   max-width: 360px;
 }
+/* ===== SWSH自動タブ ===== */
+#tab-swsh { flex-direction: column; overflow: hidden; }
+.swsh-header { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.swsh-prog-btn { padding: 7px 18px; border-radius: 4px; font-size: 12px; font-weight: 700; cursor: pointer; border: 1px solid var(--border2); background: var(--panel2); color: var(--text2); transition: all 0.15s; font-family: var(--font); }
+.swsh-prog-btn.active-a { background: rgba(32,201,151,0.18); border-color: var(--teal); color: var(--teal); }
+.swsh-prog-btn.active-b { background: rgba(155,89,182,0.18); border-color: var(--purple2); color: var(--purple2); }
+.swsh-body { display: flex; flex: 1; overflow: hidden; min-height: 0; }
+.swsh-left { width: 270px; flex-shrink: 0; border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+.swsh-right { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.swsh-cfg { padding: 12px 14px; border-bottom: 1px solid var(--border); font-size: 11px; }
+.swsh-cfg-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.swsh-cfg-label { color: var(--text2); font-size: 10px; letter-spacing: 1px; text-transform: uppercase; min-width: 80px; }
+.swsh-cfg input, .swsh-cfg select { background: var(--panel2); border: 1px solid var(--border2); color: var(--text); border-radius: 3px; padding: 4px 7px; font-size: 11px; font-family: var(--font); }
+.swsh-func-list { flex: 1; overflow-y: auto; }
+.swsh-func-item { padding: 8px 12px; border-bottom: 1px solid var(--border); cursor: pointer; font-size: 11px; color: var(--text2); transition: background 0.1s; }
+.swsh-func-item:hover { background: var(--panel2); }
+.swsh-func-item.sel { background: rgba(32,201,151,0.1); border-left: 3px solid var(--teal); color: var(--text); }
+.swsh-func-item.sel.prog-b { background: rgba(155,89,182,0.1); border-left-color: var(--purple2); }
+.swsh-func-name { font-weight: 700; }
+.swsh-func-steps { font-size: 10px; color: var(--text3); }
+.swsh-exec-bar { padding: 10px 14px; border-bottom: 1px solid var(--border); display: flex; gap: 8px; align-items: center; flex-shrink: 0; background: var(--panel); }
+.swsh-progress { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.swsh-progress-bar { height: 4px; background: var(--border2); border-radius: 2px; overflow: hidden; }
+.swsh-progress-inner { height: 100%; background: linear-gradient(90deg, var(--teal), var(--steel2)); transition: width 0.3s; border-radius: 2px; }
+.swsh-log { flex: 1; overflow-y: auto; padding: 10px 14px; font-family: monospace; font-size: 11px; line-height: 1.7; color: var(--text2); background: rgba(0,0,0,0.15); }
+.swsh-log .log-ok { color: var(--teal); }
+.swsh-log .log-err { color: var(--red); }
+.swsh-log .log-info { color: var(--text2); }
+.swsh-log .log-step { color: var(--steel); }
+.swsh-step-preview { padding: 8px 14px; border-top: 1px solid var(--border); background: var(--panel); font-size: 10px; color: var(--text3); flex-shrink: 0; display: flex; flex-wrap: wrap; gap: 3px; max-height: 52px; overflow: hidden; }
+
 /* ===== 統合タブ (OCR / BT / Arduino) ===== */
 .ctrl-section { padding: 12px 14px; border-bottom: 1px solid var(--border); }
 .ctrl-section-title { font-size: 11px; color: var(--steel2); letter-spacing: 1px; margin-bottom: 10px; font-weight: 600; }
@@ -849,6 +880,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed !important; }
   <div class="main-tab" data-tab="controller" onclick="switchTab('controller')">🎮 コントローラー</div>
 
   <div class="main-tab" data-tab="bt" onclick="switchTab('bt')">📶 Switch接続</div>
+  <div class="main-tab" data-tab="swsh" onclick="switchTab('swsh')">🎮 SWSH自動</div>
 
 </div>
 
@@ -1643,6 +1675,101 @@ button:disabled { opacity: 0.45; cursor: not-allowed !important; }
     </div>
   </div>
 </div><!-- /tab-bt -->
+
+<!-- ===== SWSH自動タブ ===== -->
+<div class="tab-page" id="tab-swsh" style="flex-direction:column;overflow:hidden;">
+  <!-- ヘッダー: プログラム選択 -->
+  <div class="swsh-header">
+    <span style="font-size:11px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;">プログラム</span>
+    <button class="swsh-prog-btn active-a" id="swshBtnA" onclick="swshSelectProg('A')">📗 プログラム A</button>
+    <button class="swsh-prog-btn" id="swshBtnB" onclick="swshSelectProg('B')">📘 プログラム B</button>
+    <span id="swshProgDesc" style="font-size:10px;color:var(--text3);margin-left:4px;">言語設定後～ワイルドエリア</span>
+    <div style="margin-left:auto;display:flex;gap:6px;align-items:center;">
+      <span id="swshStatusBadge" style="font-size:9px;padding:2px 7px;border-radius:3px;background:var(--border);color:var(--text3);">待機中</span>
+    </div>
+  </div>
+
+  <div class="swsh-body">
+    <!-- 左: 設定 + 関数一覧 -->
+    <div class="swsh-left">
+      <!-- 設定 -->
+      <div class="swsh-cfg">
+        <div style="font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">⚙ 設定</div>
+        <div class="swsh-cfg-row" id="swshCfgSebango">
+          <span class="swsh-cfg-label">背番号</span>
+          <input type="text" id="swshSebango" value="25" maxlength="3" style="width:60px;" oninput="swshReparseIfNeeded()">
+        </div>
+        <div class="swsh-cfg-row">
+          <span class="swsh-cfg-label">DLC</span>
+          <select id="swshDlc" onchange="swshReparseIfNeeded()" style="width:80px;">
+            <option value="1">あり</option>
+            <option value="0">なし</option>
+          </select>
+        </div>
+        <div class="swsh-cfg-row" id="swshCfgBall">
+          <span class="swsh-cfg-label">捕獲ボール</span>
+          <select id="swshBallNum" onchange="swshReparseIfNeeded()" style="width:140px;">
+            <option value="0">0: モンスターボール</option>
+            <option value="1">1: フレンドボール</option>
+            <option value="2">2: ルアーボール</option>
+            <option value="3">3: レベルボール</option>
+            <option value="4">4: ヘビーボール</option>
+            <option value="5">5: ラブラブボール</option>
+            <option value="6">6: ムーンボール</option>
+            <option value="7">7: ドリームボール</option>
+            <option value="9">9: 任意ボール</option>
+            <option value="10" selected>10: プレミアボール</option>
+            <option value="11">11: スーパーボール</option>
+            <option value="12">12: ハイパーボール</option>
+            <option value="13">13: ヒールボール</option>
+            <option value="14">14: ネットボール</option>
+            <option value="15">15: ネストボール</option>
+            <option value="16">16: ダイブボール</option>
+            <option value="17">17: ダークボール</option>
+            <option value="18">18: タイマーボール</option>
+            <option value="19">19: ゴージャスボール</option>
+            <option value="20">20: クイックボール</option>
+            <option value="21">21: リピートボール</option>
+          </select>
+        </div>
+      </div>
+      <!-- 関数一覧 -->
+      <div style="font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;padding:8px 12px 4px;">関数リスト</div>
+      <div class="swsh-func-list" id="swshFuncList">
+        <div style="padding:20px;text-align:center;color:var(--text3);font-size:11px;">読み込み中...</div>
+      </div>
+    </div>
+
+    <!-- 右: 実行ログ + コントロール -->
+    <div class="swsh-right">
+      <!-- 実行コントロールバー -->
+      <div class="swsh-exec-bar">
+        <button id="swshExecAll" onclick="swshExecSetup()" style="padding:9px 18px;background:rgba(32,201,151,0.2);border:1px solid var(--teal);color:var(--teal);border-radius:4px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);">
+          ▶ setup() 全実行
+        </button>
+        <button id="swshExecFunc" onclick="swshExecSelected()" style="padding:9px 16px;background:rgba(157,170,191,0.15);border:1px solid var(--steel);color:var(--steel2);border-radius:4px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);">
+          ▶ 選択関数
+        </button>
+        <button id="swshStopBtn" onclick="swshStop()" style="display:none;padding:9px 16px;background:rgba(220,53,69,0.2);border:1px solid var(--red);color:var(--red);border-radius:4px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);">
+          ⏹ 停止
+        </button>
+        <div class="swsh-progress">
+          <div style="font-size:10px;color:var(--text3);" id="swshProgressText">待機中</div>
+          <div class="swsh-progress-bar"><div class="swsh-progress-inner" id="swshProgressBar" style="width:0%"></div></div>
+        </div>
+      </div>
+      <!-- ステッププレビュー -->
+      <div class="swsh-step-preview" id="swshStepPreview" style="display:none;"></div>
+      <!-- ログ -->
+      <div class="swsh-log" id="swshLog">
+        <div class="log-info">🎮 SWSH メインストーリー自動化</div>
+        <div class="log-info" style="margin-top:4px;">プログラムA: 言語設定後 → ワイルドエリア (約45分)</div>
+        <div class="log-info">プログラムB: エンジンシティ → 殿堂入り</div>
+        <div class="log-info" style="margin-top:8px;color:var(--text3);">※ Switch Bluetooth接続後に実行可能</div>
+      </div>
+    </div>
+  </div>
+</div><!-- /tab-swsh -->
 
 <script>
 'use strict';
@@ -4351,6 +4478,12 @@ function _evalInoExpr(expr, consts) {
 /** 定数式を数値として評価 */
 function _evalInoExprNum(expr, consts) {
   var e = expr.trim();
+  // strlen() 対応: strlen(varName) → 文字列長 or デフォルト3
+  e = e.replace(/strlen\s*\(([^)]+)\)/g, function(_, v) {
+    var vt = v.trim();
+    if (consts[vt] && typeof consts[vt] === 'string') return String(consts[vt].length);
+    return '3';
+  });
   Object.keys(consts).forEach(function(k) {
     if (typeof consts[k] === 'number') {
       e = e.replace(new RegExp('\\b' + k + '\\b', 'g'), String(consts[k]));
@@ -4578,6 +4711,21 @@ function _flattenBody(body, rawFuncs, consts, steps, visited, depth) {
       continue;
     }
 
+    // ---- keyTypingNum(code) 特殊ケース: 数字キーボード入力展開 ----
+    var ktM = stmt.match(/^keyTypingNum\s*\(([^)]+)\)$/);
+    if (ktM) {
+      var ktArg = ktM[1].trim();
+      var ktStr = consts[ktArg];
+      if (typeof ktStr === 'string') {
+        // sebango の各桁をキーボードナビゲーションで入力
+        _expandKeyTypingNum(ktStr, steps);
+      } else {
+        // 文字列が解決できない場合はコメントとして残す (後でswshExpandKeyTypingが処理)
+        steps.push({ type:'comment', text: '// → keyTypingNum(' + ktArg + ')' });
+      }
+      continue;
+    }
+
     // ---- ユーザー定義関数呼び出し（引数なし）----
     var callM = stmt.match(/^([a-zA-Z_]\w*)\s*\(\s*\)$/);
     if (callM) {
@@ -4615,6 +4763,22 @@ function _flattenBody(body, rawFuncs, consts, steps, visited, depth) {
       }
       continue;
     }
+
+    // ---- SwitchController().pressHatButton(Hat::DIR) ----
+    var sphM = stmt.match(/SwitchController\(\)\.pressHatButton\s*\(\s*Hat::(\w+)\s*\)/);
+    if (sphM) {
+      var sphBtns = _HAT_MAP[sphM[1]] || ['DPAD_UP'];
+      if (sphBtns.length === 1) steps.push({ type:'press', button: sphBtns[0], duration: 200 });
+      else steps.push({ type:'multipress', buttons: sphBtns, duration: 200 });
+      continue;
+    }
+
+    // ---- SwitchController().releaseHatButton() ----
+    if (/SwitchController\(\)\.releaseHatButton\s*\(/.test(stmt)) {
+      steps.push({ type:'delay', ms: 100 });
+      continue;
+    }
+
     // その他は無視 (break; continue; 複雑な式 etc.)
   }
 }
@@ -5617,7 +5781,370 @@ window.onload = function() {
   initJoyCanvas('R');
   // ★ A間隔 動的リストを初期化
   initSnipeIntervalList();
+
+  // ★ SWSH自動タブ 初期化
+  swshInit();
 };
+
+// =====================================================================
+// .ino パーサー補強: pressHatButton / releaseHatButton / strlen 対応
+// =====================================================================
+// ※ _evalInoExprNum の strlen 対応と _flattenBody への pressHatButton 追加は
+//    既にソース内で直接パッチ済み。keyTypingNum 展開のみここで定義する。
+
+/** keyTypingNum(sebango) をシミュレートするステップ展開 */
+function _expandKeyTypingNum(codeStr, steps) {
+  var keyNum = ['123', '456', '789', 'X0X'];
+  var nowPos = [0, 0];
+  for (var n = 0; n < codeStr.length; n++) {
+    var ch = codeStr[n];
+    var gyo = 0, retsu = 0;
+    outer: for (var i = 0; i < 4; i++) {
+      for (var j = 0; j < 3; j++) {
+        if (keyNum[i][j] === ch) { gyo = i; retsu = j; break outer; }
+      }
+    }
+    var dRow = gyo - nowPos[0];
+    var dCol = retsu - nowPos[1];
+    for (var r = 0; r < Math.abs(dRow); r++)
+      steps.push({ type:'press', button: dRow < 0 ? 'DPAD_UP' : 'DPAD_DOWN', duration: 100 });
+    for (var c = 0; c < Math.abs(dCol); c++)
+      steps.push({ type:'press', button: dCol < 0 ? 'DPAD_LEFT' : 'DPAD_RIGHT', duration: 100 });
+    steps.push({ type:'press', button: 'A', duration: 100 });
+    nowPos[0] = gyo; nowPos[1] = retsu;
+  }
+  // +ボタンで確定
+  steps.push({ type:'press', button: 'PLUS', duration: 100 });
+  steps.push({ type:'delay', ms: 100 });
+  steps.push({ type:'press', button: 'PLUS', duration: 100 });
+}
+
+// =====================================================================
+// SWSH 自動化タブ
+// =====================================================================
+
+var _swshProg = 'A';           // 選択中プログラム
+var _swshParsed = null;        // パース結果
+var _swshExecActive = false;
+var _swshExecTimers = [];
+var _swshSelectedFunc = null;  // 選択中関数名
+
+// --- A / B ソース埋め込み ---
+// 実際のソースはファイルから動的に読み込まれるが、フォールバックとして
+// APK内の ArduinoAutomationManager 経由で管理されるファイルを参照する。
+// ここでは swshStoryAuto_A_v1_0.ino / swshStoryAuto_B_v1_02.ino の内容を
+// 変数として保持し、設定変更時に再パースする。
+
+var _SWSH_SRC_A = null; // swshStoryAuto_A_v1_0.ino の内容 (Android側から受け取るか手動設定)
+var _SWSH_SRC_B = null; // swshStoryAuto_B_v1_02.ino の内容
+
+/** タブ初期化: Androidのプログラムストアから既存ファイルを読み込む */
+function swshInit() {
+  // Android.getStoredProgram があれば読み込む
+  if (window.Android && Android.getStoredProgram) {
+    try {
+      var a = Android.getStoredProgram('swshStoryAuto_A');
+      if (a) { _SWSH_SRC_A = a; }
+    } catch(e) {}
+    try {
+      var b = Android.getStoredProgram('swshStoryAuto_B');
+      if (b) { _SWSH_SRC_B = b; }
+    } catch(e) {}
+  }
+  swshSelectProg('A');
+}
+
+function swshSelectProg(prog) {
+  _swshProg = prog;
+  var btnA = document.getElementById('swshBtnA');
+  var btnB = document.getElementById('swshBtnB');
+  var desc = document.getElementById('swshProgDesc');
+  var cfgSeb = document.getElementById('swshCfgSebango');
+  var cfgBall = document.getElementById('swshCfgBall');
+  if (prog === 'A') {
+    btnA.className = 'swsh-prog-btn active-a';
+    btnB.className = 'swsh-prog-btn';
+    if (desc) desc.textContent = '言語設定後 → ワイルドエリア (約45分)';
+    if (cfgSeb) cfgSeb.style.display = 'none';
+    if (cfgBall) cfgBall.style.display = 'none';
+  } else {
+    btnA.className = 'swsh-prog-btn';
+    btnB.className = 'swsh-prog-btn active-b';
+    if (desc) desc.textContent = 'エンジンシティ → 殿堂入り';
+    if (cfgSeb) cfgSeb.style.display = '';
+    if (cfgBall) cfgBall.style.display = '';
+  }
+  swshParse();
+}
+
+function swshGetConfig() {
+  return {
+    sebango:     (document.getElementById('swshSebango') || {value:'25'}).value || '25',
+    ball_number: parseInt((document.getElementById('swshBallNum') || {value:'10'}).value) || 10,
+    dlc:         parseInt((document.getElementById('swshDlc') || {value:'1'}).value) || 1
+  };
+}
+
+function swshReparseIfNeeded() {
+  if (_swshProg === 'B') swshParse();
+}
+
+/** .ino ソースをセットしてパース（Android bridge / ファイル読み込み経由） */
+function swshSetSource(prog, src) {
+  if (prog === 'A') _SWSH_SRC_A = src;
+  else _SWSH_SRC_B = src;
+  if (_swshProg === prog) swshParse();
+}
+
+function swshParse() {
+  var src = _swshProg === 'A' ? _SWSH_SRC_A : _SWSH_SRC_B;
+  var listEl = document.getElementById('swshFuncList');
+  if (!src) {
+    // ファイル未ロード: Android bridge または手動ロードを要求
+    if (listEl) listEl.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text3);font-size:11px;">📂 ファイルを読み込んでください<br><br><button onclick="swshLoadFile()" style="padding:7px 14px;background:rgba(32,201,151,0.18);border:1px solid var(--teal);color:var(--teal);border-radius:4px;font-size:11px;cursor:pointer;font-family:var(--font);">📂 .ino ファイルを開く</button></div>';
+    return;
+  }
+  var cfg = swshGetConfig();
+  // 設定値をソースに適用してパース
+  var srcPatched = src;
+  if (_swshProg === 'B') {
+    srcPatched = src
+      .replace(/char\s+sebango\[\s*\]\s*=\s*"[^"]*"/, 'char sebango[] = "' + cfg.sebango + '"')
+      .replace(/const\s+int\s+ball_number\s*=\s*\d+/, 'const int ball_number = ' + cfg.ball_number)
+      .replace(/const\s+int\s+dlc\s*=\s*[01]/, 'const int dlc = ' + cfg.dlc);
+  }
+  // パース
+  try {
+    _swshParsed = _parseInoFile(srcPatched);
+  } catch(e) {
+    if (listEl) listEl.innerHTML = '<div style="padding:12px;color:var(--red);font-size:11px;">❌ パースエラー: ' + e.message + '</div>';
+    return;
+  }
+  if (!_swshParsed.success) {
+    if (listEl) listEl.innerHTML = '<div style="padding:12px;color:var(--red);font-size:11px;">❌ ' + (_swshParsed.error || 'パース失敗') + '</div>';
+    return;
+  }
+  // 関数リストを描画（keyTypingNum は setup の呼び出しで自動展開される）
+  _swshRenderFuncList();
+  // setup を自動選択
+  if (_swshParsed.funcList && _swshParsed.funcList.length > 0) {
+    swshSelectFunc(_swshParsed.funcList[0].name);
+  }
+  swshLog('✅ パース完了 — ' + _swshParsed.funcList.length + '関数', 'ok');
+}
+
+function _swshRenderFuncList() {
+  var listEl = document.getElementById('swshFuncList');
+  if (!listEl || !_swshParsed || !_swshParsed.funcList) return;
+  var isProg_b = (_swshProg === 'B');
+  listEl.innerHTML = _swshParsed.funcList.map(function(fn) {
+    var estTime = _swshEstimateTime(fn.steps);
+    return '<div class="swsh-func-item' + (isProg_b ? ' prog-b' : '') + '"' +
+           ' id="swshFn_' + fn.name + '"' +
+           ' onclick="swshSelectFunc(\'' + fn.name.replace(/'/g,"\\'") + '\')">' +
+           '<div class="swsh-func-name">' + fn.name + '()</div>' +
+           '<div class="swsh-func-steps">' + fn.steps.length + ' ステップ' +
+           (estTime ? ' &nbsp;⏱ 約' + estTime : '') + '</div>' +
+           '</div>';
+  }).join('');
+}
+
+function _swshEstimateTime(steps) {
+  if (!steps || steps.length === 0) return '';
+  var ms = 0;
+  steps.forEach(function(s) { ms += getStepDuration(s); });
+  if (ms < 1000) return ms + 'ms';
+  if (ms < 60000) return Math.round(ms / 1000) + '秒';
+  return Math.round(ms / 60000) + '分' + Math.round((ms % 60000) / 1000) + '秒';
+}
+
+function swshSelectFunc(name) {
+  _swshSelectedFunc = name;
+  // 選択ハイライト
+  document.querySelectorAll('.swsh-func-item').forEach(function(el) {
+    el.classList.remove('sel');
+  });
+  var el = document.getElementById('swshFn_' + name);
+  if (el) el.classList.add('sel');
+  // ステッププレビュー
+  if (!_swshParsed) return;
+  var fn = _swshParsed.funcList.filter(function(f) { return f.name === name; })[0];
+  if (!fn) return;
+  var prev = document.getElementById('swshStepPreview');
+  if (prev) {
+    prev.style.display = '';
+    prev.innerHTML = fn.steps.slice(0, 30).map(function(s) {
+      return '<span class="macro-step-badge">' + _swshStepLabel(s) + '</span>';
+    }).join('') + (fn.steps.length > 30 ? '<span style="color:var(--text3);font-size:10px;"> +' + (fn.steps.length - 30) + '…</span>' : '');
+  }
+}
+
+function _swshStepLabel(s) {
+  if (s.type === 'press')      return s.button + (s.duration > 200 ? '(' + s.duration + ')' : '');
+  if (s.type === 'multipress') return '[' + s.buttons.join('+') + ']';
+  if (s.type === 'stick')      return 'L(' + (s.x||0).toFixed(1) + ',' + (s.y||0).toFixed(1) + ')×' + (s.duration||0);
+  if (s.type === 'setstick')   return 'L↑(' + (s.x||0).toFixed(1) + ',' + (s.y||0).toFixed(1) + ')';
+  if (s.type === 'delay')      return '⏱' + s.ms;
+  if (s.type === 'wait')       return '⏱' + s.ms;
+  if (s.type === 'comment')    return '';
+  return s.type;
+}
+
+/** setup() 全実行 */
+function swshExecSetup() {
+  if (!_swshParsed) { swshLog('⚠ ファイルを読み込んでください', 'err'); return; }
+  var setup = _swshParsed.funcList.filter(function(f) { return f.name === 'setup'; })[0];
+  if (!setup) { swshLog('⚠ setup() が見つかりません', 'err'); return; }
+  swshSelectFunc('setup');
+  _swshExecSteps(setup.steps, setup.name);
+}
+
+/** 選択関数を実行 */
+function swshExecSelected() {
+  if (!_swshParsed || !_swshSelectedFunc) { swshLog('⚠ 関数を選択してください', 'err'); return; }
+  var fn = _swshParsed.funcList.filter(function(f) { return f.name === _swshSelectedFunc; })[0];
+  if (!fn) { swshLog('⚠ 関数が見つかりません', 'err'); return; }
+  _swshExecSteps(fn.steps, fn.name);
+}
+
+function _swshExecSteps(steps, name) {
+  if (_swshExecActive) { swshLog('⚠ 既に実行中です', 'err'); return; }
+  if (!steps || steps.length === 0) { swshLog('⚠ ステップが0です', 'err'); return; }
+
+  // keyTypingNum 展開: consts に sebango がある場合、comment ステップを置き換え
+  steps = _swshExpandKeyTyping(steps, _swshParsed ? _swshParsed.consts : {});
+
+  _swshExecActive = true;
+  _swshExecTimers = [];
+  document.getElementById('swshStopBtn').style.display = '';
+  document.getElementById('swshExecAll').disabled = true;
+  document.getElementById('swshExecFunc').disabled = true;
+
+  var badge = document.getElementById('swshStatusBadge');
+  if (badge) { badge.textContent = '実行中'; badge.style.background = 'rgba(32,201,151,0.3)'; badge.style.color = 'var(--teal)'; }
+
+  swshLog('▶ ' + name + '() — ' + steps.length + 'ステップ 実行開始', 'ok');
+
+  var total = steps.reduce(function(acc, s) { return acc + getStepDuration(s); }, 0);
+  var elapsed = 0;
+  var t = 0;
+
+  steps.forEach(function(step, idx) {
+    var tid = setTimeout(function() {
+      if (!_swshExecActive) return;
+      executeStep(step);
+      elapsed += getStepDuration(step);
+      var pct = total > 0 ? Math.min(100, Math.round(elapsed * 100 / total)) : 0;
+      document.getElementById('swshProgressBar').style.width = pct + '%';
+      document.getElementById('swshProgressText').textContent =
+        'ステップ ' + (idx + 1) + '/' + steps.length + ' (' + pct + '%) — ' + name + '()';
+      // 重要ステップのみログ
+      if (step.type === 'comment') swshLog('  ' + (step.text || ''), 'step');
+    }, t);
+    _swshExecTimers.push(tid);
+    t += getStepDuration(step);
+  });
+
+  var finTid = setTimeout(function() {
+    if (!_swshExecActive) return;
+    _swshExecDone(name);
+  }, t + 200);
+  _swshExecTimers.push(finTid);
+}
+
+function _swshExecDone(name) {
+  _swshExecActive = false;
+  document.getElementById('swshStopBtn').style.display = 'none';
+  document.getElementById('swshExecAll').disabled = false;
+  document.getElementById('swshExecFunc').disabled = false;
+  document.getElementById('swshProgressBar').style.width = '100%';
+  document.getElementById('swshProgressText').textContent = '完了';
+  var badge = document.getElementById('swshStatusBadge');
+  if (badge) { badge.textContent = '完了'; badge.style.background = 'rgba(40,167,69,0.3)'; badge.style.color = 'var(--green)'; }
+  swshLog('✅ ' + name + '() 完了', 'ok');
+  showToast('✅ [SWSH] ' + name + '() 完了');
+}
+
+function swshStop() {
+  _swshExecTimers.forEach(function(t) { clearTimeout(t); });
+  _swshExecTimers = [];
+  _swshExecActive = false;
+  document.getElementById('swshStopBtn').style.display = 'none';
+  document.getElementById('swshExecAll').disabled = false;
+  document.getElementById('swshExecFunc').disabled = false;
+  var badge = document.getElementById('swshStatusBadge');
+  if (badge) { badge.textContent = '停止'; badge.style.background = 'rgba(220,53,69,0.3)'; badge.style.color = 'var(--red)'; }
+  document.getElementById('swshProgressText').textContent = '停止しました';
+  swshLog('⏹ 停止', 'err');
+}
+
+/**
+ * keyTypingNum 展開:
+ * パーサーが解釈できなかった keyTypingNum の呼び出しを
+ * comment ステップ "// → keyTypingNum(...)" から識別して展開する
+ */
+function _swshExpandKeyTyping(steps, consts) {
+  var result = [];
+  for (var i = 0; i < steps.length; i++) {
+    var s = steps[i];
+    if (s.type === 'comment' && s.text && /keyTypingNum/.test(s.text)) {
+      // consts.sebango を使って展開
+      var str = consts.sebango || '25';
+      if (typeof str === 'string') {
+        _expandKeyTypingNum(str, result);
+      }
+      continue;
+    }
+    result.push(s);
+  }
+  return result;
+}
+
+function swshLog(msg, cls) {
+  var logEl = document.getElementById('swshLog');
+  if (!logEl) return;
+  var div = document.createElement('div');
+  div.className = 'log-' + (cls || 'info');
+  div.textContent = msg;
+  logEl.appendChild(div);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+/** .ino ファイルを手動で読み込む */
+function swshLoadFile() {
+  var input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.ino,.cpp,.txt';
+  input.onchange = function(e) {
+    var file = e.target.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(ev) {
+      var src = ev.target.result;
+      var isB = /swshStoryAuto_B|プログラムB|ball_number|sebango/.test(src);
+      var prog = isB ? 'B' : 'A';
+      if (_swshProg !== prog) swshSelectProg(prog);
+      if (prog === 'A') _SWSH_SRC_A = src;
+      else _SWSH_SRC_B = src;
+      swshParse();
+      swshLog('📂 ' + file.name + ' 読み込み完了', 'ok');
+      // Android bridge に保存
+      if (window.Android && Android.storeProgram) {
+        try { Android.storeProgram('swshStoryAuto_' + prog, src); } catch(e2) {}
+      }
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+/**
+ * Android 側の ArduinoAutomationManager から呼ばれるコールバック
+ * Android.getStoredProgram の結果を非同期で受け取る場合に使用
+ */
+function onSwshProgramLoaded(prog, src) {
+  swshSetSource(prog, src);
+}
 </script>
 </body>
 </html>
