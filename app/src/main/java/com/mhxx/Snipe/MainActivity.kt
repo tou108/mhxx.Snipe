@@ -46,12 +46,28 @@ class MainActivity : AppCompatActivity() {
     private val PROGRAM_IMPORT_RC = 1002
     private val PERMISSION_REQUEST_CODE = 2001
 
-    private val REQUIRED_PERMISSIONS = mutableListOf(
-        Manifest.permission.BLUETOOTH_CONNECT,
-        Manifest.permission.BLUETOOTH_SCAN,
-        Manifest.permission.ACCESS_FINE_LOCATION,
-        Manifest.permission.CAMERA  // 📷 カメラOCR撮影機能
-    ).apply {
+    /**
+     * Android バージョンに合わせたランタイム権限リスト
+     *
+     *   Android  9-11 (API 28-30) : BLUETOOTH, BLUETOOTH_ADMIN, ACCESS_FINE_LOCATION
+     *                                はインストール時権限 → hasAllPermissions() = true 固定
+     *   Android 12-13 (API 31-32) : BLUETOOTH_CONNECT, BLUETOOTH_SCAN, BLUETOOTH_ADVERTISE, CAMERA
+     *   Android 14-16 (API 33-36) : 上記 + POST_NOTIFICATIONS
+     *
+     * ⚠️ ACCESS_FINE_LOCATION は Manifest に maxSdkVersion="30" で宣言されており
+     *    Android 12+ では OS がそもそも付与しないため、このリストに含めると
+     *    hasAllPermissions() が永遠に false になるバグが発生する。
+     */
+    private val REQUIRED_PERMISSIONS: Array<String> = buildList {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            // Android 12+ : 新 BT ランタイム権限
+            add(Manifest.permission.BLUETOOTH_CONNECT)
+            add(Manifest.permission.BLUETOOTH_SCAN)
+            add(Manifest.permission.BLUETOOTH_ADVERTISE)
+        }
+        // カメラ (OCR 撮影)
+        add(Manifest.permission.CAMERA)
+        // 通知 (Android 13+)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             add(Manifest.permission.POST_NOTIFICATIONS)
         }

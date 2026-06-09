@@ -488,15 +488,15 @@ class BluetoothHIDController(private val context: Context) {
 
                 // ★ registerApp() を呼ぶと Bluetooth サービスが
                 //    自動的に CoD を 0x002508 に設定する (Strategy-2)
-                val sdp = BluetoothHidDeviceAppSdpSettings(
+                val sdp = BluetoothHidDevice.AppSdpSettings(
                     DEVICE_NAME,
                     DEVICE_DESC,
                     DEVICE_PROVIDER,
                     0x08.toByte(), // SubClass: Gamepad (CoD の Minor Class に反映)
                     descriptor
                 )
-                val qos = BluetoothHidDeviceAppQosSettings(
-                    BluetoothHidDeviceAppQosSettings.SERVICE_GUARANTEED,
+                val qos = BluetoothHidDevice.AppQosSettings(
+                    BluetoothHidDevice.AppQosSettings.SERVICE_GUARANTEED,
                     21720, 362, 21720, 16667, 16667
                 )
 
