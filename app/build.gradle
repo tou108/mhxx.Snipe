@@ -5,12 +5,12 @@ plugins {
 
 android {
     namespace 'com.mhxx.snipe'
-    compileSdk 36
+    compileSdk 35
 
     defaultConfig {
         applicationId "com.mhxx.snipe.integrated"
         minSdk 28          // Android 9.0以上（BluetoothHidDevice API 28要件）
-        targetSdk 36       // Android 16 (API 36)
+        targetSdk 35       // Android 15 (API 35)
         versionCode 3
         versionName "3.0-hid"
     }
@@ -44,7 +44,7 @@ android {
 }
 
 dependencies {
-    implementation 'androidx.core:core-ktx:1.12.0'
+    implementation 'androidx.core:core-ktx:1.13.0'
     implementation 'androidx.appcompat:appcompat:1.6.1'
 
     // ★ Google ML Kit 日本語テキスト認識
