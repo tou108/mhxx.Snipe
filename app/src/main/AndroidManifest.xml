@@ -2,20 +2,20 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!--
-    
-      Bluetooth HID (Switch )                            
-                                                                      
-      Android  9-11 (API 28-30) : BLUETOOTH + BLUETOOTH_ADMIN        
-                                  + ACCESS_FINE_LOCATION             
-      Android 12-16 (API 31+)   : BLUETOOTH_CONNECT                  
-                                  + BLUETOOTH_SCAN                   
-                                  + BLUETOOTH_ADVERTISE     
-    
+    
+      Bluetooth HID (Switch )                            
+                                                                      
+      Android  9-11 (API 28-30) : BLUETOOTH + BLUETOOTH_ADMIN        
+                                  + ACCESS_FINE_LOCATION             
+      Android 12-16 (API 31+)   : BLUETOOTH_CONNECT                  
+                                  + BLUETOOTH_SCAN                   
+                                  + BLUETOOTH_ADVERTISE     
+    
     -->
 
-    <!-- Android 9-11  (API 28-30) -->
-    <!-- maxSdkVersion  Android 12+  -->
-    <!--  -->
+    <!-- Android 9-11  (API 28-30) -->
+    <!-- maxSdkVersion  Android 12+  -->
+    <!--  -->
     <uses-permission
         android:name="android.permission.BLUETOOTH"
         android:maxSdkVersion="30" />
@@ -23,30 +23,30 @@
         android:name="android.permission.BLUETOOTH_ADMIN"
         android:maxSdkVersion="30" />
 
-    <!-- Android 12+  (API 31+) -->
-    <!-- HID  -->
+    <!-- Android 12+  (API 31+) -->
+    <!-- HID  -->
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
-    <!-- BT                                    -->
-    <!-- usesPermissionFlags="neverForLocation"           -->
-    <!-- Android 12+        -->
-    <!-- ACCESS_FINE_LOCATION           -->
+    <!-- BT                                    -->
+    <!-- usesPermissionFlags="neverForLocation"           -->
+    <!-- Android 12+        -->
+    <!-- ACCESS_FINE_LOCATION           -->
     <uses-permission
         android:name="android.permission.BLUETOOTH_SCAN"
         android:usesPermissionFlags="neverForLocation" />
 
-    <!--  : Discoverable  (Android 12+)            -->
+    <!--  : Discoverable  (Android 12+)            -->
     <!-- createDiscoverableIntent() / ACTION_REQUEST_DISCOVERABLE     -->
-    <!--  Switch  -->
+    <!--  Switch  -->
     <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
 
     <!--
-    
-     
-     Android 11  BT  ACCESS_FINE_LOCATION 
-     Android 12+  BLUETOOTH_SCAN 
-     maxSdkVersion="30"  Android 12+ 
-    
+    
+     
+     Android 11  BT  ACCESS_FINE_LOCATION 
+     Android 12+  BLUETOOTH_SCAN 
+     maxSdkVersion="30"  Android 12+ 
+    
     -->
     <uses-permission
         android:name="android.permission.ACCESS_FINE_LOCATION"
@@ -55,20 +55,20 @@
         android:name="android.permission.ACCESS_COARSE_LOCATION"
         android:maxSdkVersion="30" />
 
-    <!--  (OCR) -->
+    <!--  (OCR) -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera"     android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
 
     <!--
-    
-     
+    
+     
      Android  9-12L (API 28-32): READ_EXTERNAL_STORAGE
      Android  9-9   (API 28-29): WRITE_EXTERNAL_STORAGE
-        Android 10 
-         maxSdkVersion="29" 
-     Android 13+    (API 33+)  : READ_MEDIA_IMAGES ()
-    
+        Android 10 
+         maxSdkVersion="29" 
+     Android 13+    (API 33+)  : READ_MEDIA_IMAGES ()
+    
     -->
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
@@ -76,32 +76,32 @@
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="29" />
-    <!-- Android 13+  (OCR ) -->
+    <!-- Android 13+  (OCR ) -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
 
-    <!--  -->
+    <!--  -->
     <uses-permission android:name="android.permission.INTERNET" />
 
-    <!--  BT  -->
+    <!--  BT  -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <!-- Android 14+  foregroundServiceType="connectedDevice"  -->
+    <!-- Android 14+  foregroundServiceType="connectedDevice"  -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
 
-    <!--  (Android 13+) -->
+    <!--  (Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!--
-    
-     
-     BluetoothHidDevice API  Android 9 (API 28) 
-     android.hardware.bluetooth 
-    
+    
+     
+     BluetoothHidDevice API  Android 9 (API 28) 
+     android.hardware.bluetooth 
+    
     -->
     <uses-feature
         android:name="android.hardware.bluetooth"
         android:required="true" />
 
-    <!-- BT HID (L2CAP PSM 0x11/0x13)  -->
+    <!-- BT HID (L2CAP PSM 0x11/0x13)  -->
     <uses-feature
         android:name="android.hardware.bluetooth_le"
         android:required="false" />
@@ -113,7 +113,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.AppCompat.Light.DarkActionBar">
 
-        <!-- PiP  + configChanges (PiP Activity) -->
+        <!-- PiP  + configChanges (PiP Activity) -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -126,10 +126,10 @@
             </intent-filter>
         </activity>
 
-        <!--  (Switch BT ) -->
-        <!-- foregroundServiceType="connectedDevice"                         -->
-        <!-- Android 10+  connectedDevice   -->
-        <!-- FOREGROUND_SERVICE_CONNECTED_DEVICE  (Android 14+)     -->
+        <!--  (Switch BT ) -->
+        <!-- foregroundServiceType="connectedDevice"                         -->
+        <!-- Android 10+  connectedDevice   -->
+        <!-- FOREGROUND_SERVICE_CONNECTED_DEVICE  (Android 14+)     -->
         <service
             android:name=".SnipeForegroundService"
             android:foregroundServiceType="connectedDevice"
