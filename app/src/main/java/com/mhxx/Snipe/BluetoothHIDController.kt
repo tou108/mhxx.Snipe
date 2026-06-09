@@ -8,6 +8,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
 import androidx.core.app.ActivityCompat
+import java.lang.reflect.Method
 import java.util.concurrent.*
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
@@ -38,6 +39,20 @@ class BluetoothHIDController(private val context: Context) {
 
     companion object {
         private const val TAG = "BluetoothHIDController"
+
+        /**
+         * Bluetooth デバイスクラス: Peripheral + Gamepad (ルートなし強制設定値)
+         * ─────────────────────────────────────────────────────────────
+         * 0x002508 (24bit CoD)
+         *   bits 23-13 (Service Class) : 000 0000 0001 = Limited Discoverable
+         *   bits 12-8  (Major Class)   : 00101         = 5 = Peripheral
+         *   bits  7-2  (Minor Class)   : 000010        = 2 = Gamepad
+         *   bits  1-0  (Format)        : 00
+         *
+         * Nintendo Switch はスキャン時にこのクラスを持つデバイスだけを
+         * コントローラー候補として表示する。
+         */
+        const val DEVICE_CLASS_GAMEPAD = 0x002508
 
         /**
          * Nintendo Pro Controller / Joy-Con 共通 HID ディスクリプタ
@@ -112,6 +127,121 @@ class BluetoothHIDController(private val context: Context) {
     init {
         val mgr = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
         bluetoothAdapter = mgr?.adapter
+    }
+
+    // ============================================================
+    // ★ デバイスクラス 0x002508 強制設定 (Android 9-16 ルートなし対応)
+    // ============================================================
+
+    /**
+     * Bluetooth デバイスクラスを 0x002508 (Peripheral/Gamepad) に強制設定する
+     *
+     * Nintendo Switch がスキャン時に Android スマホをコントローラーとして
+     * 認識するために必須。ルート権限不要。Android 9 ～ 16 全バージョン対応。
+     *
+     * ┌───────────────────────────────────────────────────────────┐
+     * │ 試行順序 (失敗したら次へフォールバック)                     │
+     * │  方法1: BluetoothAdapter.setBluetoothClass()  API28-33 ◎  │
+     * │  方法2: IBluetooth.setDeviceClass() mService  API28-30 ◎  │
+     * │  方法3: getBluetoothService() 経由            API31-33 △  │
+     * │  方法4: BluetoothHidDevice 登録後自動設定      API34+  ○  │
+     * └───────────────────────────────────────────────────────────┘
+     *
+     * @return true = 明示的設定成功 / false = 自動設定に依存 (エラーではない)
+     */
+    @SuppressLint("PrivateApi", "DiscouragedPrivateApi")
+    fun forceDeviceClass(): Boolean {
+        val api = Build.VERSION.SDK_INT
+        val adapter = bluetoothAdapter ?: run {
+            Log.e(TAG, "❌ forceDeviceClass: BluetoothAdapter が null")
+            return false
+        }
+        Log.d(TAG, "🔧 CoD 強制設定開始: 0x${DEVICE_CLASS_GAMEPAD.toString(16).uppercase()} (Android API $api)")
+
+        // ── 方法 1: BluetoothAdapter.setBluetoothClass(int) ────────────────
+        // Android 9 (API 28) ～ 13 (API 33) で最も信頼性が高い。
+        // greylist API のため isAccessible=true で呼び出し可能。
+        // 戻り値: API 28-30 は Boolean, API 31+ は void (null) の場合あり。
+        try {
+            val m: Method = BluetoothAdapter::class.java
+                .getDeclaredMethod("setBluetoothClass", Int::class.java)
+            m.isAccessible = true
+            val ret = m.invoke(adapter, DEVICE_CLASS_GAMEPAD)
+            if (ret != false) {                   // null (void) または true なら成功
+                Log.i(TAG, "✅ [方法1] setBluetoothClass(0x002508) 成功 (API $api, ret=$ret)")
+                return true
+            }
+            Log.w(TAG, "⚠️ [方法1] setBluetoothClass が false を返した")
+        } catch (e: Exception) {
+            Log.w(TAG, "⚠️ [方法1] ${e.javaClass.simpleName}: ${e.message}")
+        }
+
+        // ── 方法 2: IBluetooth.setDeviceClass() via mService field ─────────
+        // Android 9-11 (API 28-30) 専用。
+        // API 31 以降は IBluetooth AIDL が大幅変更されたため無効。
+        if (api <= Build.VERSION_CODES.R) {       // R = Android 11 = API 30
+            for (fieldName in listOf("mService", "sService", "mBluetoothService")) {
+                try {
+                    val f = BluetoothAdapter::class.java.getDeclaredField(fieldName)
+                    f.isAccessible = true
+                    val ibt = f.get(adapter) ?: continue
+                    val m = ibt.javaClass.getDeclaredMethod("setDeviceClass", Int::class.java)
+                    m.isAccessible = true
+                    m.invoke(ibt, DEVICE_CLASS_GAMEPAD)
+                    Log.i(TAG, "✅ [方法2] IBluetooth[$fieldName].setDeviceClass 成功 (API $api)")
+                    return true
+                } catch (_: NoSuchFieldException) { /* フィールド名不一致 → 次 */ }
+                catch (e: Exception) {
+                    Log.w(TAG, "⚠️ [方法2-$fieldName] ${e.javaClass.simpleName}: ${e.message}")
+                }
+            }
+        }
+
+        // ── 方法 3: getBluetoothService() 経由 (Android 12-13) ─────────────
+        if (api in Build.VERSION_CODES.S..Build.VERSION_CODES.TIRAMISU) {
+            try {
+                val getServiceM: Method = BluetoothAdapter::class.java
+                    .getDeclaredMethod("getBluetoothService")
+                getServiceM.isAccessible = true
+                val service = getServiceM.invoke(adapter)
+                    ?: throw IllegalStateException("service null")
+                // AdapterService の setDeviceClass または setBluetoothClass を試みる
+                for (mName in listOf("setDeviceClass", "setBluetoothClass")) {
+                    try {
+                        val m = service.javaClass.getDeclaredMethod(mName, Int::class.java)
+                        m.isAccessible = true
+                        m.invoke(service, DEVICE_CLASS_GAMEPAD)
+                        Log.i(TAG, "✅ [方法3] service.$mName(0x002508) 成功 (API $api)")
+                        return true
+                    } catch (_: NoSuchMethodException) { /* 次のメソッド名へ */ }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "⚠️ [方法3] ${e.javaClass.simpleName}: ${e.message}")
+            }
+        }
+
+        // ── 方法 4: BluetoothHidDevice 登録による自動 CoD 更新 ─────────────
+        // Android 14+ (API 34+) では registerApp() に subClass=0x08 (Gamepad) を
+        // 渡すと Android システムが HID SDP レコードと共に CoD を自動更新する。
+        // このパスに到達した場合は registerApp() 完了後に CoD が 0x002508 になることを期待する。
+        Log.i(TAG, "ℹ️ [方法4] API $api: registerApp() による自動 CoD 設定に依存 (正常フォールバック)")
+        return false
+    }
+
+    /**
+     * 現在の Bluetooth デバイスクラスをログ出力する (デバッグ用)
+     * forceDeviceClass() の前後に呼ぶと設定結果を確認できる。
+     */
+    fun logCurrentDeviceClass() {
+        val cod = try {
+            bluetoothAdapter?.bluetoothClass?.deviceClass ?: -1
+        } catch (_: Exception) { -1 }
+        val hex = Integer.toHexString(cod).uppercase().padStart(6, '0')
+        val ok = cod == DEVICE_CLASS_GAMEPAD
+        Log.d(TAG, "📱 現在の CoD: 0x$hex (期待値: 0x002508, 一致: $ok)")
+        if (!ok) {
+            Log.i(TAG, "   ※ CoD が不一致でも Android 14+ では registerApp() 後に自動更新される")
+        }
     }
 
     // ============================================================
