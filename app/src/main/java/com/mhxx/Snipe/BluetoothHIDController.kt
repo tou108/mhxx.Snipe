@@ -199,6 +199,7 @@ class BluetoothHIDController(private val context: Context) {
             connectedDevice = null
             appRegistered   = false
             restoreDeviceName()
+            restoreDeviceClass()   // ← CoD を元の値に戻す
             listener?.onDisconnected()
         }
     }
@@ -246,12 +247,66 @@ class BluetoothHIDController(private val context: Context) {
     }
 
     // ============================================================
+    // Device Class (CoD) 管理
+    // ============================================================
+
+    /**
+     * Switch が Pro Controller として認識する CoD
+     * 0x002508 = Peripheral (Major=0x05) / Joystick (Minor bits)
+     * Bluetooth++ で設定した値と同じ
+     */
+    private val TARGET_COD = 0x002508
+
+    /** 接続前に保存する元の CoD。-1 は未保存を意味する。 */
+    @Volatile private var originalDeviceClass: Int = -1
+
+    /**
+     * Bluetooth Device Class を Switch 互換値 (0x002508) に変更する。
+     * WRITE_SECURE_SETTINGS が付与されていない場合は警告ログのみ出して続行する。
+     */
+    private fun changeDeviceClass() {
+        try {
+            val cr = context.contentResolver
+            val current = android.provider.Settings.Secure.getInt(
+                cr, "bluetooth_device_class", 0)
+            if (originalDeviceClass == -1) originalDeviceClass = current
+            if (current != TARGET_COD) {
+                android.provider.Settings.Secure.putInt(
+                    cr, "bluetooth_device_class", TARGET_COD)
+                Log.i(TAG, "CoD: 0x%06X → 0x%06X".format(current, TARGET_COD))
+                Thread.sleep(200)   // BTスタックへの伝播待ち
+            } else {
+                Log.d(TAG, "CoD already 0x%06X — skip".format(TARGET_COD))
+            }
+        } catch (e: SecurityException) {
+            Log.w(TAG, "CoD変更スキップ: WRITE_SECURE_SETTINGS未付与 — " +
+                "adb shell pm grant com.mhxx.snipe android.permission.WRITE_SECURE_SETTINGS を実行してください")
+        } catch (e: Exception) {
+            Log.w(TAG, "changeDeviceClass failed: ${e.message}")
+        }
+    }
+
+    /** 切断時に元の CoD を復元する。 */
+    private fun restoreDeviceClass() {
+        if (originalDeviceClass == -1) return
+        try {
+            android.provider.Settings.Secure.putInt(
+                context.contentResolver, "bluetooth_device_class", originalDeviceClass)
+            Log.i(TAG, "CoD restored: 0x%06X".format(originalDeviceClass))
+            originalDeviceClass = -1
+        } catch (e: Exception) {
+            Log.w(TAG, "restoreDeviceClass failed: ${e.message}")
+        }
+    }
+
+    // ============================================================
     // 接続フロー
     // ============================================================
 
     private fun setupAndConnect(device: BluetoothDevice?) {
         targetDevice = device
         changeDeviceName()
+        changeDeviceClass()   // ← CoD を Switch 互換値に変更
         getHidProxy { hid ->
             if (hid == null) {
                 listener?.onError("HIDサービスに接続できません")

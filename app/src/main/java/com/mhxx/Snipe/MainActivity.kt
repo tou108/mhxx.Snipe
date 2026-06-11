@@ -481,6 +481,40 @@ class MainActivity : AppCompatActivity() {
         fun isBluetoothConnected(): Boolean = bluetoothHIDController.isConnected
 
         /**
+         * 現在の Bluetooth Device Class (CoD) を 16進文字列で返す。
+         * 例: "0x002508"
+         */
+        @JavascriptInterface
+        fun getBluetoothClass(): String {
+            val cod = android.provider.Settings.Secure.getInt(
+                contentResolver, "bluetooth_device_class", 0)
+            return "0x%06X".format(cod)
+        }
+
+        /**
+         * Bluetooth Device Class (CoD) を変更する。
+         * WRITE_SECURE_SETTINGS が付与されている必要がある。
+         * @param hexStr 例: "0x002508" または "002508"
+         * @return 成功なら true
+         */
+        @JavascriptInterface
+        fun setBluetoothClass(hexStr: String): Boolean {
+            return try {
+                val cod = hexStr.removePrefix("0x").removePrefix("0X").toInt(16)
+                android.provider.Settings.Secure.putInt(
+                    contentResolver, "bluetooth_device_class", cod)
+                Log.i("Bridge", "CoD set to 0x%06X".format(cod))
+                true
+            } catch (e: SecurityException) {
+                Log.w("Bridge", "setBluetoothClass: WRITE_SECURE_SETTINGS未付与")
+                false
+            } catch (e: Exception) {
+                Log.e("Bridge", "setBluetoothClass error: ${e.message}")
+                false
+            }
+        }
+
+        /**
          * 生バイト列で送信 (JSON形式: {"data":"0,0,0,0,0,0,0,0,0"})
          */
         @JavascriptInterface
@@ -558,15 +592,8 @@ class MainActivity : AppCompatActivity() {
             val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
                 addCategory(Intent.CATEGORY_OPENABLE)
                 type = "*/*"
-                // .ino / .txt / .py / .sh / .json すべて受け入れる
                 putExtra(Intent.EXTRA_MIME_TYPES, arrayOf(
-                    "text/plain",
-                    "text/x-arduino",
-                    "application/x-arduino",
-                    "text/x-python",
-                    "application/json",
-                    "text/x-shellscript"
-                ))
+                    "text/plain", "text/x-python", "application/json", "text/x-shellscript"))
             }
             startActivityForResult(intent, PROGRAM_IMPORT_RC)
         }
