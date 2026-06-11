@@ -558,8 +558,15 @@ class MainActivity : AppCompatActivity() {
             val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
                 addCategory(Intent.CATEGORY_OPENABLE)
                 type = "*/*"
+                // .ino / .txt / .py / .sh / .json すべて受け入れる
                 putExtra(Intent.EXTRA_MIME_TYPES, arrayOf(
-                    "text/plain", "text/x-python", "application/json", "text/x-shellscript"))
+                    "text/plain",
+                    "text/x-arduino",
+                    "application/x-arduino",
+                    "text/x-python",
+                    "application/json",
+                    "text/x-shellscript"
+                ))
             }
             startActivityForResult(intent, PROGRAM_IMPORT_RC)
         }
