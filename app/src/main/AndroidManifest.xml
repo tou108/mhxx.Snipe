@@ -1,110 +1,39 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!--
-    
-      Bluetooth HID (Switch )                            
-                                                                      
-      Android  9-11 (API 28-30) : BLUETOOTH + BLUETOOTH_ADMIN        
-                                  + ACCESS_FINE_LOCATION             
-      Android 12-16 (API 31+)   : BLUETOOTH_CONNECT                  
-                                  + BLUETOOTH_SCAN                   
-                                  + BLUETOOTH_ADVERTISE     
-    
-    -->
-
-    <!-- Android 9-11  (API 28-30) -->
-    <!-- maxSdkVersion  Android 12+  -->
-    <!--  -->
-    <uses-permission
-        android:name="android.permission.BLUETOOTH"
-        android:maxSdkVersion="30" />
-    <uses-permission
-        android:name="android.permission.BLUETOOTH_ADMIN"
-        android:maxSdkVersion="30" />
-
-    <!-- Android 12+  (API 31+) -->
-    <!-- HID  -->
+    <!-- Bluetooth 権限 -->
+    <uses-permission android:name="android.permission.BLUETOOTH" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
 
-    <!-- BT                                    -->
-    <!-- usesPermissionFlags="neverForLocation"           -->
-    <!-- Android 12+        -->
-    <!-- ACCESS_FINE_LOCATION           -->
-    <uses-permission
-        android:name="android.permission.BLUETOOTH_SCAN"
-        android:usesPermissionFlags="neverForLocation" />
+    <!-- 位置情報（Bluetoothスキャン用、Android 11以下） -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
-    <!--  : Discoverable  (Android 12+)            -->
-    <!-- createDiscoverableIntent() / ACTION_REQUEST_DISCOVERABLE     -->
-    <!--  Switch  -->
-    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
-
-    <!--
-    
-     
-     Android 11  BT  ACCESS_FINE_LOCATION 
-     Android 12+  BLUETOOTH_SCAN 
-     maxSdkVersion="30"  Android 12+ 
-    
-    -->
-    <uses-permission
-        android:name="android.permission.ACCESS_FINE_LOCATION"
-        android:maxSdkVersion="30" />
-    <uses-permission
-        android:name="android.permission.ACCESS_COARSE_LOCATION"
-        android:maxSdkVersion="30" />
-
-    <!--  (OCR) -->
+    <!-- カメラ権限 (OCRカメラ撮影機能) -->
     <uses-permission android:name="android.permission.CAMERA" />
-    <uses-feature android:name="android.hardware.camera"     android:required="false" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
 
-    <!--
-    
-     
-     Android  9-12L (API 28-32): READ_EXTERNAL_STORAGE
-     Android  9-9   (API 28-29): WRITE_EXTERNAL_STORAGE
-        Android 10 
-         maxSdkVersion="29" 
-     Android 13+    (API 33+)  : READ_MEDIA_IMAGES ()
-    
-    -->
-    <uses-permission
-        android:name="android.permission.READ_EXTERNAL_STORAGE"
-        android:maxSdkVersion="32" />
-    <uses-permission
-        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
-        android:maxSdkVersion="29" />
-    <!-- Android 13+  (OCR ) -->
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <!-- ファイルアクセス権限 -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
 
-    <!--  -->
+    <!-- インターネット権限 -->
     <uses-permission android:name="android.permission.INTERNET" />
 
-    <!--  BT  -->
+    <!-- 🔧 追加: フォアグラウンドサービス（バックグラウンド維持） -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <!-- Android 14+  foregroundServiceType="connectedDevice"  -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
 
-    <!--  (Android 13+) -->
+    <!-- 🔧 追加: 通知権限（Android 13+） -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
-    <!--
-    
-     
-     BluetoothHidDevice API  Android 9 (API 28) 
-     android.hardware.bluetooth 
-    
-    -->
+    <!-- HID デバイスとして動作するための権限 -->
     <uses-feature
         android:name="android.hardware.bluetooth"
         android:required="true" />
-
-    <!-- BT HID (L2CAP PSM 0x11/0x13)  -->
-    <uses-feature
-        android:name="android.hardware.bluetooth_le"
-        android:required="false" />
 
     <application
         android:allowBackup="true"
@@ -113,7 +42,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.AppCompat.Light.DarkActionBar">
 
-        <!-- PiP  + configChanges (PiP Activity) -->
+        <!-- 🔧 修正: PiP対応のconfigChanges追加 -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -126,10 +55,7 @@
             </intent-filter>
         </activity>
 
-        <!--  (Switch BT ) -->
-        <!-- foregroundServiceType="connectedDevice"                         -->
-        <!-- Android 10+  connectedDevice   -->
-        <!-- FOREGROUND_SERVICE_CONNECTED_DEVICE  (Android 14+)     -->
+        <!-- 🔧 追加: フォアグラウンドサービス宣言 -->
         <service
             android:name=".SnipeForegroundService"
             android:foregroundServiceType="connectedDevice"
