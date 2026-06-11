@@ -467,19 +467,6 @@ tr.clickable:hover td { background: #1e2538; }
     height: auto !important;
     overflow: visible !important;
   }
-  /* コントローラータブも縦スクロール対応 */
-  #tab-controller {
-    overflow-y: auto;
-  }
-  #tab-controller .ctrl-layout {
-    height: auto !important;
-    overflow: visible !important;
-  }
-  #tab-controller .ctrl-left,
-  #tab-controller .ctrl-right {
-    height: auto !important;
-    overflow-y: visible !important;
-  }
 }
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: var(--panel); }
@@ -614,63 +601,14 @@ body.light-mode .app-header {
   font-size:11px; line-height:1.9; margin-bottom:8px;
 }
 
-/* ===== CONTROLLER TAB ===== */
-.ctrl-layout { display: flex; gap: 0; min-height: 0; height: 100%; overflow: hidden; }
-.ctrl-left { width: 460px; min-width: 320px; flex-shrink: 0; border-right: 1px solid var(--border); overflow-y: auto; height: 100%; }
-.ctrl-right { flex: 1; overflow-y: auto; min-width: 0; height: 100%; }
+/* ===== CONTROLLER / BT SHARED ===== */
 .ctrl-section { padding: 12px 14px; border-bottom: 1px solid var(--border); }
 .ctrl-section-title { font-size: 11px; color: var(--steel2); letter-spacing: 1px; margin-bottom: 10px; font-weight: 600; }
-.stick-dir-btns { display: grid; grid-template-columns: repeat(3, 40px); gap: 4px; margin: 0 auto; width: fit-content; }
-.stick-dir-btn { width: 40px; height: 40px; background: var(--panel2); border: 1px solid var(--border2); color: var(--text2); border-radius: 6px; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; transition: all 0.1s; font-family: inherit; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
-.stick-dir-btn:hover, .stick-dir-btn:active { background: var(--accent); color: white; border-color: var(--accent2); }
-.stick-dir-btn.active { background: var(--accent); color: white; border-color: var(--accent2); }
-.ctrl-btn { padding: 9px 4px; border: 1px solid var(--border2); color: var(--text2); background: var(--panel2); border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; text-align: center; transition: all 0.1s; font-family: var(--font); width: 100%; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
-.ctrl-btn:hover, .ctrl-btn:active { background: var(--accent); color: white; border-color: var(--accent2); }
-.ctrl-btn.pressed { background: var(--gold-dim); color: var(--steel2); border-color: var(--steel2); transform: scale(0.95); }
-.ctrl-btn-grid { display: grid; gap: 6px; }
-.multi-btn-grid { display: flex; flex-wrap: wrap; gap: 5px; }
-.multi-chk { display: flex; align-items: center; gap: 4px; background: var(--panel2); border: 1px solid var(--border2); border-radius: 4px; padding: 6px 9px; cursor: pointer; font-size: 12px; user-select: none; touch-action: manipulation; }
-.multi-chk input { cursor: pointer; accent-color: var(--steel2); width: 14px; height: 14px; }
-.multi-chk.checked { border-color: var(--gold-dim); background: rgba(200,146,43,0.15); color: var(--steel2); }
-.macro-list { max-height: 340px; overflow-y: auto; border: 1px solid var(--border); border-radius: 4px; }
-.macro-item { display: flex; align-items: flex-start; gap: 6px; padding: 10px 10px; border-bottom: 1px solid var(--border); font-size: 11px; cursor: pointer; transition: background 0.1s; }
-.macro-item:hover, .macro-item:active { background: var(--panel2); }
-.macro-item.macro-selected { background: rgba(155,89,182,0.12); border-left: 3px solid var(--purple2); }
-.macro-step-badge { display: inline-flex; align-items: center; background: var(--panel2); border: 1px solid var(--border2); border-radius: 3px; padding: 1px 5px; font-size: 9px; color: var(--text2); margin: 1px; font-family: monospace; white-space: nowrap; }
-.macro-steps-preview { display: flex; flex-wrap: wrap; max-height: 28px; overflow: hidden; margin-top: 3px; }
-.macro-rec-indicator { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--red); margin-right: 4px; animation: pulse 0.8s infinite; }
-/* Visual Joystick */
-.vjoy-wrap { display: flex; flex-direction: column; align-items: center; gap: 8px; }
-.vjoy-canvas { border-radius: 50%; cursor: pointer; touch-action: none; display: block; }
-.vjoy-val { font-size: 10px; color: var(--accent2); font-family: monospace; text-align: center; min-width: 80px; }
-/* Face button ring */
-.face-btn-ring { position: relative; width: 120px; height: 120px; flex-shrink: 0; }
-.face-btn-ring .fbtn { position: absolute; width: 36px; height: 36px; border-radius: 50%; border: 2px solid; font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.1s; touch-action: manipulation; -webkit-tap-highlight-color: transparent; font-family: var(--font-en); }
-.face-btn-ring .fbtn:active { transform: scale(0.9); }
-.face-btn-ring .fbtn.pressed { transform: scale(0.9); filter: brightness(1.4); }
-.fbtn-A { right:0; top:50%; transform:translateY(-50%); background:rgba(220,50,50,0.15); border-color:#c04040; color:#ff6060; }
-.fbtn-B { bottom:0; left:50%; transform:translateX(-50%); background:rgba(220,180,50,0.15); border-color:#c09020; color:#ffe060; }
-.fbtn-X { top:0; left:50%; transform:translateX(-50%); background:rgba(80,130,220,0.15); border-color:#4060c0; color:#6090ff; }
-.fbtn-Y { left:0; top:50%; transform:translateY(-50%); background:rgba(50,180,80,0.15); border-color:#208040; color:#40c060; }
-.fbtn-A:active, .fbtn-A.pressed { background:rgba(220,50,50,0.5); }
-.fbtn-B:active, .fbtn-B.pressed { background:rgba(220,180,50,0.5); }
-.fbtn-X:active, .fbtn-X.pressed { background:rgba(80,130,220,0.5); }
-.fbtn-Y:active, .fbtn-Y.pressed { background:rgba(50,180,80,0.5); }
-/* D-pad cross */
-.dpad-cross { position: relative; width: 110px; height: 110px; flex-shrink: 0; }
-.dpad-cross .dpbtn { position: absolute; background: var(--panel2); border: 1px solid var(--border2); color: var(--text2); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; transition: all 0.1s; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
-.dpad-cross .dpbtn:active, .dpad-cross .dpbtn.pressed { background: var(--accent); color: white; }
-.dpbtn-up    { top:0; left:50%; transform:translateX(-50%); width:34px; height:34px; border-radius:4px 4px 0 0; }
-.dpbtn-down  { bottom:0; left:50%; transform:translateX(-50%); width:34px; height:34px; border-radius:0 0 4px 4px; }
-.dpbtn-left  { left:0; top:50%; transform:translateY(-50%); width:34px; height:34px; border-radius:4px 0 0 4px; }
-.dpbtn-right { right:0; top:50%; transform:translateY(-50%); width:34px; height:34px; border-radius:0 4px 4px 0; }
-.dpbtn-center { left:50%; top:50%; transform:translate(-50%,-50%); width:34px; height:34px; background:var(--panel); color:var(--text3); font-size:9px; cursor:default; }
-@media (max-width: 900px) {
-  .ctrl-layout { flex-direction: column; }
-  .ctrl-left { width: 100%; min-width: 0; border: none; border-bottom: 1px solid var(--border); }
-  .ctrl-right { width: 100%; }
-}
-
+/* .ino step badge */
+.ino-step-badge { display: inline-flex; align-items: center; background: var(--panel2); border: 1px solid var(--border2); border-radius: 3px; padding: 1px 6px; font-size: 9px; color: var(--text2); margin: 2px; font-family: monospace; white-space: nowrap; }
+.ino-step-badge.btn { color: var(--steel2); }
+.ino-step-badge.wait { color: var(--text3); }
+.ino-step-badge.hat { color: var(--teal); }
 /* ── CHAT AI ── */
 .chat-wrap { display:flex; flex-direction:column; height:100%; }
 .chat-messages { flex:1; overflow-y:auto; padding:10px 12px; display:flex; flex-direction:column; gap:8px; min-height:180px; max-height:340px; }
@@ -846,8 +784,6 @@ button:disabled { opacity: 0.45; cursor: not-allowed !important; }
 <!-- MAIN TABS -->
 <div class="main-tabs">
   <div class="main-tab active" data-tab="search" onclick="switchTab('search')">🔍 護石サーチ</div>
-  <div class="main-tab" data-tab="controller" onclick="switchTab('controller')">🎮 コントローラー</div>
-
   <div class="main-tab" data-tab="bt" onclick="switchTab('bt')">📶 Switch接続</div>
 
 </div>
@@ -1314,206 +1250,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed !important; }
 </div><!-- /tab-search -->
 
 <!-- =================== TAB: CONTROLLER =================== -->
-<div class="tab-page" id="tab-controller">
-<div class="ctrl-layout" style="width:100%;height:100%;overflow:hidden;">
-  <!-- LEFT: CONTROLLER INPUTS -->
-  <div class="ctrl-left" style="overflow-y:auto;height:100%;">
-    <!-- Hold duration -->
-    <div class="ctrl-section">
-      <div class="ctrl-section-title">⏱ ホールド時間</div>
-      <div style="display:flex;align-items:center;gap:8px;">
-        <span style="font-size:11px;color:var(--text2);">押下時間</span>
-        <input type="number" id="ctrlHoldDur" value="100" min="50" max="5000" style="width:70px;">
-        <span style="font-size:11px;color:var(--text2);">ms</span>
-      </div>
-    </div>
-    <!-- Face + D-Pad Row -->
-    <div class="ctrl-section">
-      <div class="ctrl-section-title">ボタン</div>
-      <div style="display:flex;justify-content:space-around;align-items:center;gap:10px;flex-wrap:wrap;">
-        <!-- Face buttons -->
-        <div class="face-btn-ring">
-          <button class="fbtn fbtn-Y" id="cbtn-Y" onclick="pressCtrlBtn('Y')">Y</button>
-          <button class="fbtn fbtn-X" id="cbtn-X" onclick="pressCtrlBtn('X')">X</button>
-          <button class="fbtn fbtn-A" id="cbtn-A" onclick="pressCtrlBtn('A')">A</button>
-          <button class="fbtn fbtn-B" id="cbtn-B" onclick="pressCtrlBtn('B')">B</button>
-        </div>
-        <!-- D-pad -->
-        <div class="dpad-cross">
-          <button class="dpbtn dpbtn-up" id="cbtn-DPAD_UP" onclick="pressCtrlBtn('DPAD_UP')">↑</button>
-          <button class="dpbtn dpbtn-left" id="cbtn-DPAD_LEFT" onclick="pressCtrlBtn('DPAD_LEFT')">←</button>
-          <div class="dpbtn dpbtn-center"></div>
-          <button class="dpbtn dpbtn-right" id="cbtn-DPAD_RIGHT" onclick="pressCtrlBtn('DPAD_RIGHT')">→</button>
-          <button class="dpbtn dpbtn-down" id="cbtn-DPAD_DOWN" onclick="pressCtrlBtn('DPAD_DOWN')">↓</button>
-        </div>
-        <!-- System buttons -->
-        <div style="display:flex;flex-direction:column;gap:5px;">
-          <button class="ctrl-btn" style="width:50px;height:28px;font-size:11px;" id="cbtn-MINUS" onclick="pressCtrlBtn('MINUS')">−</button>
-          <button class="ctrl-btn" style="width:50px;height:28px;font-size:11px;" id="cbtn-PLUS" onclick="pressCtrlBtn('PLUS')">＋</button>
-          <button class="ctrl-btn" style="width:50px;height:28px;font-size:10px;color:var(--teal);" id="cbtn-HOME" onclick="pressCtrlBtn('HOME')">HOME</button>
-          <button class="ctrl-btn" style="width:50px;height:28px;font-size:10px;" id="cbtn-CAPTURE" onclick="pressCtrlBtn('CAPTURE')">CAP</button>
-        </div>
-      </div>
-    </div>
-    <!-- Shoulder buttons -->
-    <div class="ctrl-section">
-      <div class="ctrl-section-title">ショルダー / ZR・ZL</div>
-      <div class="ctrl-btn-grid" style="grid-template-columns:1fr 1fr;gap:6px;">
-        <button class="ctrl-btn" id="cbtn-ZL" onclick="pressCtrlBtn('ZL')">ZL</button>
-        <button class="ctrl-btn" id="cbtn-ZR" onclick="pressCtrlBtn('ZR')">ZR</button>
-        <button class="ctrl-btn" id="cbtn-L" onclick="pressCtrlBtn('L')">L</button>
-        <button class="ctrl-btn" id="cbtn-R" onclick="pressCtrlBtn('R')">R</button>
-        <button class="ctrl-btn" style="color:var(--accent2);" id="cbtn-L_STICK" onclick="pressCtrlBtn('L_STICK')">L3</button>
-        <button class="ctrl-btn" style="color:var(--purple2);" id="cbtn-R_STICK" onclick="pressCtrlBtn('R_STICK')">R3</button>
-      </div>
-    </div>
-    <!-- Sticks -->
-    <div class="ctrl-section">
-      <div class="ctrl-section-title">スティック</div>
-      <div style="display:flex;justify-content:space-around;gap:8px;flex-wrap:wrap;">
-        <div class="vjoy-wrap">
-          <div style="font-size:10px;color:var(--accent2);margin-bottom:4px;font-weight:600;">L スティック</div>
-          <canvas id="ljoy-canvas" class="vjoy-canvas" width="90" height="90"></canvas>
-          <div class="vjoy-val" id="lstick-val">X:0 Y:0</div>
-          <div style="display:flex;gap:3px;align-items:center;margin-top:3px;">
-            <input type="number" id="lstick-x" value="0" style="width:46px;font-size:10px;" oninput="updateJoyCanvas('L')">
-            <input type="number" id="lstick-y" value="0" style="width:46px;font-size:10px;" oninput="updateJoyCanvas('L')">
-            <button onclick="tiltStick('L',0,0)" style="padding:2px 5px;font-size:10px;background:var(--panel2);border:1px solid var(--border2);color:var(--text2);border-radius:3px;cursor:pointer;font-family:var(--font);">中立</button>
-          </div>
-          <div style="display:flex;align-items:center;gap:3px;margin-top:2px;">
-            <input type="number" id="lstick-dur" value="500" style="width:50px;font-size:10px;">
-            <span style="font-size:10px;color:var(--text2);">ms</span>
-            <button onclick="sendStickCustom('L')" style="padding:2px 7px;font-size:10px;background:var(--accent);border:1px solid var(--accent2);color:white;border-radius:3px;cursor:pointer;font-family:var(--font);">送信</button>
-          </div>
-          <!-- Directional quick buttons -->
-          <div class="stick-dir-btns" style="margin-top:5px;">
-            <div></div><button class="stick-dir-btn" onclick="tiltStick('L',0,-1)">↑</button><div></div>
-            <button class="stick-dir-btn" onclick="tiltStick('L',-1,0)">←</button>
-            <button class="stick-dir-btn" onclick="tiltStick('L',0,0)">○</button>
-            <button class="stick-dir-btn" onclick="tiltStick('L',1,0)">→</button>
-            <div></div><button class="stick-dir-btn" onclick="tiltStick('L',0,1)">↓</button><div></div>
-          </div>
-        </div>
-        <div class="vjoy-wrap">
-          <div style="font-size:10px;color:var(--purple2);margin-bottom:4px;font-weight:600;">R スティック</div>
-          <canvas id="rjoy-canvas" class="vjoy-canvas" width="90" height="90"></canvas>
-          <div class="vjoy-val" id="rstick-val">X:0 Y:0</div>
-          <div style="display:flex;gap:3px;align-items:center;margin-top:3px;">
-            <input type="number" id="rstick-x" value="0" style="width:46px;font-size:10px;" oninput="updateJoyCanvas('R')">
-            <input type="number" id="rstick-y" value="0" style="width:46px;font-size:10px;" oninput="updateJoyCanvas('R')">
-            <button onclick="tiltStick('R',0,0)" style="padding:2px 5px;font-size:10px;background:var(--panel2);border:1px solid var(--border2);color:var(--text2);border-radius:3px;cursor:pointer;font-family:var(--font);">中立</button>
-          </div>
-          <div style="display:flex;align-items:center;gap:3px;margin-top:2px;">
-            <input type="number" id="rstick-dur" value="500" style="width:50px;font-size:10px;">
-            <span style="font-size:10px;color:var(--text2);">ms</span>
-            <button onclick="sendStickCustom('R')" style="padding:2px 7px;font-size:10px;background:var(--purple);border:1px solid var(--purple2);color:white;border-radius:3px;cursor:pointer;font-family:var(--font);">送信</button>
-          </div>
-          <div class="stick-dir-btns" style="margin-top:5px;">
-            <div></div><button class="stick-dir-btn" onclick="tiltStick('R',0,-1)">↑</button><div></div>
-            <button class="stick-dir-btn" onclick="tiltStick('R',-1,0)">←</button>
-            <button class="stick-dir-btn" onclick="tiltStick('R',0,0)">○</button>
-            <button class="stick-dir-btn" onclick="tiltStick('R',1,0)">→</button>
-            <div></div><button class="stick-dir-btn" onclick="tiltStick('R',0,1)">↓</button><div></div>
-          </div>
-        </div>
-      </div>
-    </div>
-    <!-- Multi-press -->
-    <div class="ctrl-section">
-      <div class="ctrl-section-title">⚡ 同時押し</div>
-      <div id="multiBtnGrid" class="multi-btn-grid"></div>
-      <div style="display:flex;align-items:center;gap:7px;margin-top:8px;flex-wrap:wrap;">
-        <span style="font-size:11px;color:var(--text2);">時間</span>
-        <input type="number" id="multiHoldDur" value="100" style="width:58px;">
-        <span style="font-size:11px;color:var(--text2);">ms</span>
-        <button onclick="pressMultiBtn()" style="flex:1;min-width:80px;padding:7px;background:var(--accent);border:1px solid var(--accent2);color:white;border-radius:4px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);">⚡ 同時押し</button>
-        <button onclick="clearMultiBtn()" style="padding:7px 10px;background:var(--panel2);border:1px solid var(--border2);color:var(--text2);border-radius:4px;font-size:11px;cursor:pointer;font-family:var(--font);">クリア</button>
-      </div>
-    </div>
-  </div>
 
-  <!-- RIGHT: MACRO + CHAT -->
-  <div class="ctrl-right" style="overflow-y:auto;height:100%;">
-    <!-- Macro recording -->
-    <div class="ctrl-section">
-      <div class="ctrl-section-title">🔴 マクロ記録</div>
-      <div style="display:flex;gap:8px;">
-        <button id="macroRecBtn" onclick="startMacroRec()" style="flex:1;padding:8px;background:rgba(220,53,69,0.15);border:1px solid var(--red);color:var(--red);border-radius:4px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);">⏺ 記録開始</button>
-        <button id="macroStopRecBtn" onclick="stopMacroRec()" style="display:none;flex:1;padding:8px;background:rgba(220,53,69,0.4);border:1px solid var(--red);color:#fff;border-radius:4px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);">⏹ 停止</button>
-      </div>
-      <div id="macroRecStatus" style="display:none;margin-top:6px;padding:6px 10px;background:rgba(220,53,69,0.1);border:1px solid rgba(220,53,69,0.3);border-radius:4px;font-size:11px;">
-        <span class="macro-rec-indicator"></span> 記録中... <span id="macroRecStepCount">0</span> ステップ
-      </div>
-      <div id="macroCurrentPreview" style="display:none;margin-top:8px;">
-        <div style="font-size:10px;color:var(--text2);margin-bottom:4px;">記録内容:</div>
-        <div id="macroCurrentSteps" class="macro-steps-preview" style="max-height:none;"></div>
-      </div>
-      <div id="macroSaveArea" style="display:none;margin-top:8px;">
-        <div style="display:flex;gap:6px;flex-wrap:wrap;">
-          <input type="text" id="macroSaveName" placeholder="マクロ名" style="flex:1;min-width:0;">
-          <button onclick="saveMacroRec()" style="padding:7px 12px;background:var(--teal);border:none;color:#000;border-radius:4px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);">💾</button>
-          <button onclick="discardMacroRec()" style="padding:7px 10px;background:var(--panel2);border:1px solid var(--border2);color:var(--text2);border-radius:4px;font-size:11px;cursor:pointer;font-family:var(--font);">✕</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Saved macros -->
-    <div class="ctrl-section">
-      <div class="ctrl-section-title" style="display:flex;justify-content:space-between;align-items:center;">
-        <span>💾 保存済みマクロ</span>
-        <div style="display:flex;gap:5px;">
-          <button onclick="importMacroJson()" style="padding:3px 7px;background:var(--panel2);border:1px solid var(--border2);color:var(--text2);border-radius:3px;font-size:10px;cursor:pointer;font-family:var(--font);">📥 読込</button>
-          <button onclick="exportMacroJson()" style="padding:3px 7px;background:var(--panel2);border:1px solid var(--border2);color:var(--text2);border-radius:3px;font-size:10px;cursor:pointer;font-family:var(--font);">📤 書出</button>
-        </div>
-      </div>
-      <div id="macroListEl" class="macro-list"></div>
-    </div>
-
-    <!-- Macro playback -->
-    <div id="macroPlaySection" class="ctrl-section" style="display:none;">
-      <div class="ctrl-section-title">▶ マクロ再生</div>
-      <div id="macroPlayInfo" style="font-size:11px;color:var(--text2);margin-bottom:8px;"></div>
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
-        <span style="font-size:11px;color:var(--text2);">回数</span>
-        <input type="number" id="macroPlayLoops" value="1" min="1" style="width:55px;">
-        <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);cursor:pointer;">
-          <input type="checkbox" id="macroPlayInfinite"> ∞ ループ
-        </label>
-      </div>
-      <div style="display:flex;gap:8px;">
-        <button id="macroPlayBtn" onclick="playSelectedMacro()" style="flex:1;padding:8px;background:rgba(40,167,69,0.2);border:1px solid var(--green);color:var(--green);border-radius:4px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);">▶ 実行</button>
-        <button id="macroStopPlayBtn" onclick="stopMacroPlay()" style="display:none;flex:1;padding:8px;background:rgba(220,53,69,0.2);border:1px solid var(--red);color:var(--red);border-radius:4px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);">⏹ 停止</button>
-      </div>
-      <div id="macroPlayStatus" style="display:none;margin-top:6px;font-size:11px;"></div>
-    </div>
-
-    <!-- JSON macro editor -->
-    <div class="ctrl-section">
-      <div class="ctrl-section-title">📋 JSONマクロ</div>
-      <input type="text" id="macroJsonName" placeholder="マクロ名" style="width:100%;margin-bottom:6px;">
-      <textarea id="macroJsonEditor" style="width:100%;height:80px;background:var(--panel);border:1px solid var(--border2);color:var(--text);border-radius:4px;padding:6px;font-family:monospace;font-size:11px;resize:vertical;" placeholder='[{"type":"press","button":"A","duration":100}]'></textarea>
-      <div style="display:flex;gap:6px;margin-top:6px;">
-        <button onclick="executeJsonMacro()" style="flex:1;padding:7px;background:rgba(40,167,69,0.15);border:1px solid var(--green);color:var(--green);border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;font-family:var(--font);">▶ 実行</button>
-        <button onclick="saveJsonMacro()" style="flex:1;padding:7px;background:rgba(32,201,151,0.15);border:1px solid var(--teal);color:var(--teal);border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;font-family:var(--font);">💾 保存</button>
-      </div>
-    </div>
-
-    <!-- AI Chat -->
-    <div class="ctrl-section" style="display:flex;flex-direction:column;">
-      <div class="ctrl-section-title" style="color:var(--teal);">🤖 AIチャット検索</div>
-      <div class="chat-wrap">
-        <div id="chatMessages" class="chat-messages">
-          <div class="chat-msg system">💬 スキル名と数値でお守りを検索できます<br>例:「連撃+4 痛撃+5 3スロの風化は？」</div>
-        </div>
-        <div class="chat-input-row">
-          <textarea id="chatInput" class="chat-input" placeholder="スキル条件を入力..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat();}"></textarea>
-          <button class="chat-send-btn" onclick="sendChat()">送信</button>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-</div><!-- /tab-controller -->
 
 <!-- =================== TAB: OCR =================== -->
 
@@ -1584,6 +1321,47 @@ button:disabled { opacity: 0.45; cursor: not-allowed !important; }
       <button onclick="sendControllerInput()" class="search-btn">📤 送信</button>
     </div>
   </div>
+
+    <!-- =================== Arduino .ino マクロ =================== -->
+    <div class="ctrl-section">
+      <div class="ctrl-section-title">🤖 Arduino .ino マクロ実行</div>
+
+      <!-- ファイル選択 -->
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+        <button onclick="importInoMacro()"
+          style="padding:9px 14px;background:rgba(32,201,151,0.12);border:1px solid var(--teal);color:var(--teal);border-radius:4px;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font);">📂 .ino 読込</button>
+        <span id="inoFileName" style="font-size:11px;color:var(--text3);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">ファイル未選択</span>
+      </div>
+
+      <!-- パース結果 -->
+      <div id="inoParsedInfo" style="display:none;margin-bottom:10px;padding:9px 12px;background:var(--panel);border:1px solid var(--border2);border-radius:4px;">
+        <div style="font-size:11px;color:var(--text2);margin-bottom:6px;">
+          📋 <span id="inoStepCount">0</span> ステップ &nbsp;|&nbsp; ⏱ 推定 <span id="inoEstTime">0.0</span>秒
+        </div>
+        <div id="inoStepsPreview" style="display:flex;flex-wrap:wrap;gap:3px;max-height:56px;overflow:hidden;"></div>
+      </div>
+
+      <!-- ループ設定 -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+        <span style="font-size:11px;color:var(--text2);">繰り返し</span>
+        <input type="number" id="inoLoopCount" value="1" min="1" style="width:58px;">
+        <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);cursor:pointer;">
+          <input type="checkbox" id="inoLoopInfinite"> ∞ ループ
+        </label>
+      </div>
+
+      <!-- 実行 / 停止 -->
+      <div style="display:flex;gap:8px;">
+        <button id="inoRunBtn" onclick="runInoMacro()"
+          style="flex:1;padding:10px;background:rgba(40,167,69,0.15);border:1px solid var(--green);color:var(--green);border-radius:4px;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font);">▶ 実行</button>
+        <button id="inoStopBtn" onclick="stopInoMacro()"
+          style="display:none;flex:1;padding:10px;background:rgba(220,53,69,0.2);border:1px solid var(--red);color:var(--red);border-radius:4px;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font);">⏹ 停止</button>
+      </div>
+
+      <!-- 進行状況 -->
+      <div id="inoProgress" style="display:none;margin-top:8px;padding:7px 10px;background:rgba(74,127,170,0.08);border:1px solid rgba(74,127,170,0.3);border-radius:4px;font-size:11px;color:var(--text2);"></div>
+    </div>
+
 </div><!-- /tab-bt -->
 
 <script>
@@ -3329,8 +3107,6 @@ function stopStopwatch() {
   document.getElementById('swStartBtn').style.display = '';
   document.getElementById('swStopBtn').style.display = 'none';
   document.getElementById('swLapBtn').style.display = 'none';
-  initMultiBtnGrid();
-  renderMacroList();
 }
 function lapStopwatch() {
   if (!swRunning) return;
@@ -3348,538 +3124,16 @@ function resetStopwatch() {
   document.getElementById('swStartBtn').style.display = '';
   document.getElementById('swStopBtn').style.display = 'none';
   document.getElementById('swLapBtn').style.display = 'none';
-  initMultiBtnGrid();
-  renderMacroList();
 }
 
 // =====================================================================
-// CONTROLLER TAB
+// INIT
 // =====================================================================
 
 
 // =====================================================================
 // INIT
 // =====================================================================
-
-// =====================================================================
-// CONTROLLER TAB
-// =====================================================================
-function ctrlDur() { return parseInt(document.getElementById('ctrlHoldDur').value) || 100; }
-
-function pressCtrlBtn(btn) {
-  const dur = ctrlDur();
-  _parentAb('pressButton', btn, dur);
-  // Also send via postMessage for cross-origin parents
-  try { window.parent.postMessage({ type: 'pressButton', button: btn, duration: dur }, '*'); } catch(e) {}
-  const el = document.getElementById('cbtn-' + btn);
-  if (el) { el.classList.add('pressed'); setTimeout(() => el.classList.remove('pressed'), dur + 60); }
-  macroRecordStep({ type: 'press', button: btn, duration: dur });
-  showToast('🎮 ' + btn + ' (' + dur + 'ms)');
-}
-
-function tiltStick(side, x, y) {
-  const sid = side.toLowerCase();
-  const dur = parseInt(document.getElementById(sid + 'stick-dur').value) || 500;
-  _parentAb('tiltStick', side, x, y, dur);
-  try { window.parent.postMessage({ type: 'tiltStick', side: side, x: x, y: y, duration: dur }, '*'); } catch(e) {}
-  document.getElementById(sid + 'stick-x').value = Math.round(x * 100);
-  document.getElementById(sid + 'stick-y').value = Math.round(y * 100);
-  updateStickDisplay(side);
-  // Flash visual joystick
-  if (_vjoy[side]) {
-    _vjoy[side].draw(x, y);
-    setTimeout(function() { if (_vjoy[side]) _vjoy[side].draw(0, 0); }, dur);
-  }
-  macroRecordStep({ type: 'stick', side: side, x: x, y: y, duration: dur });
-  const dirStr = (x === 0 && y === 0) ? '中立' : '(' + x.toFixed(1) + ', ' + y.toFixed(1) + ')';
-  showToast('🕹 ' + side + 'スティック ' + dirStr + ' (' + dur + 'ms)');
-}
-
-function sendStickCustom(side) {
-  const sid = side.toLowerCase();
-  const xraw = parseInt(document.getElementById(sid + 'stick-x').value) || 0;
-  const yraw = parseInt(document.getElementById(sid + 'stick-y').value) || 0;
-  const x = xraw / 100, y = yraw / 100;
-  const dur = parseInt(document.getElementById(sid + 'stick-dur').value) || 500;
-  _parentAb('tiltStick', side, x, y, dur);
-  try { window.parent.postMessage({ type: 'tiltStick', side: side, x: x, y: y, duration: dur }, '*'); } catch(e) {}
-  macroRecordStep({ type: 'stick', side: side, x: x, y: y, duration: dur });
-  showToast('🕹 ' + side + 'スティック (' + x.toFixed(2) + ', ' + y.toFixed(2) + ') ' + dur + 'ms');
-}
-
-function updateStickDisplay(side) {
-  const sid = side.toLowerCase();
-  const xv = parseInt(document.getElementById(sid + 'stick-x').value) || 0;
-  const yv = parseInt(document.getElementById(sid + 'stick-y').value) || 0;
-  document.getElementById(sid + 'stick-xval') && (document.getElementById(sid + 'stick-xval').textContent = xv);
-  document.getElementById(sid + 'stick-yval') && (document.getElementById(sid + 'stick-yval').textContent = yv);
-  const vEl = document.getElementById(sid + 'stick-val');
-  if (vEl) vEl.textContent = 'X:' + xv + ' Y:' + yv;
-}
-
-// =====================================================================
-// VISUAL JOYSTICK (Canvas)
-// =====================================================================
-var _vjoy = {};
-
-function initJoyCanvas(side) {
-  const cid = (side === 'L' ? 'l' : 'r') + 'joy-canvas';
-  const canvas = document.getElementById(cid);
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  const isL = side === 'L';
-  const color = isL ? '#4a7faa' : '#9b59b6';
-  const colorGlow = isL ? 'rgba(74,127,170,0.4)' : 'rgba(155,89,182,0.4)';
-
-  function draw(nx, ny) { // nx,ny in [-1,1]
-    const w = canvas.width, h = canvas.height;
-    const cx = w / 2, cy = h / 2;
-    const r = w / 2 - 4;
-    const knobR = r * 0.32;
-    const kx = cx + nx * (r - knobR);
-    const ky = cy + ny * (r - knobR);
-    ctx.clearRect(0, 0, w, h);
-    // Outer ring
-    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.strokeStyle = color; ctx.lineWidth = 2;
-    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-    grad.addColorStop(0, 'rgba(0,0,0,0)');
-    grad.addColorStop(1, isL ? 'rgba(74,127,170,0.08)' : 'rgba(155,89,182,0.08)');
-    ctx.fillStyle = grad; ctx.fill(); ctx.stroke();
-    // Center dot
-    ctx.beginPath(); ctx.arc(cx, cy, 3, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.fill();
-    // Cross guides
-    ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(cx - r, cy); ctx.lineTo(cx + r, cy); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(cx, cy - r); ctx.lineTo(cx, cy + r); ctx.stroke();
-    // Line from center to knob
-    if (nx !== 0 || ny !== 0) {
-      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(kx, ky);
-      ctx.strokeStyle = colorGlow; ctx.lineWidth = 2; ctx.stroke();
-    }
-    // Knob
-    ctx.beginPath(); ctx.arc(kx, ky, knobR, 0, Math.PI * 2);
-    const kg = ctx.createRadialGradient(kx - knobR*0.3, ky - knobR*0.3, 1, kx, ky, knobR);
-    kg.addColorStop(0, isL ? '#7ab0d0' : '#c090e0');
-    kg.addColorStop(1, color);
-    ctx.fillStyle = kg; ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 1.5; ctx.stroke();
-  }
-
-  function getPos(e) {
-    const rect = canvas.getBoundingClientRect();
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-    const cx = canvas.width / 2, cy = canvas.height / 2;
-    const r = canvas.width / 2 - 4;
-    let dx = (clientX - rect.left) * (canvas.width / rect.width) - cx;
-    let dy = (clientY - rect.top) * (canvas.height / rect.height) - cy;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist > r) { dx = dx / dist * r; dy = dy / dist * r; }
-    return { nx: dx / r, ny: dy / r };
-  }
-
-  function onMove(e) {
-    e.preventDefault();
-    const { nx, ny } = getPos(e);
-    draw(nx, ny);
-    const xv = Math.round(nx * 100);
-    const yv = Math.round(ny * 100);
-    const sid = side.toLowerCase();
-    document.getElementById(sid + 'stick-x').value = xv;
-    document.getElementById(sid + 'stick-y').value = yv;
-    updateStickDisplay(side);
-  }
-
-  function onEnd(e) {
-    e.preventDefault();
-    draw(0, 0);
-    const sid = side.toLowerCase();
-    const dur = parseInt(document.getElementById(sid + 'stick-dur').value) || 500;
-    const xv = parseInt(document.getElementById(sid + 'stick-x').value) / 100;
-    const yv = parseInt(document.getElementById(sid + 'stick-y').value) / 100;
-    if (xv !== 0 || yv !== 0) {
-      _parentAb('tiltStick', side, xv, yv, dur);
-      try { window.parent.postMessage({ type: 'tiltStick', side: side, x: xv, y: yv, duration: dur }, '*'); } catch(_) {}
-      macroRecordStep({ type: 'stick', side: side, x: xv, y: yv, duration: dur });
-    }
-    document.getElementById(sid + 'stick-x').value = 0;
-    document.getElementById(sid + 'stick-y').value = 0;
-    updateStickDisplay(side);
-  }
-
-  canvas.addEventListener('touchstart', onMove, { passive: false });
-  canvas.addEventListener('touchmove', onMove, { passive: false });
-  canvas.addEventListener('touchend', onEnd, { passive: false });
-  canvas.addEventListener('mousedown', function(e) {
-    onMove(e);
-    const mm = function(ev) { onMove(ev); };
-    const mu = function(ev) { onEnd(ev); document.removeEventListener('mousemove', mm); document.removeEventListener('mouseup', mu); };
-    document.addEventListener('mousemove', mm);
-    document.addEventListener('mouseup', mu);
-  });
-
-  draw(0, 0);
-  _vjoy[side] = { draw };
-}
-
-function updateJoyCanvas(side) {
-  if (!_vjoy[side]) return;
-  const sid = side.toLowerCase();
-  const xv = parseInt(document.getElementById(sid + 'stick-x').value) / 100;
-  const yv = parseInt(document.getElementById(sid + 'stick-y').value) / 100;
-  _vjoy[side].draw(xv, yv);
-}
-
-function initMultiBtnGrid() {
-  const allBtns = [
-    {btn:'A', label:'A', style:'color:#ff6060;border-color:#c04040;'},
-    {btn:'B', label:'B', style:'color:#ffe060;border-color:#c09020;'},
-    {btn:'X', label:'X', style:'color:#6090ff;border-color:#4060c0;'},
-    {btn:'Y', label:'Y', style:'color:#40c060;border-color:#208040;'},
-    {btn:'L', label:'L', style:''},
-    {btn:'R', label:'R', style:''},
-    {btn:'ZL', label:'ZL', style:''},
-    {btn:'ZR', label:'ZR', style:''},
-    {btn:'PLUS', label:'＋', style:''},
-    {btn:'MINUS', label:'−', style:''},
-    {btn:'HOME', label:'HOME', style:'color:var(--teal);'},
-    {btn:'CAPTURE', label:'CAP', style:''},
-    {btn:'DPAD_UP', label:'↑', style:''},
-    {btn:'DPAD_DOWN', label:'↓', style:''},
-    {btn:'DPAD_LEFT', label:'←', style:''},
-    {btn:'DPAD_RIGHT', label:'→', style:''},
-    {btn:'L_STICK', label:'L3', style:'color:var(--accent2);'},
-    {btn:'R_STICK', label:'R3', style:'color:var(--purple2);'},
-  ];
-  const grid = document.getElementById('multiBtnGrid');
-  if (!grid) return; // コントローラーUIが未実装の場合はスキップ
-  grid.innerHTML = allBtns.map(b =>
-    '<label class="multi-chk" id="multichk-' + b.btn + '" onclick="toggleMultiChk(this)">' +
-    '<input type="checkbox" value="' + b.btn + '"> <span style="' + b.style + '">' + b.label + '</span></label>'
-  ).join('');
-}
-
-function toggleMultiChk(el) {
-  const cb = el.querySelector('input');
-  el.classList.toggle('checked', cb.checked);
-}
-
-function pressMultiBtn() {
-  const dur = parseInt(document.getElementById('multiHoldDur').value) || 100;
-  const checked = [...document.querySelectorAll('#multiBtnGrid input:checked')].map(el => el.value);
-  if (!checked.length) { showToast('⚠ ボタンを選択してください'); return; }
-  _parentAb('pressButtons', checked, dur);
-  try { window.parent.postMessage({ type: 'pressButtons', buttons: checked, duration: dur }, '*'); } catch(e) {}
-  checked.forEach(btn => {
-    const el = document.getElementById('cbtn-' + btn);
-    if (el) { el.classList.add('pressed'); setTimeout(() => el.classList.remove('pressed'), dur + 60); }
-  });
-  macroRecordStep({ type: 'multipress', buttons: [...checked], duration: dur });
-  showToast('⚡ 同時押し: ' + checked.join('+') + ' (' + dur + 'ms)');
-}
-
-function clearMultiBtn() {
-  document.querySelectorAll('#multiBtnGrid input').forEach(el => { el.checked = false; });
-  document.querySelectorAll('.multi-chk').forEach(el => el.classList.remove('checked'));
-}
-
-// =====================================================================
-// MACRO RECORDING
-// =====================================================================
-var macroRecording = false;
-var macroRecSteps = [];
-var macroRecLastTime = 0;
-var savedMacros = [];
-var selectedMacroIdx = -1;
-var macroPlayActive = false;
-var macroPlayTimers = [];
-
-function _mEl(id) { return document.getElementById(id); }
-function _mShow(id, v) { var e=_mEl(id); if(e) e.style.display = v===undefined?'':v; }
-function _mHide(id) { var e=_mEl(id); if(e) e.style.display='none'; }
-function _mText(id, t) { var e=_mEl(id); if(e) e.textContent=t; }
-
-function startMacroRec() {
-  macroRecording = true;
-  macroRecSteps = [];
-  macroRecLastTime = Date.now();
-  _mHide('macroRecBtn'); _mShow('macroStopRecBtn'); _mShow('macroRecStatus');
-  _mText('macroRecStepCount', '0');
-  _mHide('macroCurrentPreview'); _mHide('macroSaveArea');
-  showToast('⏺ マクロ記録開始！コントローラーを操作してください');
-}
-
-function stopMacroRec() {
-  macroRecording = false;
-  _mShow('macroRecBtn'); _mHide('macroStopRecBtn'); _mHide('macroRecStatus');
-  if (macroRecSteps.length === 0) { showToast('⚠ 記録ステップが0です'); return; }
-  _mShow('macroCurrentPreview');
-  renderMacroPreview(macroRecSteps, 'macroCurrentSteps');
-  _mShow('macroSaveArea');
-  var d = new Date();
-  var sn = _mEl('macroSaveName');
-  if (sn) sn.value = 'マクロ_' + d.getHours().toString().padStart(2,'0') + d.getMinutes().toString().padStart(2,'0') + d.getSeconds().toString().padStart(2,'0');
-  showToast('⏹ 記録停止: ' + macroRecSteps.length + 'ステップ');
-}
-
-function macroRecordStep(step) {
-  if (!macroRecording) return;
-  var now = Date.now();
-  var elapsed = now - macroRecLastTime;
-  if (elapsed > 60 && macroRecSteps.length > 0) {
-    macroRecSteps.push({ type: 'wait', ms: elapsed });
-  }
-  macroRecLastTime = now;
-  macroRecSteps.push(step);
-  _mText('macroRecStepCount', macroRecSteps.length);
-}
-
-function renderMacroPreview(steps, elId) {
-  var el = document.getElementById(elId);
-  if (!el) return;
-  el.innerHTML = steps.map(function(s) {
-    if (s.type === 'press') return '<span class="macro-step-badge" style="color:var(--steel2);">' + s.button + '</span>';
-    if (s.type === 'multipress') return '<span class="macro-step-badge" style="color:#ff8040;">[' + s.buttons.join('+') + ']</span>';
-    if (s.type === 'stick') return '<span class="macro-step-badge" style="color:var(--teal);">' + s.side + '(' + s.x.toFixed(1) + ',' + s.y.toFixed(1) + ')</span>';
-    if (s.type === 'wait') return '<span class="macro-step-badge" style="color:var(--text3);">⏱' + s.ms + 'ms</span>';
-    return '<span class="macro-step-badge">' + s.type + '</span>';
-  }).join('');
-}
-
-function saveMacroRec() {
-  var sn = _mEl('macroSaveName');
-  var name = (sn ? sn.value.trim() : '') || ('マクロ_' + (savedMacros.length + 1));
-  savedMacros.push({ name: name, steps: macroRecSteps.slice(), createdAt: Date.now() });
-  macroRecSteps = [];
-  _mHide('macroCurrentPreview'); _mHide('macroSaveArea');
-  renderMacroList();
-  showToast('💾 "' + name + '" を保存しました');
-}
-
-function discardMacroRec() {
-  macroRecSteps = [];
-  _mHide('macroCurrentPreview'); _mHide('macroSaveArea');
-  showToast('✕ 記録を破棄しました');
-}
-
-function renderMacroList() {
-  var el = document.getElementById('macroListEl');
-  if (!el) return; // マクロUI未実装時はスキップ
-  if (!savedMacros.length) {
-    el.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text3);font-size:11px;">保存済みマクロはありません</div>';
-    var ps = document.getElementById('macroPlaySection');
-    if (ps) ps.style.display = 'none';
-    return;
-  }
-  el.innerHTML = savedMacros.map(function(m, i) {
-    var preview = m.steps.slice(0, 10).map(function(s) {
-      if (s.type === 'press') return '<span class="macro-step-badge" style="color:var(--steel2);">' + s.button + '</span>';
-      if (s.type === 'multipress') return '<span class="macro-step-badge" style="color:#ff8040;">[' + s.buttons.join('+') + ']</span>';
-      if (s.type === 'stick') return '<span class="macro-step-badge" style="color:var(--teal);">' + s.side + '🕹</span>';
-      if (s.type === 'wait') return '<span class="macro-step-badge" style="color:var(--text3);">⏱</span>';
-      return '';
-    }).join('') + (m.steps.length > 10 ? '<span class="macro-step-badge" style="color:var(--text3);">+' + (m.steps.length-10) + '</span>' : '');
-    return '<div class="macro-item' + (i === selectedMacroIdx ? ' macro-selected' : '') + '" onclick="selectMacro(' + i + ')">' +
-      '<div style="flex:1;">' +
-        '<div style="font-weight:600;color:var(--text);">' + m.name + '</div>' +
-        '<div style="font-size:10px;color:var(--text3);">' + m.steps.length + 'ステップ</div>' +
-        '<div class="macro-steps-preview">' + preview + '</div>' +
-      '</div>' +
-      '<div style="display:flex;flex-direction:column;gap:3px;flex-shrink:0;">' +
-        '<button onclick="event.stopPropagation();deleteMacro(' + i + ')" style="padding:3px 8px;background:var(--panel2);border:1px solid var(--border2);color:var(--red);border-radius:3px;font-size:10px;cursor:pointer;font-family:var(--font);">✕</button>' +
-        '<button onclick="event.stopPropagation();duplicateMacro(' + i + ')" style="padding:3px 8px;background:var(--panel2);border:1px solid var(--border2);color:var(--text2);border-radius:3px;font-size:10px;cursor:pointer;font-family:var(--font);">⧉</button>' +
-      '</div>' +
-    '</div>';
-  }).join('');
-}
-
-function selectMacro(idx) {
-  selectedMacroIdx = idx;
-  renderMacroList();
-  var m = savedMacros[idx];
-  if (!m) return;
-  var playSection = document.getElementById('macroPlaySection');
-  if (playSection) playSection.style.display = '';
-  var infoEl = document.getElementById('macroPlayInfo');
-  if (infoEl) {
-    infoEl.innerHTML = '<strong style="color:var(--purple2);">' + m.name + '</strong> &nbsp; <span style="color:var(--text3);">' + m.steps.length + 'ステップ</span><br>';
-    renderMacroPreview(m.steps, 'macroPlayInfo');
-  }
-  var je = document.getElementById('macroJsonEditor'); if (je) je.value = JSON.stringify(m.steps, null, 2);
-  var jn = document.getElementById('macroJsonName'); if (jn) jn.value = m.name + '_コピー';
-}
-
-function deleteMacro(idx) {
-  var name = savedMacros[idx].name;
-  savedMacros.splice(idx, 1);
-  if (selectedMacroIdx >= savedMacros.length) selectedMacroIdx = savedMacros.length - 1;
-  if (selectedMacroIdx < 0) _mHide('macroPlaySection');
-  renderMacroList();
-  showToast('🗑 "' + name + '" を削除しました');
-}
-
-function duplicateMacro(idx) {
-  var m = savedMacros[idx];
-  savedMacros.push({ name: m.name + '_コピー', steps: m.steps.slice(), createdAt: Date.now() });
-  renderMacroList();
-  showToast('⧉ "' + m.name + '" を複製しました');
-}
-
-// =====================================================================
-// MACRO PLAYBACK
-// =====================================================================
-function executeMacroSteps(steps, loops) {
-  if (macroPlayActive) return;
-  macroPlayActive = true;
-  macroPlayTimers = [];
-  document.getElementById('macroPlayBtn') && (document.getElementById('macroPlayBtn').style.display = 'none');
-  document.getElementById('macroStopPlayBtn') && (document.getElementById('macroStopPlayBtn').style.display = '');
-  var statusEl = document.getElementById('macroPlayStatus');
-  if (statusEl) statusEl.style.display = '';
-  var loopsDone = 0;
-  var isInf = (loops === Infinity);
-
-  function runOnce(loopN) {
-    if (!macroPlayActive) return;
-    if (statusEl) statusEl.innerHTML = '<span style="color:var(--purple2);">▶ ループ ' + loopN + '/' + (isInf ? '∞' : loops) + ' 実行中...</span>';
-    var t = 0;
-    steps.forEach(function(step) {
-      var tid = setTimeout((function(s){ return function() { if (macroPlayActive) executeStep(s); }; })(step), t);
-      macroPlayTimers.push(tid);
-      t += getStepDuration(step);
-    });
-    var tid2 = setTimeout(function() {
-      if (!macroPlayActive) return;
-      loopsDone++;
-      if (isInf || loopsDone < loops) {
-        runOnce(loopsDone + 1);
-      } else {
-        finishMacroPlay(true);
-      }
-    }, t + 100);
-    macroPlayTimers.push(tid2);
-  }
-  runOnce(1);
-}
-
-function executeStep(step) {
-  if (step.type === 'press') {
-    _parentAb('pressButton', step.button, step.duration || 100);
-    try { window.parent.postMessage({ type: 'pressButton', button: step.button, duration: step.duration || 100 }, '*'); } catch(e) {}
-    var el = document.getElementById('cbtn-' + step.button);
-    if (el) { el.classList.add('pressed'); setTimeout(function(){ el.classList.remove('pressed'); }, (step.duration||100) + 60); }
-  } else if (step.type === 'multipress') {
-    _parentAb('pressButtons', step.buttons, step.duration || 100);
-    try { window.parent.postMessage({ type: 'pressButtons', buttons: step.buttons, duration: step.duration || 100 }, '*'); } catch(e) {}
-    step.buttons.forEach(function(b) {
-      var el = document.getElementById('cbtn-' + b);
-      if (el) { el.classList.add('pressed'); setTimeout(function(){ el.classList.remove('pressed'); }, (step.duration||100) + 60); }
-    });
-  } else if (step.type === 'stick') {
-    _parentAb('tiltStick', step.side, step.x || 0, step.y || 0, step.duration || 500);
-    try { window.parent.postMessage({ type: 'tiltStick', side: step.side, x: step.x||0, y: step.y||0, duration: step.duration||500 }, '*'); } catch(e) {}
-  }
-}
-
-function getStepDuration(step) {
-  if (step.type === 'wait') return step.ms || 100;
-  if (step.type === 'press') return (step.duration || 100) + 30;
-  if (step.type === 'multipress') return (step.duration || 100) + 30;
-  if (step.type === 'stick') return (step.duration || 500) + 30;
-  return 100;
-}
-
-function playSelectedMacro() {
-  if (selectedMacroIdx < 0 || !savedMacros[selectedMacroIdx]) { showToast('⚠ マクロを選択してください'); return; }
-  var m = savedMacros[selectedMacroIdx];
-  var isInf = (_mEl('macroPlayInfinite') || {checked:false}).checked;
-  var loops = isInf ? Infinity : (parseInt((_mEl('macroPlayLoops')||{value:'1'}).value) || 1);
-  executeMacroSteps(m.steps, loops);
-  showToast('▶ "' + m.name + '" 実行開始 (' + (isInf ? '∞' : loops) + '回)');
-}
-
-function stopMacroPlay() {
-  macroPlayActive = false;
-  macroPlayTimers.forEach(function(id){ clearTimeout(id); });
-  macroPlayTimers = [];
-  finishMacroPlay(false);
-  showToast('⏹ マクロ実行停止');
-}
-
-function finishMacroPlay(completed) {
-  macroPlayActive = false;
-  var btn = document.getElementById('macroPlayBtn');
-  var stopBtn = document.getElementById('macroStopPlayBtn');
-  if (btn) btn.style.display = '';
-  if (stopBtn) stopBtn.style.display = 'none';
-  var statusEl = document.getElementById('macroPlayStatus');
-  if (statusEl) statusEl.innerHTML = completed
-    ? '<span style="color:var(--teal);">✅ 実行完了</span>'
-    : '<span style="color:var(--text2);">⏹ 停止しました</span>';
-}
-
-function saveJsonMacro() {
-  var jnEl = _mEl('macroJsonName'), jeEl = _mEl('macroJsonEditor');
-  var name = (jnEl ? jnEl.value.trim() : '') || ('JSONマクロ_' + (savedMacros.length + 1));
-  var jsonStr = jeEl ? jeEl.value.trim() : '';
-  try {
-    var steps = JSON.parse(jsonStr);
-    if (!Array.isArray(steps)) throw new Error('配列ではありません');
-    savedMacros.push({ name: name, steps: steps, createdAt: Date.now() });
-    renderMacroList();
-    showToast('💾 "' + name + '" を保存しました');
-  } catch(e) { showToast('❌ JSONパースエラー: ' + e.message); }
-}
-
-function executeJsonMacro() {
-  var jeEl = _mEl('macroJsonEditor');
-  var jsonStr = jeEl ? jeEl.value.trim() : '';
-  try {
-    var steps = JSON.parse(jsonStr);
-    if (!Array.isArray(steps)) throw new Error('配列ではありません');
-    executeMacroSteps(steps, 1);
-    showToast('▶ JSONマクロ実行中 (' + steps.length + 'ステップ)');
-  } catch(e) { showToast('❌ JSONパースエラー: ' + e.message); }
-}
-
-function importMacroJson() {
-  var input = document.createElement('input');
-  input.type = 'file'; input.accept = '.json';
-  input.onchange = function(e) {
-    var file = e.target.files[0]; if (!file) return;
-    var reader = new FileReader();
-    reader.onload = function(ev) {
-      try {
-        var data = JSON.parse(ev.target.result);
-        if (Array.isArray(data)) {
-          if (data.length && data[0].name && data[0].steps) {
-            data.forEach(function(m) { savedMacros.push({ name: m.name, steps: m.steps, createdAt: Date.now() }); });
-          } else {
-            savedMacros.push({ name: file.name.replace('.json',''), steps: data, createdAt: Date.now() });
-          }
-        }
-        renderMacroList();
-        showToast('📥 ' + file.name + ' インポート完了');
-      } catch(e2) { showToast('❌ インポートエラー: ' + e2.message); }
-    };
-    reader.readAsText(file);
-  };
-  input.click();
-}
-
-function exportMacroJson() {
-  if (!savedMacros.length) { showToast('⚠ 保存済みマクロがありません'); return; }
-  var data = savedMacros.map(function(m) { return { name: m.name, steps: m.steps }; });
-  var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-  var url = URL.createObjectURL(blob);
-  var a = document.createElement('a');
-  a.href = url; a.download = 'macros.json'; a.click();
-  URL.revokeObjectURL(url);
-  showToast('📤 マクロをエクスポートしました');
-}
-
 
 // ---- Find SKILL global index from raw OCR string using SKILL_ALIASES ----
 function findSkillIdxByOcr(rawName) {
@@ -4783,21 +4037,437 @@ function _updateSnipeRunUI(running) {
   if (stopBtn)  stopBtn.style.display  = running ? '' : 'none';
 }
 
+
+// =====================================================================
+// Arduino .ino マクロ インポート＆実行エンジン
+// Switch HIDレポートをBT経由で送信し、Arduinoマイコンと全く同じ動作を再現する
+// =====================================================================
+
+// ── ボタン定数マッピング ──────────────────────────────────────────
+// Switch HID Button bitmask → ボタン名
+var INO_BTN_MAP = {
+  // 名前パターン: [bitmask, ボタン名] (大文字・小文字不問)
+  'SWITCH_Y':      [0x0001, 'Y'],
+  'BTN_Y':         [0x0001, 'Y'],
+  'BUTTON_Y':      [0x0001, 'Y'],
+  'SWITCH_B':      [0x0002, 'B'],
+  'BTN_B':         [0x0002, 'B'],
+  'BUTTON_B':      [0x0002, 'B'],
+  'SWITCH_A':      [0x0004, 'A'],
+  'BTN_A':         [0x0004, 'A'],
+  'BUTTON_A':      [0x0004, 'A'],
+  'SWITCH_X':      [0x0008, 'X'],
+  'BTN_X':         [0x0008, 'X'],
+  'BUTTON_X':      [0x0008, 'X'],
+  'SWITCH_L':      [0x0010, 'L'],
+  'BTN_L':         [0x0010, 'L'],
+  'BUTTON_L':      [0x0010, 'L'],
+  'SWITCH_R':      [0x0020, 'R'],
+  'BTN_R':         [0x0020, 'R'],
+  'BUTTON_R':      [0x0020, 'R'],
+  'SWITCH_ZL':     [0x0040, 'ZL'],
+  'BTN_ZL':        [0x0040, 'ZL'],
+  'BUTTON_ZL':     [0x0040, 'ZL'],
+  'SWITCH_ZR':     [0x0080, 'ZR'],
+  'BTN_ZR':        [0x0080, 'ZR'],
+  'BUTTON_ZR':     [0x0080, 'ZR'],
+  'SWITCH_MINUS':  [0x0100, 'MINUS'],
+  'BTN_MINUS':     [0x0100, 'MINUS'],
+  'BUTTON_MINUS':  [0x0100, 'MINUS'],
+  'SWITCH_SELECT': [0x0100, 'MINUS'],
+  'SWITCH_PLUS':   [0x0200, 'PLUS'],
+  'BTN_PLUS':      [0x0200, 'PLUS'],
+  'BUTTON_PLUS':   [0x0200, 'PLUS'],
+  'SWITCH_START':  [0x0200, 'PLUS'],
+  'SWITCH_LCLICK': [0x0400, 'L_STICK'],
+  'BTN_LCLICK':    [0x0400, 'L_STICK'],
+  'SWITCH_RCLICK': [0x0800, 'R_STICK'],
+  'BTN_RCLICK':    [0x0800, 'R_STICK'],
+  'SWITCH_HOME':   [0x1000, 'HOME'],
+  'BTN_HOME':      [0x1000, 'HOME'],
+  'SWITCH_CAPTURE':[0x2000, 'CAPTURE'],
+  'BTN_CAPTURE':   [0x2000, 'CAPTURE'],
+  'SWITCH_CAP':    [0x2000, 'CAPTURE'],
+};
+
+// HAT方向 → DPADボタン名配列
+var INO_HAT_MAP = {
+  '0x00': ['DPAD_UP'],
+  '0x01': ['DPAD_UP','DPAD_RIGHT'],
+  '0x02': ['DPAD_RIGHT'],
+  '0x03': ['DPAD_DOWN','DPAD_RIGHT'],
+  '0x04': ['DPAD_DOWN'],
+  '0x05': ['DPAD_DOWN','DPAD_LEFT'],
+  '0x06': ['DPAD_LEFT'],
+  '0x07': ['DPAD_UP','DPAD_LEFT'],
+  '0x08': [],  // HAT_CENTER / DPAD_NONE
+};
+var INO_HAT_NAMES = {
+  'HAT_TOP':0x00, 'HAT_UP':0x00,
+  'HAT_TOP_RIGHT':0x01,
+  'HAT_RIGHT':0x02, 'DPAD_RIGHT_ONLY':0x02,
+  'HAT_BOTTOM_RIGHT':0x03,
+  'HAT_BOTTOM':0x04, 'HAT_DOWN':0x04,
+  'HAT_BOTTOM_LEFT':0x05,
+  'HAT_LEFT':0x06,
+  'HAT_TOP_LEFT':0x07,
+  'HAT_CENTER':0x08, 'HAT_NEUTRAL':0x08,
+};
+
+// 60fps = 1フレーム16.67ms
+var INO_FRAME_MS = 16.67;
+
+// ── 状態変数 ──────────────────────────────────────────────────────
+var _inoSteps = [];          // パース済みステップ
+var _inoActive = false;      // 実行中フラグ
+var _inoTimers = [];         // setTimeout IDリスト
+var _inoLoopCount = 0;       // 現在ループ数
+
+// ── ユーティリティ ────────────────────────────────────────────────
+
+/** コメント除去 */
+function _inoStripComments(src) {
+  // ブロックコメント
+  src = src.replace(/\/\*[\s\S]*?\*\//g, ' ');
+  // 行コメント
+  src = src.replace(/\/\/[^\n]*/g, '');
+  return src;
+}
+
+/** トークンをアッパーケースでボタン名に変換 */
+function _inoTokenToButtons(token) {
+  var parts = token.split(/\s*\|\s*/);
+  var btns = [];
+  parts.forEach(function(p) {
+    var k = p.trim().toUpperCase();
+    if (!k || k === 'NOTHING' || k === '0' || k === '0X0000' || k === 'NONE') return;
+    // 直接マップ
+    if (INO_BTN_MAP[k]) { btns.push(INO_BTN_MAP[k][1]); return; }
+    // 数値ビットマスク (0x...)
+    var numVal = parseInt(k, 16);
+    if (!isNaN(numVal) && numVal > 0) {
+      Object.values(INO_BTN_MAP).forEach(function(v) {
+        if (v[0] & numVal) btns.push(v[1]);
+      });
+      return;
+    }
+    // 10進数
+    numVal = parseInt(k, 10);
+    if (!isNaN(numVal) && numVal > 0) {
+      Object.values(INO_BTN_MAP).forEach(function(v) {
+        if (v[0] & numVal) btns.push(v[1]);
+      });
+    }
+  });
+  // 重複排除
+  return btns.filter(function(v, i, a) { return a.indexOf(v) === i; });
+}
+
+/** HATトークン → DPADボタン名配列 */
+function _inoHatToButtons(token) {
+  var k = token.trim().toUpperCase();
+  if (INO_HAT_NAMES[k] !== undefined) {
+    return INO_HAT_MAP['0x0' + INO_HAT_NAMES[k].toString(16).toUpperCase()] ||
+           INO_HAT_MAP['0x' + ('0' + INO_HAT_NAMES[k].toString(16)).slice(-2)] ||
+           [];
+  }
+  // 数値
+  var v = parseInt(k, 16);
+  if (isNaN(v)) v = parseInt(k, 10);
+  if (!isNaN(v)) {
+    var hexKey = '0x' + ('0' + v.toString(16)).slice(-2);
+    return INO_HAT_MAP[hexKey] || [];
+  }
+  return [];
+}
+
+// ── パーサー ──────────────────────────────────────────────────────
+
+/**
+ * Arduino .ino ファイルを解析し、実行ステップ配列を返す
+ * @param {string} src  .inoファイルの文字列
+ * @returns {{steps: Array, error?: string}}
+ */
+function parseInoFile(src) {
+  src = _inoStripComments(src);
+
+  // ── ① #define / enum からカスタム定数を収集 ──────────────
+  var defines = {};
+  // #define HOGE 0x0004
+  var defRe = /#define\s+(\w+)\s+(0x[\da-fA-F]+|\d+)/g, dm;
+  while ((dm = defRe.exec(src)) !== null) defines[dm[1].toUpperCase()] = dm[2];
+
+  // enum { HOGE = 0x0004, ... }
+  var enumRe = /enum\s*(?:\w+\s*)?\{([^}]+)\}/g, em;
+  while ((em = enumRe.exec(src)) !== null) {
+    var entries = em[1].split(',');
+    entries.forEach(function(entry) {
+      var m2 = entry.match(/(\w+)\s*=\s*(0x[\da-fA-F]+|\d+)/);
+      if (m2) defines[m2[1].toUpperCase()] = m2[2];
+    });
+  }
+
+  // カスタム定数を INO_BTN_MAP に追記
+  var localBtnMap = Object.assign({}, INO_BTN_MAP);
+  Object.keys(defines).forEach(function(k) {
+    var v = parseInt(defines[k], 16);
+    if (isNaN(v)) v = parseInt(defines[k], 10);
+    if (!isNaN(v) && v > 0) {
+      // ビット重複チェックで既存エントリに割当
+      Object.values(INO_BTN_MAP).forEach(function(entry) {
+        if (entry[0] === v && !localBtnMap[k]) localBtnMap[k] = entry;
+      });
+    }
+  });
+
+  // ── ② static const command step[] 形式を探索 ──────────────
+  // パターン1: { SWITCH_A, 5 }  (2項タプル: button, duration)
+  // パターン2: { SWITCH_A, HAT_CENTER, 5 }  (3項: button, hat, duration)
+  var arrayMatch = src.match(/static\s+const\s+\w+\s+\w+\s*\[\s*\]\s*(?:PROGMEM)?\s*=\s*\{([\s\S]*?)\}\s*;/);
+  if (arrayMatch) {
+    var steps = _parseCommandArray(arrayMatch[1], localBtnMap);
+    if (steps.length > 0) return { steps: steps };
+  }
+
+  // ── ③ 名前で step[] を探す（型名が違うケース）────────────
+  var altMatch = src.match(/\w+\s+(?:step|steps|commands?|sequence)\s*\[\s*\]\s*(?:PROGMEM)?\s*=\s*\{([\s\S]*?)\}\s*;/i);
+  if (altMatch) {
+    var steps2 = _parseCommandArray(altMatch[1], localBtnMap);
+    if (steps2.length > 0) return { steps: steps2 };
+  }
+
+  // ── ④ loop() 関数本体を解析 ─────────────────────────────
+  var loopMatch = src.match(/void\s+loop\s*\(\s*\)\s*\{([\s\S]*)\}/);
+  if (loopMatch) {
+    var steps3 = _parseLoopBody(loopMatch[1], localBtnMap);
+    if (steps3.length > 0) return { steps: steps3 };
+  }
+
+  return { steps: [], error: '解析可能なコマンドシーケンスが見つかりませんでした。\nstatic const command step[] 形式または loop() 関数を含む .ino を選択してください。' };
+}
+
+/** static const command step[] ブロックを解析 */
+function _parseCommandArray(body, btnMap) {
+  var steps = [];
+  // { ... , ... } エントリを順番に抽出
+  var entryRe = /\{\s*([^{}]+)\}/g, m;
+  while ((m = entryRe.exec(body)) !== null) {
+    var fields = m[1].split(',').map(function(s) { return s.trim(); });
+    if (fields.length < 2) continue;
+
+    var buttons = [], hat = [], durationFrames = 0;
+
+    if (fields.length === 2) {
+      // { button_expr, duration }
+      buttons = _inoTokenToButtons(fields[0]);
+      // fields[0] がHATだけの可能性も考慮
+      if (buttons.length === 0) hat = _inoHatToButtons(fields[0]);
+      durationFrames = parseInt(fields[1]) || 0;
+    } else {
+      // { button_expr, hat_expr, duration }
+      buttons = _inoTokenToButtons(fields[0]);
+      hat = _inoHatToButtons(fields[1]);
+      durationFrames = parseInt(fields[2]) || 0;
+    }
+
+    var allBtns = buttons.concat(hat).filter(function(v,i,a){ return a.indexOf(v)===i; });
+    var ms = Math.round(durationFrames * INO_FRAME_MS);
+
+    if (allBtns.length > 0 && ms > 0) {
+      steps.push({ type: allBtns.length === 1 ? 'press' : 'multipress', buttons: allBtns, ms: ms });
+    } else if (ms > 0) {
+      steps.push({ type: 'wait', ms: ms });
+    }
+  }
+  return steps;
+}
+
+/** loop() 関数本体を解析 */
+function _parseLoopBody(body, btnMap) {
+  var steps = [];
+  var lines = body.split('\n');
+  var currentBtns = [];
+
+  lines.forEach(function(line) {
+    line = line.trim();
+    // delay(ms)
+    var dm = line.match(/\bdelay\s*\(\s*(\d+)\s*\)/);
+    if (dm) {
+      var ms = parseInt(dm[1]);
+      if (currentBtns.length > 0) {
+        steps.push({ type: currentBtns.length===1?'press':'multipress', buttons: currentBtns.slice(), ms: ms });
+        currentBtns = [];
+      } else {
+        steps.push({ type: 'wait', ms: ms });
+      }
+      return;
+    }
+    // releaseAll / release
+    if (/release\s*\(\s*\)/i.test(line) || /releaseAll\s*\(\s*\)/i.test(line)) {
+      currentBtns = []; return;
+    }
+    // press(BUTTON, duration) or pressButton(B, d)
+    var pm = line.match(/(?:press|pushButton|pressButton|sendKey)\s*\(\s*([^,)]+)(?:\s*,\s*(\d+))?\s*\)/i);
+    if (pm) {
+      var btns = _inoTokenToButtons(pm[1]);
+      var dur = pm[2] ? parseInt(pm[2]) : 0;
+      if (btns.length > 0) {
+        if (dur > 0) {
+          steps.push({ type: btns.length===1?'press':'multipress', buttons: btns, ms: dur });
+        } else {
+          currentBtns = currentBtns.concat(btns);
+        }
+      }
+    }
+  });
+  return steps;
+}
+
+// ── UI関数 ────────────────────────────────────────────────────────
+
+/** .inoファイル選択 */
+function importInoMacro() {
+  var input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.ino,.txt';
+  input.onchange = function(e) {
+    var file = e.target.files[0];
+    if (!file) return;
+    var nameEl = document.getElementById('inoFileName');
+    if (nameEl) nameEl.textContent = file.name;
+    var reader = new FileReader();
+    reader.onload = function(ev) {
+      var result = parseInoFile(ev.target.result);
+      if (result.error || result.steps.length === 0) {
+        showToast('❌ ' + (result.error || 'ステップが0件です'));
+        var pi = document.getElementById('inoParsedInfo');
+        if (pi) pi.style.display = 'none';
+        return;
+      }
+      _inoSteps = result.steps;
+      _inoUpdateParsedUI(file.name, result.steps);
+      showToast('✅ ' + file.name + ' を読み込みました (' + result.steps.length + 'ステップ)');
+    };
+    reader.onerror = function() { showToast('❌ ファイル読み込みエラー'); };
+    reader.readAsText(file, 'UTF-8');
+  };
+  input.click();
+}
+
+/** パース結果をUIに反映 */
+function _inoUpdateParsedUI(filename, steps) {
+  var totalMs = steps.reduce(function(sum, s) { return sum + (s.ms || 0); }, 0);
+  var sc = document.getElementById('inoStepCount');
+  var et = document.getElementById('inoEstTime');
+  var pi = document.getElementById('inoParsedInfo');
+  var sp = document.getElementById('inoStepsPreview');
+  if (sc) sc.textContent = steps.length;
+  if (et) et.textContent = (totalMs / 1000).toFixed(1);
+  if (pi) pi.style.display = '';
+  if (sp) {
+    sp.innerHTML = steps.slice(0, 40).map(function(s) {
+      if (s.type === 'wait') return '<span class="ino-step-badge wait">⏱' + s.ms + 'ms</span>';
+      if (s.type === 'press') return '<span class="ino-step-badge btn">' + s.buttons[0] + '</span>';
+      return '<span class="ino-step-badge hat">[' + s.buttons.join('+') + ']</span>';
+    }).join('') + (steps.length > 40 ? '<span class="ino-step-badge">+' + (steps.length-40) + '</span>' : '');
+  }
+}
+
+/** .ino マクロ実行 */
+function runInoMacro() {
+  if (_inoActive) { showToast('⚠ 既に実行中です'); return; }
+  if (_inoSteps.length === 0) { showToast('⚠ .ino ファイルを先に読み込んでください'); return; }
+  if (!window.Android || !Android.isBluetoothConnected || !Android.isBluetoothConnected()) {
+    showToast('⚠ Switchに接続してから実行してください'); return;
+  }
+  var loopInf = (document.getElementById('inoLoopInfinite') || {checked:false}).checked;
+  var loops = loopInf ? Infinity : (parseInt((document.getElementById('inoLoopCount') || {value:'1'}).value) || 1);
+
+  _inoActive = true;
+  _inoLoopCount = 0;
+  _inoTimers = [];
+  var runBtn  = document.getElementById('inoRunBtn');
+  var stopBtn = document.getElementById('inoStopBtn');
+  var prog    = document.getElementById('inoProgress');
+  if (runBtn)  runBtn.style.display  = 'none';
+  if (stopBtn) stopBtn.style.display = '';
+  if (prog)    prog.style.display    = '';
+
+  function _runOnce(loopN) {
+    if (!_inoActive) return;
+    if (prog) prog.textContent = '▶ ループ ' + loopN + '/' + (loops === Infinity ? '∞' : loops) + ' 実行中...';
+
+    var t = 0;
+    _inoSteps.forEach(function(step) {
+      var tid = setTimeout((function(s, delay) {
+        return function() { if (_inoActive) _inoExecuteStep(s); };
+      })(step, t), t);
+      _inoTimers.push(tid);
+      t += step.ms || 0;
+    });
+
+    var endTid = setTimeout(function() {
+      if (!_inoActive) return;
+      _inoLoopCount++;
+      if (loops === Infinity || _inoLoopCount < loops) {
+        _runOnce(_inoLoopCount + 1);
+      } else {
+        _inoFinish(true);
+      }
+    }, t + 100);
+    _inoTimers.push(endTid);
+  }
+  _runOnce(1);
+}
+
+/** ステップ1つを送信 */
+function _inoExecuteStep(step) {
+  if (!window.Android) return;
+  if (step.type === 'wait') return; // 待機はsetTimeoutで自動的に処理
+
+  var btns = step.buttons || [];
+  var dur  = step.ms || 100;
+
+  if (btns.length === 0) return;
+
+  if (btns.length === 1) {
+    if (Android.pressButton) Android.pressButton(btns[0], dur);
+  } else {
+    if (Android.pressButtons) Android.pressButtons(JSON.stringify(btns), dur);
+  }
+}
+
+/** .ino マクロ停止 */
+function stopInoMacro() {
+  _inoActive = false;
+  _inoTimers.forEach(function(id) { clearTimeout(id); });
+  _inoTimers = [];
+  _inoFinish(false);
+  showToast('⏹ マクロ停止');
+}
+
+/** 終了後のUI更新 */
+function _inoFinish(completed) {
+  _inoActive = false;
+  var runBtn  = document.getElementById('inoRunBtn');
+  var stopBtn = document.getElementById('inoStopBtn');
+  var prog    = document.getElementById('inoProgress');
+  if (runBtn)  runBtn.style.display  = '';
+  if (stopBtn) stopBtn.style.display = 'none';
+  if (prog) prog.textContent = completed ? '✅ 実行完了' : '⏹ 停止しました';
+}
+
+
 window.onload = function() {
   rebuildSkillDropdowns();
   resetCountdownTimer();
   resetStopwatch();
   updateRewardSlots();
   document.getElementById('swLapBtn').style.display = 'none';
-  initMultiBtnGrid();
-  renderMacroList();
   document.getElementById('stopBtn').style.display = 'none';
   document.getElementById('startCountdownBtn').addEventListener('click', initAndStartCountdown);
   document.getElementById('stopCountdownBtn').addEventListener('click', stopCountdownTimer);
   document.getElementById('resetCountdownBtn').addEventListener('click', resetCountdownTimer);
-  // Init visual joysticks
-  initJoyCanvas('L');
-  initJoyCanvas('R');
   // ★ A間隔 動的リストを初期化
   initSnipeIntervalList();
 };
