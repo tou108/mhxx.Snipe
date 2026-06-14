@@ -617,7 +617,7 @@ body.light-mode .app-header {
 .region-debug span { display:inline-block; margin-right:8px; }
 
 /* ===== OCRタブ スクロール修正 (全画面サイズ共通) ===== */
-/* この規則は @media なしで全幅に適用し、Android WebViewでも確実にスクロールさせる */
+/* @media なしで全幅に適用し、Android WebViewでも確実にスクロールさせる */
 #tab-ocr.active {
   display: block !important;
   overflow-y: auto !important;
@@ -3210,7 +3210,6 @@ function autoOcrSearch() {
 
     if (allResults.length === 0) {
       _showAutoSearchStatus('error', '❌ 完全一致するフレームが見つかりませんでした（認識されたお守りが正しいか確認してください）');
-      // エラー時もスクロールして見せる
       setTimeout(() => {
         const statusEl = document.getElementById('ocrAutoSearchStatus');
         if (statusEl) statusEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
