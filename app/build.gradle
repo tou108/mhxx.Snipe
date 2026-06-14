@@ -8,11 +8,11 @@ android {
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.mhxx.snipe.integrated"
-        minSdk 28          // Android 9.0以上（BluetoothHidDevice API 28要件）
+        applicationId "com.mhxx.snipe"
+        minSdk 26          // Android 8.0以上（ML Kit Japanese の推奨）
         targetSdk 34
-        versionCode 2
-        versionName "2.0-integrated"
+        versionCode 1
+        versionName "1.0"
     }
 
     buildTypes {
@@ -23,6 +23,8 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            // 署名設定は keystore.properties を別途作成してください
+            // signingConfig signingConfigs.release
         }
     }
 
@@ -48,14 +50,6 @@ dependencies {
     implementation 'androidx.appcompat:appcompat:1.6.1'
 
     // ★ Google ML Kit 日本語テキスト認識
+    // 日本語特化モデル（縦書き・ゲームフォント対応）
     implementation 'com.google.mlkit:text-recognition-japanese:16.0.0'
-
-    // ★ Bluetooth 関連 (システムが提供するため、明示的には不要だが、API参照用)
-    // Bluetoothはandroid.bluetoothパッケージで提供される
-    
-    // ★ JSON処理
-    implementation 'org.json:json:20240303'
-
-    // ★ Kotlin standard library
-    implementation 'org.jetbrains.kotlin:kotlin-stdlib:1.9.0'
 }
