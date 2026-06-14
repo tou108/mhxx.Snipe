@@ -2972,8 +2972,8 @@ function parseOcrCharm(text) {
   let m;
 
   // ======== Strategy 1: 同一行パターン "スキル名+数値" / "スキル名 数値" ========
-  // 例: "連撃+4", "痛撃 5"
-  const re1 = /([ぁ-んァ-ン一-龥々〆〇ー]{2,6})[+＋](\d+)/g;
+  // 例: "連撃+4", "痛撃 5", "達人 +10"（+前スペースも対応）
+  const re1 = /([ぁ-んァ-ン一-龥々〆〇ー]{2,6})\s*[+＋](\d+)/g;
   while ((m = re1.exec(norm)) !== null) {
     const rawName = m[1];
     const pts = parseInt(m[2]);
@@ -3002,7 +3002,24 @@ function parseOcrCharm(text) {
     const foundPts   = [];  // 認識されたポイント値
 
     for (const line of lines) {
-      // UIラベル行をスキップ
+      // ── inlineM を最初にチェック ──
+      // 「固有スキル 2 達人 +10」のようにUIラベルとスキルが同一行に来るケースに対応。
+      // rawName（抽出されたスキル名部分）がUIラベルでなければ採用する。
+      const inlineM = line.match(/([ぁ-んァ-ン一-龥々〆〇ー]{2,6})\s*[+＋](\d+)/);
+      if (inlineM) {
+        const rawName = inlineM[1];
+        if (!/固有スキル|国有スキル|スロット|護石|スナイプ|鑑定|ボック/.test(rawName)) {
+          const gIdx = findSkillIdxByOcr(rawName);
+          const pts  = parseInt(inlineM[2]);
+          if (gIdx >= 0 && pts >= 1 && pts <= 20) {
+            if (!skillMatches.some(s => s.gIdx === gIdx))
+              skillMatches.push({ gIdx, pts, name: SKILL[gIdx], rawName });
+          }
+        }
+        continue;
+      }
+
+      // UIラベル行をスキップ（inlineM がなかった行のみ）
       if (/固有スキル|国有スキル|スロット|護石|スナイプ|鑑定|ボック/.test(line)) continue;
 
       // 行全体がスキル名（2〜6文字の漢字/かな）か確認
@@ -3013,18 +3030,6 @@ function parseOcrCharm(text) {
           foundNames.push({ gIdx, name: SKILL[gIdx], rawName: pureNameM[1] });
           continue;
         }
-      }
-
-      // 行に "スキル名 +N" が含まれる場合（行単位の同一行パターン）
-      const inlineM = line.match(/([ぁ-んァ-ン一-龥々〆〇ー]{2,6})\s*[+＋](\d+)/);
-      if (inlineM) {
-        const gIdx = findSkillIdxByOcr(inlineM[1]);
-        const pts  = parseInt(inlineM[2]);
-        if (gIdx >= 0 && pts >= 1 && pts <= 20) {
-          if (!skillMatches.some(s => s.gIdx === gIdx))
-            skillMatches.push({ gIdx, pts, name: SKILL[gIdx], rawName: inlineM[1] });
-        }
-        continue;
       }
 
       // 行が数値のみ（"+4" / "4" 形式）
