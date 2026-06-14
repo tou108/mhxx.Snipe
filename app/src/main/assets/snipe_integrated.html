@@ -616,6 +616,23 @@ body.light-mode .app-header {
 .region-debug { font-size:9px; color:var(--text3); font-family:monospace; margin-top:4px; padding:4px 8px; background:var(--panel); border-radius:3px; }
 .region-debug span { display:inline-block; margin-right:8px; }
 
+/* ===== OCRタブ スクロール修正 (全画面サイズ共通) ===== */
+/* この規則は @media なしで全幅に適用し、Android WebViewでも確実にスクロールさせる */
+#tab-ocr.active {
+  display: block !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+#tab-ocr.active #ocrScrollArea {
+  flex: none !important;
+  height: auto !important;
+  min-height: 0 !important;
+  overflow-y: visible !important;
+  overflow-x: visible !important;
+}
+
 /* ===== 統合タブ (OCR / BT / Arduino) ===== */
 .ctrl-section { padding: 12px 14px; border-bottom: 1px solid var(--border); }
 .ctrl-section-title { font-size: 11px; color: var(--steel2); letter-spacing: 1px; margin-bottom: 10px; font-weight: 600; }
@@ -1044,7 +1061,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed !important; }
 
 
 <!-- =================== TAB: OCR =================== -->
-<div class="tab-page" id="tab-ocr" style="flex-direction:column;overflow:hidden;">
+<div class="tab-page" id="tab-ocr" style="flex-direction:column;">
   <div id="ocrScrollArea" style="flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding:0;-webkit-overflow-scrolling:touch;">
     <div class="sec-title"><span class="dot"></span>OCR 画像認識</div>
     <div class="ctrl-section">
@@ -1055,11 +1072,11 @@ button:disabled { opacity: 0.45; cursor: not-allowed !important; }
         <input type="file" id="ocrImageInput" accept="image/*" onchange="handleImageSelect(event)" style="display:none;">
         <div style="font-size:36px;margin-bottom:8px;">📸</div>
         <p style="font-weight:600;color:var(--text);font-size:13px;">クリックして画像を選択</p>
-        <p style="font-size:11px;color:var(--text2);margin-top:4px;">PNG / JPG に対応</p>
+        <p style="font-size:11px;color:var(--text2);margin-top:4px;">PNG / JPG に対応 — 選択後すぐに認識・サーチを開始します</p>
       </div>
       <div id="ocrPreviewContainer" style="display:none;margin-top:12px;">
         <img id="ocrImagePreview" alt="preview" style="max-width:100%;border-radius:6px;margin-bottom:10px;border:1px solid var(--border);">
-        <button onclick="recognizeImage()" class="search-btn" style="margin-top:0;">🔍 OCR認識を実行</button>
+        <button onclick="recognizeImage()" class="search-btn" id="ocrRetryBtn" style="margin-top:0;display:none;">🔄 再認識</button>
       </div>
     </div>
     <div id="ocrStatus" style="display:none;padding:10px 14px;border-radius:6px;margin:10px 14px;font-size:12px;"></div>
@@ -1071,20 +1088,15 @@ button:disabled { opacity: 0.45; cursor: not-allowed !important; }
       <!-- 生テキスト（内部処理用・非表示） -->
       <textarea id="ocrText" style="display:none;"></textarea>
 
-      <!-- ━━━ 自動サーチ設定パネル ━━━ -->
-      <div id="ocrAutoSearchConfig" style="display:none;padding:10px 14px;border-top:1px solid var(--border);">
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">
-          <span style="font-size:11px;color:var(--text2);white-space:nowrap;">検索範囲</span>
-          <input type="number" id="ocrSearchRange" value="1000000" min="10000" max="10000000"
-                 style="width:100px;padding:4px 6px;font-size:12px;background:var(--panel2);border:1px solid var(--border2);color:var(--text);border-radius:4px;">
-          <span style="font-size:11px;color:var(--text2);">F</span>
-          <label style="font-size:11px;color:var(--text2);display:flex;align-items:center;gap:4px;cursor:pointer;">
-            <input type="checkbox" id="ocrExactMatch" style="cursor:pointer;accent-color:var(--steel);">完全一致
-          </label>
-        </div>
-        <div style="display:flex;gap:8px;">
-          <button id="ocrAutoSearchBtn" onclick="autoOcrSearch()" class="search-btn" style="flex:1;font-size:12px;padding:9px;">🔍 全フレームをサーチ</button>
-          <button id="ocrStopBtn" onclick="stopOcrSearch()" class="search-btn" style="flex:1;font-size:12px;padding:9px;background:linear-gradient(135deg,#6a1020,var(--red));border-color:var(--red);color:#fff;display:none;">⏹ 停止</button>
+      <!-- ━━━ 自動サーチ設定パネル（固定値・非表示入力） ━━━ -->
+      <div id="ocrAutoSearchConfig" style="display:none;padding:6px 14px 8px;border-top:1px solid var(--border);">
+        <!-- 検索範囲・完全一致は常に全フレーム/完全一致で固定 (非表示) -->
+        <input type="number" id="ocrSearchRange" value="10000000" style="display:none;">
+        <input type="checkbox" id="ocrExactMatch" checked style="display:none;">
+        <div style="display:flex;gap:8px;align-items:center;">
+          <span style="font-size:11px;color:var(--text3);flex:1;">全フレーム (F1〜10,000,000) 完全一致サーチ中</span>
+          <button id="ocrAutoSearchBtn" onclick="autoOcrSearch()" class="search-btn" style="width:auto;font-size:11px;padding:6px 12px;display:none;">🔍 再サーチ</button>
+          <button id="ocrStopBtn" onclick="stopOcrSearch()" class="search-btn" style="width:auto;font-size:11px;padding:6px 12px;background:linear-gradient(135deg,#6a1020,var(--red));border-color:var(--red);color:#fff;display:none;">⏹ 停止</button>
         </div>
       </div>
 
@@ -2843,9 +2855,16 @@ function handleImageSelect(event) {
     document.getElementById('ocrImagePreview').src = 'data:image/jpeg;base64,' + base64;
     document.getElementById('ocrPreviewContainer').style.display = 'block';
     document.getElementById('ocrResult').style.display = 'none';
+    // 再認識ボタンを隠す（認識中は不要）
+    const retryBtn = document.getElementById('ocrRetryBtn');
+    if (retryBtn) retryBtn.style.display = 'none';
     window.currentImageBase64 = base64;
     // 自動サーチ結果をリセット
     _resetAutoSearch();
+    // 画像選択直後に自動でOCR認識を開始
+    _showOcrStatus('info', '🔍 認識中...');
+    document.getElementById('ocrStatus').style.display = 'block';
+    setTimeout(() => recognizeImage(), 150);
   };
   reader.readAsDataURL(file);
 }
@@ -2866,6 +2885,9 @@ function recognizeImage() {
 function receiveMlKitResult(jsonStr) {
   try {
     const result = JSON.parse(jsonStr);
+    // 認識終了後に再認識ボタンを表示
+    const retryBtn = document.getElementById('ocrRetryBtn');
+    if (retryBtn) retryBtn.style.display = '';
     if (result.error) { _showOcrStatus('error', result.error); return; }
     document.getElementById('ocrText').value = result.text;
     document.getElementById('ocrResult').style.display = 'block';
@@ -2880,7 +2902,7 @@ function receiveMlKitResult(jsonStr) {
     const cfgEl = document.getElementById('ocrAutoSearchConfig');
     if (cfgEl) cfgEl.style.display = 'block';
     if (parsed.skills.length > 0) {
-      _showOcrStatus('success', '✅ 認識完了 — 全フレームを自動サーチ中...');
+      _showOcrStatus('success', '✅ 認識完了 — 全フレームを完全一致サーチ中...');
       // 認識完了後、自動で全フレームサーチを実行（タブ切替なし）
       setTimeout(() => autoOcrSearch(), 300);
     } else {
@@ -2888,6 +2910,8 @@ function receiveMlKitResult(jsonStr) {
     }
   } catch (e) {
     _showOcrStatus('error', '解析エラー: ' + e.message);
+    const retryBtn = document.getElementById('ocrRetryBtn');
+    if (retryBtn) retryBtn.style.display = '';
   }
 }
 
@@ -3130,8 +3154,10 @@ function autoOcrSearch() {
 
   const skill1    = parsed.skills[0];
   const skill2    = parsed.skills[1] || null;
-  const toF       = Math.min(10000000, Math.max(10000, parseInt(document.getElementById('ocrSearchRange').value) || 1000000));
-  const exactMode = document.getElementById('ocrExactMatch').checked;
+  // 常に全フレーム (F1〜10,000,000) を検索
+  const toF       = 10000000;
+  // 常に完全一致モード: スキル名・ポイント・スロットすべてが一致するフレームのみ
+  const exactMode = true;
   const kindNames = ['風化','古びた','光る','なぞの'];
   const origNames = ['マカ錬金','炭鉱採掘'];
 
@@ -3164,7 +3190,7 @@ function autoOcrSearch() {
   const slotDesc  = parsed.slots >= 0 ? ` スロット${parsed.slots}` : '';
   const kindDesc  = parsed.kind >= 0  ? ` [${kindNames[parsed.kind]}]` : ' [全種別]';
   _showAutoSearchStatus('info',
-    `🔍 サーチ中 — ${skillDesc}${slotDesc}${kindDesc} (F1〜F${toF.toLocaleString()}, ${exactMode?'完全一致':'部分一致'})`);
+    `🔍 完全一致サーチ中 — ${skillDesc}${slotDesc}${kindDesc} (F1〜F${toF.toLocaleString()})`);
 
   function updateTotalProgress() {
     const progValues = Object.values(workerProg);
@@ -3183,7 +3209,7 @@ function autoOcrSearch() {
     allResults.sort((a, b) => a.frame - b.frame);
 
     if (allResults.length === 0) {
-      _showAutoSearchStatus('error', '❌ 一致するフレームが見つかりませんでした（検索範囲を広げてみてください）');
+      _showAutoSearchStatus('error', '❌ 完全一致するフレームが見つかりませんでした（認識されたお守りが正しいか確認してください）');
       // エラー時もスクロールして見せる
       setTimeout(() => {
         const statusEl = document.getElementById('ocrAutoSearchStatus');
@@ -3215,6 +3241,10 @@ function autoOcrSearch() {
           s2Idx = lIdx2;
           s2Pts = Math.max(mn2, Math.min(mx2, skill2.pts));
           hasS2 = true;
+        } else {
+          // 完全一致モード: 認識されたスキル2がこの種別のスキル2テーブルに存在しない
+          // → このkind×originではそのお守りは生成されない → スキップ
+          continue;
         }
       }
 
@@ -3271,7 +3301,7 @@ function autoOcrSearch() {
         hasS1:    true,
         hasS2:    hasS2,
         exactSlot: parsed.slots >= 0 ? parsed.slots : -1,
-        exactPts:  exactMode,
+        exactPts:  true,   // 常に完全一致
         mode:     'normal'
       });
     }
