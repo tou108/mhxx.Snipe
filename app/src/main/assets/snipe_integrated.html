@@ -1041,57 +1041,12 @@ button:disabled { opacity: 0.45; cursor: not-allowed !important; }
     </div>
     <div id="ocrStatus" style="display:none;padding:10px 14px;border-radius:6px;margin:10px 14px;font-size:12px;"></div>
     <div id="ocrResult" style="display:none;">
-      <div class="sec-title"><span class="dot"></span>認識結果</div>
-      <div class="ctrl-section">
-        <textarea id="ocrText" readonly style="width:100%;height:120px;background:var(--panel);border:1px solid var(--border2);color:var(--text);border-radius:4px;padding:8px;font-family:monospace;font-size:12px;resize:vertical;"></textarea>
-        <div style="display:flex;gap:8px;margin-top:8px;">
-          <button onclick="copyOCRResult()" class="search-btn" style="flex:1;">📋 テキストをコピー</button>
-          <button onclick="applyOcrToSearch()" class="search-btn" style="flex:1;background:linear-gradient(135deg,rgba(32,201,151,0.12),rgba(32,201,151,0.22));border-color:rgba(32,201,151,0.45);color:var(--teal);">🔍 護石サーチに適用</button>
-        </div>
-        <div id="ocrApplyStatus" style="display:none;margin-top:8px;font-size:11px;color:var(--teal);"></div>
+      <!-- 認識されたお守りのサマリーカード -->
+      <div class="ctrl-section" style="padding:14px;">
+        <div id="ocrCharmCard" style="display:none;background:var(--panel2);border:1px solid var(--border2);border-radius:6px;padding:12px 14px;"></div>
       </div>
-
-      <!-- ========== OCR 全フレーム自動サーチ ========== -->
-      <div class="sec-title" style="margin-top:0;"><span class="dot"></span>🔎 全フレーム自動サーチ</div>
-      <div class="ctrl-section">
-        <div style="font-size:11px;color:var(--text2);margin-bottom:10px;line-height:1.7;background:rgba(157,170,191,0.06);border:1px solid rgba(157,170,191,0.2);border-radius:5px;padding:8px 10px;">
-          認識したお守りに一致するフレームを、全4種別×2入手方法から自動で全件サーチします。
-        </div>
-        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">
-          <div style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);">
-            <span>検索範囲</span>
-            <span style="color:var(--text3);">F1〜</span>
-            <input type="number" id="ocrSearchRange" value="1000000" min="10000" max="10000000"
-                   style="width:100px;padding:4px 6px;font-size:11px;background:var(--panel2);border:1px solid var(--border2);color:var(--text);border-radius:3px;">
-            <span style="color:var(--text3);">F</span>
-          </div>
-          <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);cursor:pointer;">
-            <input type="checkbox" id="ocrExactMatch" checked style="accent-color:var(--steel);">完全一致
-          </label>
-        </div>
-        <button onclick="autoOcrSearch()" class="search-btn" id="ocrAutoSearchBtn"
-                style="background:linear-gradient(135deg,#1e2a40,#2c3a58,#4a5878,#2c3a58,#1e2a40);border-color:#4a5878;color:#d0ddf0;">
-          🔎 全種別フレーム自動サーチ
-        </button>
-        <button onclick="stopOcrSearch()" class="search-btn" id="ocrStopBtn"
-                style="display:none;margin-top:6px;background:var(--red);color:white;border-color:#ff4040;">
-          ⏹ 検索中止
-        </button>
-
-        <!-- 進捗 -->
-        <div id="ocrSearchProgressWrap" style="display:none;margin-top:8px;">
-          <div style="height:4px;background:var(--border2);border-radius:2px;overflow:hidden;">
-            <div id="ocrSearchProgressInner" style="height:100%;background:linear-gradient(90deg,#4a5570,var(--steel),var(--steel2));width:0%;transition:width 0.3s;border-radius:2px;"></div>
-          </div>
-          <div id="ocrSearchProgressLabel" style="font-size:10px;color:var(--text3);margin-top:4px;text-align:center;">準備中...</div>
-        </div>
-
-        <!-- ステータス -->
-        <div id="ocrAutoSearchStatus" class="ocr-auto-search-status"></div>
-
-        <!-- 結果テーブル -->
-        <div id="ocrAutoSearchResults" style="max-height:400px;overflow-y:auto;border:1px solid var(--border);border-radius:4px;display:none;margin-top:2px;"></div>
-      </div>
+      <!-- 生テキスト（内部処理用・非表示） -->
+      <textarea id="ocrText" style="display:none;"></textarea>
     </div>
   </div>
 </div><!-- /tab-ocr -->
@@ -2851,9 +2806,16 @@ function receiveMlKitResult(jsonStr) {
     if (result.error) { _showOcrStatus('error', result.error); return; }
     document.getElementById('ocrText').value = result.text;
     document.getElementById('ocrResult').style.display = 'block';
-    _showOcrStatus('success', '✅ 認識完了 — 全フレーム自動サーチを開始します...');
-    // 認識完了後、自動でフルサーチ開始
-    setTimeout(() => autoOcrSearch(), 300);
+    // 認識内容を解析してカードに表示
+    const parsed = parseOcrCharm(result.text);
+    _showOcrCharmCard(parsed);
+    if (parsed.skills.length > 0) {
+      _showOcrStatus('success', '✅ 認識完了 — 護石サーチに結果を反映します...');
+      // 認識完了後、自動で護石サーチタブに適用して検索
+      setTimeout(() => applyOcrToSearch(), 300);
+    } else {
+      _showOcrStatus('error', '⚠ スキルを認識できませんでした。OCR結果を確認してください。');
+    }
   } catch (e) {
     _showOcrStatus('error', '解析エラー: ' + e.message);
   }
@@ -2869,27 +2831,43 @@ function copyOCRResult() {
 // =====================================================================
 function parseOcrCharm(text) {
   const norm = text.replace(/[　\s]+/g, ' ').replace(/[！？。、]/g, '').trim();
+  // 行ごとに分割して前後の空白を除去
+  const lines = text.split(/[\n\r]+/).map(l => l.trim()).filter(Boolean);
 
   // 護石種別の検出
   let kind = -1;
   if (/風化/.test(norm))        kind = 0;
   else if (/古びた/.test(norm)) kind = 1;
   else if (/光る/.test(norm))   kind = 2;
-  else if (/なぞ/.test(norm))   kind = 3;
+  else if (/なぞ|謎/.test(norm)) kind = 3;
 
   // スロット数の検出
+  // OCRで○○○→000 と読まれることを考慮し、○/O/0 の個数をカウントする
   let slots = -1;
-  const slotM = norm.match(/([0-3１２３])\s*スロ|スロット?\s*([0-3１２３])/);
-  if (slotM) {
-    const sv = slotM[1] || slotM[2];
-    slots = parseInt(sv.replace('０','0').replace('１','1').replace('２','2').replace('３','3'));
+  if (/スロなし|スロット?なし/.test(norm)) {
+    slots = 0;
+  } else {
+    // スロット + 複数の○/O/0 → その数がスロット数
+    const multiCircleM = norm.match(/スロット?\s*([○◯Oo0]{1,3})/);
+    if (multiCircleM) {
+      slots = multiCircleM[1].length; // ○○○→3, ○○→2, ○→1
+    }
+    // "Nスロ" 形式（数字+スロ）
+    if (slots < 0) {
+      const numSlotM = norm.match(/([1-3])\s*スロ/);
+      if (numSlotM) slots = parseInt(numSlotM[1]);
+    }
+    // 0スロ
+    if (slots < 0 && /0\s*スロ/.test(norm)) slots = 0;
   }
-  if (/スロなし|スロット?なし|0スロ/.test(norm)) slots = 0;
 
   // スキル名と数値の抽出
   const skillMatches = [];
   let m;
-  const re1 = /([ぁ-んァ-ン一-龥々〆〇ー]{2,6})[+＋]?(\d+)/g;
+
+  // ======== Strategy 1: 同一行パターン "スキル名+数値" / "スキル名 数値" ========
+  // 例: "連撃+4", "痛撃 5"
+  const re1 = /([ぁ-んァ-ン一-龥々〆〇ー]{2,6})[+＋](\d+)/g;
   while ((m = re1.exec(norm)) !== null) {
     const rawName = m[1];
     const pts = parseInt(m[2]);
@@ -2904,9 +2882,59 @@ function parseOcrCharm(text) {
     const rawName = m[1];
     const pts = parseInt(m[2]);
     if (pts < 1 || pts > 20) continue;
+    if (/固有スキル|国有スキル|スロット|護石|スナイプ|鑑定/.test(rawName)) continue;
     const gIdx = findSkillIdxByOcr(rawName);
     if (gIdx >= 0 && !skillMatches.some(s => s.gIdx === gIdx)) {
       skillMatches.push({ gIdx, pts, name: SKILL[gIdx], rawName });
+    }
+  }
+
+  // ======== Strategy 2: 行をまたいだマッチング ========
+  // 例: OCRが "連撃\n痛撃\n+4\n+5" の形式で出力する場合
+  if (skillMatches.length === 0) {
+    const foundNames = [];  // 認識されたスキル名
+    const foundPts   = [];  // 認識されたポイント値
+
+    for (const line of lines) {
+      // UIラベル行をスキップ
+      if (/固有スキル|国有スキル|スロット|護石|スナイプ|鑑定|ボック/.test(line)) continue;
+
+      // 行全体がスキル名（2〜6文字の漢字/かな）か確認
+      const pureNameM = line.match(/^([ぁ-んァ-ン一-龥々〆〇ー]{2,6})$/);
+      if (pureNameM) {
+        const gIdx = findSkillIdxByOcr(pureNameM[1]);
+        if (gIdx >= 0) {
+          foundNames.push({ gIdx, name: SKILL[gIdx], rawName: pureNameM[1] });
+          continue;
+        }
+      }
+
+      // 行に "スキル名 +N" が含まれる場合（行単位の同一行パターン）
+      const inlineM = line.match(/([ぁ-んァ-ン一-龥々〆〇ー]{2,6})\s*[+＋](\d+)/);
+      if (inlineM) {
+        const gIdx = findSkillIdxByOcr(inlineM[1]);
+        const pts  = parseInt(inlineM[2]);
+        if (gIdx >= 0 && pts >= 1 && pts <= 20) {
+          if (!skillMatches.some(s => s.gIdx === gIdx))
+            skillMatches.push({ gIdx, pts, name: SKILL[gIdx], rawName: inlineM[1] });
+        }
+        continue;
+      }
+
+      // 行が数値のみ（"+4" / "4" 形式）
+      const ptsM = line.match(/^[+＋]?(\d+)$/);
+      if (ptsM) {
+        const pts = parseInt(ptsM[1]);
+        if (pts >= 1 && pts <= 20) foundPts.push(pts);
+      }
+    }
+
+    // スキル名リストとポイントリストを順番に対応付け
+    const pairCount = Math.min(foundNames.length, foundPts.length);
+    for (let i = 0; i < pairCount; i++) {
+      if (!skillMatches.some(s => s.gIdx === foundNames[i].gIdx)) {
+        skillMatches.push({ ...foundNames[i], pts: foundPts[i] });
+      }
     }
   }
 
@@ -2918,11 +2946,11 @@ function parseOcrCharm(text) {
 // =====================================================================
 function applyOcrToSearch() {
   const text = document.getElementById('ocrText').value.trim();
-  if (!text) { showToast('⚠ 認識テキストがありません'); return; }
+  if (!text) { _showOcrStatus('error', '⚠ 認識テキストがありません'); return; }
 
   const parsed = parseOcrCharm(text);
   if (parsed.skills.length === 0) {
-    showToast('⚠ スキルを認識できませんでした');
+    _showOcrStatus('error', '⚠ スキルを認識できませんでした。お守り画面の画像を確認してください。');
     return;
   }
 
@@ -2956,12 +2984,6 @@ function applyOcrToSearch() {
   }
 
   if (parsed.slots >= 0) setSlot(parsed.slots);
-
-  const statusEl = document.getElementById('ocrApplyStatus');
-  if (statusEl) {
-    statusEl.textContent = '✅ 護石サーチに検索条件を適用しました';
-    statusEl.style.display = 'block';
-  }
 
   setSearchMode('skill');
   switchTab('search');
@@ -3215,6 +3237,36 @@ function _showOcrStatus(type, message) {
   };
   el.style.cssText = 'display:block;padding:10px 14px;border-radius:6px;margin:10px 14px;font-size:12px;' + (styles[type] || '');
   el.textContent = message;
+}
+
+function _showOcrCharmCard(parsed) {
+  const el = document.getElementById('ocrCharmCard');
+  if (!el) return;
+  const kindNames = ['風化した護石','古びた護石','光る護石','なぞの護石'];
+  const slotStr = parsed.slots >= 0 ? ['---','○','○○','○○○'][parsed.slots] : '不明';
+  const kindStr = parsed.kind >= 0 ? kindNames[parsed.kind] : '不明';
+
+  let skillHtml = '';
+  if (parsed.skills.length === 0) {
+    skillHtml = `<div style="color:var(--red);font-size:12px;">スキル認識失敗</div>`;
+  } else {
+    for (const sk of parsed.skills.slice(0, 2)) {
+      skillHtml += `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--border);">
+        <span style="color:var(--steel2);font-weight:600;">${sk.name}</span>
+        <span style="color:var(--teal);font-weight:700;font-size:14px;">+${sk.pts}</span>
+      </div>`;
+    }
+  }
+
+  el.innerHTML = `
+    <div style="font-size:11px;color:var(--text3);letter-spacing:1px;margin-bottom:6px;">認識されたお守り</div>
+    <div style="font-size:13px;color:var(--gold2);font-weight:700;margin-bottom:8px;">${kindStr}</div>
+    ${skillHtml}
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;margin-top:2px;">
+      <span style="color:var(--text2);font-size:11px;">スロット</span>
+      <span style="color:var(--accent2);font-weight:700;letter-spacing:2px;">${slotStr}</span>
+    </div>`;
+  el.style.display = 'block';
 }
 
 
