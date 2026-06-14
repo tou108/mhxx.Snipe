@@ -431,18 +431,24 @@ tr.clickable:hover td { background: #1e2538; }
   /* ===== OCRタブ: モバイルでスクロール ===== */
   #tab-ocr.active {
     display: block !important;
-    overflow-y: auto;
-    overflow-x: hidden;
-  }
-  #tab-ocr > div {
     height: auto !important;
-    overflow: visible !important;
+    overflow-y: auto !important;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+  #ocrScrollArea {
+    flex: none !important;
+    min-height: 0 !important;
+    height: auto !important;
+    overflow-y: visible !important;
+    overflow-x: visible !important;
   }
   #ocrAutoSearchResultsWrap {
     max-height: none !important;
   }
-  #ocrAutoSearchResultsWrap > div {
-    max-height: 55vh;
+  #ocrAutoSearchResultsWrap > div + div {
+    max-height: none !important;
+    overflow-x: auto;
   }
 
   /* ===== モバイルスクロール修正 ===== */
@@ -1039,7 +1045,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed !important; }
 
 <!-- =================== TAB: OCR =================== -->
 <div class="tab-page" id="tab-ocr" style="flex-direction:column;overflow:hidden;">
-  <div style="flex:1;overflow-y:auto;padding:0;">
+  <div id="ocrScrollArea" style="flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding:0;-webkit-overflow-scrolling:touch;">
     <div class="sec-title"><span class="dot"></span>OCR 画像認識</div>
     <div class="ctrl-section">
       <div class="ctrl-section-title">画像を選択</div>
@@ -1096,11 +1102,11 @@ button:disabled { opacity: 0.45; cursor: not-allowed !important; }
       <div id="ocrAutoSearchStatus" style="display:none;margin:6px 14px 0;padding:9px 12px;border-radius:5px;font-size:12px;"></div>
 
       <!-- ━━━ 自動サーチ 結果テーブル ━━━ -->
-      <div id="ocrAutoSearchResultsWrap" style="display:none;padding:6px 14px 14px;">
+      <div id="ocrAutoSearchResultsWrap" style="display:none;padding:6px 14px 20px;">
         <div style="font-size:10px;color:var(--text3);margin-bottom:5px;text-align:right;">
           行をクリック → タイマーにセット &amp; サーチタブへ移動
         </div>
-        <div style="overflow-x:auto;max-height:45vh;overflow-y:auto;border:1px solid var(--border);border-radius:5px;">
+        <div style="overflow-x:auto;border:1px solid var(--border);border-radius:5px;">
           <div id="ocrAutoSearchResults"></div>
         </div>
       </div>
@@ -3178,6 +3184,11 @@ function autoOcrSearch() {
 
     if (allResults.length === 0) {
       _showAutoSearchStatus('error', '❌ 一致するフレームが見つかりませんでした（検索範囲を広げてみてください）');
+      // エラー時もスクロールして見せる
+      setTimeout(() => {
+        const statusEl = document.getElementById('ocrAutoSearchStatus');
+        if (statusEl) statusEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 100);
       return;
     }
     _showAutoSearchStatus('success',
@@ -3320,7 +3331,25 @@ function _renderOcrAutoResults(results, kindNames, origNames) {
   html += '</tbody></table>';
   el.innerHTML = html;
   el.style.display = 'block';
-  if (wrapEl) wrapEl.style.display = 'block';
+  if (wrapEl) {
+    wrapEl.style.display = 'block';
+    // 結果が見えるように自動スクロール
+    setTimeout(() => {
+      // 方法1: scrollIntoView（デスクトップ/新しいWebView）
+      try { wrapEl.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch(e) {}
+      // 方法2: 外側スクロールエリアを直接スクロール（Android WebView対応）
+      const scrollArea = document.getElementById('ocrScrollArea') ||
+                         document.querySelector('#tab-ocr > div');
+      if (scrollArea) {
+        scrollArea.scrollTop = scrollArea.scrollHeight;
+      }
+      // 方法3: tab-ocr自体がblock+overflow:autoの場合（モバイルCSS適用時）
+      const tabEl = document.getElementById('tab-ocr');
+      if (tabEl && getComputedStyle(tabEl).overflowY !== 'hidden') {
+        tabEl.scrollTop = tabEl.scrollHeight;
+      }
+    }, 200);
+  }
 }
 
 function _showOcrStatus(type, message) {
