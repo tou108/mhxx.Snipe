@@ -108,7 +108,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
-            loadUrl("file:///android_asset/snipe_modified.html")
+            loadUrl("file:///android_asset/snipe_integrated.html")
         }
 
         setContentView(webView)
@@ -275,9 +275,19 @@ class MainActivity : AppCompatActivity() {
         private val PROTO_BINARY     = 0
         private val PROTO_SYSBOTBASE = 1
 
-        private val HAT_NAMES = arrayOf(
-            "DUP","DUP_RIGHT","DRIGHT","DDOWN_RIGHT",
-            "DDOWN","DDOWN_LEFT","DLEFT","DUP_LEFT","NONE"
+        // sys-botbase の有効なHAT方向名（斜めは2方向の組み合わせで表現）
+        // index: 0=UP, 1=UP_RIGHT, 2=RIGHT, 3=DOWN_RIGHT,
+        //        4=DOWN, 5=DOWN_LEFT, 6=LEFT, 7=UP_LEFT, 8=NEUTRAL
+        private val HAT_DIRS = arrayOf(
+            listOf("DUP"),              // 0: UP
+            listOf("DUP", "DRIGHT"),   // 1: UP_RIGHT
+            listOf("DRIGHT"),           // 2: RIGHT
+            listOf("DDOWN", "DRIGHT"), // 3: DOWN_RIGHT
+            listOf("DDOWN"),            // 4: DOWN
+            listOf("DDOWN", "DLEFT"), // 5: DOWN_LEFT
+            listOf("DLEFT"),            // 6: LEFT
+            listOf("DUP", "DLEFT"),   // 7: UP_LEFT
+            emptyList()                // 8: NEUTRAL
         )
         private val BUTTON_NAMES = mapOf(
             0x0001 to "Y",    0x0002 to "B",    0x0004 to "A",    0x0008 to "X",
@@ -408,10 +418,12 @@ class MainActivity : AppCompatActivity() {
                 if (buttonState and mask != 0) sb.append("press $name\n")
                 else                           sb.append("release $name\n")
             }
-            if (hatState < 8) {
-                sb.append("press ${HAT_NAMES[hatState]}\n")
-            } else {
-                listOf("DUP","DDOWN","DLEFT","DRIGHT").forEach { sb.append("release $it\n") }
+            // 全4方向を毎回リリースしてから、現在の方向をプレス
+            val allDirs = listOf("DUP","DDOWN","DLEFT","DRIGHT")
+            val activeDirs = if (hatState < 8) HAT_DIRS[hatState] else emptyList()
+            allDirs.forEach { dir ->
+                if (dir in activeDirs) sb.append("press $dir\n")
+                else sb.append("release $dir\n")
             }
             sendText(sb.toString())
         }
