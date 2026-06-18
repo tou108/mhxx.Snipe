@@ -481,6 +481,7 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun getConnectedGamepads(): String {
             val list = InputDevice.getDeviceIds()
+                .toList()
                 .mapNotNull { InputDevice.getDevice(it) }
                 .filter { d ->
                     val src = d.sources
