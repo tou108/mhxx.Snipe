@@ -4039,14 +4039,14 @@ function swBtnDown(mask, name) {
   swButtonState |= mask;
   document.getElementById('btn_'+name)?.classList.add('pressed');
   swBtnPressTime[name] = performance.now();
-  sendSwButtons();
+  if (window.SwitchTCP) SwitchTCP.pressButton(mask);
 }
 function swBtnUp(mask, name) {
   if (!(swButtonState & mask)) return;
   swButtonState &= ~mask;
   document.getElementById('btn_'+name)?.classList.remove('pressed');
   const dur = Math.round(performance.now() - (swBtnPressTime[name] || performance.now()));
-  sendSwButtons();
+  if (window.SwitchTCP) SwitchTCP.releaseButton(mask);
   swRecordStep({ type:'button', mask, name, dur });
   swLog(`[BTN] ${name} ${dur}ms`);
 }
@@ -4089,14 +4089,14 @@ function swResetAll() {
 }
 
 // ── HID 送信 ──────────────────────────────────────────────────────
-function sendSwButtons() {
-  if (!window.SwitchTCP) return;
-  // 押されているボタンを個別に反映
-  Object.entries(SW_BUTTON_NAMES).forEach(([mask, name]) => {
-    if (swButtonState & +mask) SwitchTCP.pressButton(+mask);
-    else                       SwitchTCP.releaseButton(+mask);
-  });
-}
+// 旧 sendSwButtons() は SW_BUTTON_NAMES の14ボタン全部に対して毎回
+// press/release を呼んでいたため、1回のタップで14回 ×（Kotlin側が
+// 当時送っていた20行フルスナップショット）= 最大280コマンドが
+// sys-botbase に飛んでいた。sys-botbase はコマンドを1つ処理する
+// たびに mainLoopSleepTime（既定50ms）だけ待つ実装のため、1タップ
+// 分の処理が終わるまで数秒〜数十秒かかり、「入力しても送信されない」
+// ように見えていた。swBtnDown/swBtnUp で変化した1ボタンだけを
+// 直接送るよう変更し、このループ自体は不要になったため削除。
 function sendSwHat() {
   if (!window.SwitchTCP) return;
   if (swHatState < 8) SwitchTCP.pressHat(swHatState);
