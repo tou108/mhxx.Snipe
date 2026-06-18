@@ -349,28 +349,67 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface fun isConnected() = _connected.get()
 
         @JavascriptInterface
-        fun pressButton(button: Int) { buttonState = buttonState or button; submitReport() }
+        fun pressButton(button: Int) {
+            buttonState = buttonState or button
+            if (protocol == PROTO_BINARY) { submitReport(); return }
+            val name = BUTTON_NAMES[button] ?: return
+            sendSysBotLine("press $name\n")
+        }
 
         @JavascriptInterface
-        fun releaseButton(button: Int) { buttonState = buttonState and button.inv(); submitReport() }
+        fun releaseButton(button: Int) {
+            buttonState = buttonState and button.inv()
+            if (protocol == PROTO_BINARY) { submitReport(); return }
+            val name = BUTTON_NAMES[button] ?: return
+            sendSysBotLine("release $name\n")
+        }
 
         @JavascriptInterface
-        fun releaseAllButtons() { buttonState = 0; submitReport() }
+        fun releaseAllButtons() {
+            val old = buttonState
+            buttonState = 0
+            if (protocol == PROTO_BINARY) { submitReport(); return }
+            if (!_connected.get()) return
+            executor.submit {
+                try {
+                    val sb = StringBuilder()
+                    BUTTON_NAMES.forEach { (mask, name) -> if (old and mask != 0) sb.append("release $name\n") }
+                    if (sb.isNotEmpty()) sendText(sb.toString())
+                } catch (e: Exception) {
+                    _connected.set(false)
+                    notifyJs(false, "送信エラー: ${e.message}")
+                }
+            }
+        }
 
         @JavascriptInterface
-        fun pressHat(hat: Int) { hatState = hat.coerceIn(0, 8); submitReport() }
+        fun pressHat(hat: Int) {
+            val old = hatState
+            hatState = hat.coerceIn(0, 8)
+            if (protocol == PROTO_BINARY) { submitReport(); return }
+            sendHatDelta(old, hatState)
+        }
 
         @JavascriptInterface
-        fun releaseHat() { hatState = 8; submitReport() }
+        fun releaseHat() {
+            val old = hatState
+            hatState = 8
+            if (protocol == PROTO_BINARY) { submitReport(); return }
+            sendHatDelta(old, hatState)
+        }
 
         @JavascriptInterface
         fun moveLeftStick(lx: Int, ly: Int) {
-            lxState = lx.coerceIn(0, 255); lyState = ly.coerceIn(0, 255); submitReport()
+            lxState = lx.coerceIn(0, 255); lyState = ly.coerceIn(0, 255)
+            if (protocol == PROTO_BINARY) { submitReport(); return }
+            sendSysBotLine("setStick LEFT ${toSysBotStick(lxState)} ${toSysBotStick(lyState)}\n")
         }
 
         @JavascriptInterface
         fun moveRightStick(rx: Int, ry: Int) {
-            rxState = rx.coerceIn(0, 255); ryState = ry.coerceIn(0, 255); submitReport()
+            rxState = rx.coerceIn(0, 255); ryState = ry.coerceIn(0, 255)
+            if (protocol == PROTO_BINARY) { submitReport(); return }
+            sendSysBotLine("setStick RIGHT ${toSysBotStick(rxState)} ${toSysBotStick(ryState)}\n")
         }
 
         @JavascriptInterface
@@ -384,6 +423,44 @@ class MainActivity : AppCompatActivity() {
             lxState = 128; lyState = 128; rxState = 128; ryState = 128; submitReport()
         }
 
+        // ── 差分送信ヘルパー ──────────────────────────────────────────
+        // sys-botbase の press/release/setStick は状態保持型コマンドなので、
+        // 変化した分だけ送ればよい。以前は1入力ごとに毎回フルスナップショット
+        // （setStick×2 + ボタン14 + Hat方向4 = 20行）を送っていたため、
+        // sys-botbase 側の mainLoopSleepTime（既定50ms）×コマンド数だけ
+        // 遅延が積み重なり、ボタンを押しても反映が極端に遅れて
+        // 「送信されていない」ように見えていた。
+        private fun sendSysBotLine(line: String) {
+            if (!_connected.get()) return
+            executor.submit {
+                try {
+                    sendText(line)
+                } catch (e: Exception) {
+                    _connected.set(false)
+                    notifyJs(false, "送信エラー: ${e.message}")
+                }
+            }
+        }
+
+        private fun sendHatDelta(oldHat: Int, newHat: Int) {
+            if (!_connected.get()) return
+            executor.submit {
+                try {
+                    val oldDirs = if (oldHat < 8) HAT_DIRS[oldHat] else emptyList()
+                    val newDirs = if (newHat < 8) HAT_DIRS[newHat] else emptyList()
+                    val sb = StringBuilder()
+                    oldDirs.filter { it !in newDirs }.forEach { sb.append("release $it\n") }
+                    newDirs.filter { it !in oldDirs }.forEach { sb.append("press $it\n") }
+                    if (sb.isNotEmpty()) sendText(sb.toString())
+                } catch (e: Exception) {
+                    _connected.set(false)
+                    notifyJs(false, "送信エラー: ${e.message}")
+                }
+            }
+        }
+
+        // submitReport() はバイナリHIDプロトコル（毎回フルスナップショットが必須）と
+        // resetSticks/resetAll（明示的な全リセット、頻度は低い）専用。
         private fun submitReport() {
             if (!_connected.get()) return
             executor.submit {
