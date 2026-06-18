@@ -419,7 +419,7 @@ class MainActivity : AppCompatActivity() {
         private fun sendNeutralState() {
             if (protocol == PROTO_BINARY) {
                 val r = ByteArray(8)
-                r[2] = 8; r[3] = 128; r[4] = 128; r[5] = 128; r[6] = 128
+                r[2] = 8; r[3] = 128.toByte(); r[4] = 128.toByte(); r[5] = 128.toByte(); r[6] = 128.toByte()
                 outputStream?.write(r); outputStream?.flush()
             } else {
                 sendText("setStick LEFT 0 0\nsetStick RIGHT 0 0\n")
