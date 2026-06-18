@@ -271,22 +271,21 @@ class MainActivity : AppCompatActivity() {
     // =========================================================
     inner class TcpBridge {
 
-        companion object {
-            const val PROTO_BINARY     = 0
-            const val PROTO_SYSBOTBASE = 1
+        // inner class は companion object を持てないため、インスタンスプロパティとして定義
+        private val PROTO_BINARY     = 0
+        private val PROTO_SYSBOTBASE = 1
 
-            val HAT_NAMES = arrayOf(
-                "DUP","DUP_RIGHT","DRIGHT","DDOWN_RIGHT",
-                "DDOWN","DDOWN_LEFT","DLEFT","DUP_LEFT","NONE"
-            )
-            val BUTTON_NAMES = mapOf(
-                0x0001 to "Y",    0x0002 to "B",    0x0004 to "A",    0x0008 to "X",
-                0x0010 to "L",    0x0020 to "R",    0x0040 to "ZL",   0x0080 to "ZR",
-                0x0100 to "MINUS",0x0200 to "PLUS",
-                0x0400 to "LSTICK",0x0800 to "RSTICK",
-                0x1000 to "HOME", 0x2000 to "CAPTURE"
-            )
-        }
+        private val HAT_NAMES = arrayOf(
+            "DUP","DUP_RIGHT","DRIGHT","DDOWN_RIGHT",
+            "DDOWN","DDOWN_LEFT","DLEFT","DUP_LEFT","NONE"
+        )
+        private val BUTTON_NAMES = mapOf(
+            0x0001 to "Y",    0x0002 to "B",    0x0004 to "A",    0x0008 to "X",
+            0x0010 to "L",    0x0020 to "R",    0x0040 to "ZL",   0x0080 to "ZR",
+            0x0100 to "MINUS",0x0200 to "PLUS",
+            0x0400 to "LSTICK",0x0800 to "RSTICK",
+            0x1000 to "HOME", 0x2000 to "CAPTURE"
+        )
 
         private val executor     = Executors.newSingleThreadExecutor()
         private val _connected   = AtomicBoolean(false)
