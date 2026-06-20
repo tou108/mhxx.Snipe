@@ -29,8 +29,8 @@ class MainActivity : AppCompatActivity() {
     companion object {
         // Android KeyCode → Switch HID ボタンビットマスク
         val PROCON_BUTTON_MAP = mapOf(
-            KeyEvent.KEYCODE_BUTTON_A      to 0x0004,   // A
-            KeyEvent.KEYCODE_BUTTON_B      to 0x0002,   // B
+            KeyEvent.KEYCODE_BUTTON_A      to 0x0002,   // B (Android A=下ボタン → Switch B)
+            KeyEvent.KEYCODE_BUTTON_B      to 0x0004,   // A (Android B=右ボタン → Switch A)
             KeyEvent.KEYCODE_BUTTON_X      to 0x0008,   // X
             KeyEvent.KEYCODE_BUTTON_Y      to 0x0001,   // Y
             KeyEvent.KEYCODE_BUTTON_L1     to 0x0010,   // L
