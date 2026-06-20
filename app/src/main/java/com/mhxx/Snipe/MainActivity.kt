@@ -31,8 +31,8 @@ class MainActivity : AppCompatActivity() {
         val PROCON_BUTTON_MAP = mapOf(
             KeyEvent.KEYCODE_BUTTON_A      to 0x0002,   // B (Android A=下ボタン → Switch B)
             KeyEvent.KEYCODE_BUTTON_B      to 0x0004,   // A (Android B=右ボタン → Switch A)
-            KeyEvent.KEYCODE_BUTTON_X      to 0x0008,   // X
-            KeyEvent.KEYCODE_BUTTON_Y      to 0x0001,   // Y
+            KeyEvent.KEYCODE_BUTTON_X      to 0x0001,   // Y (Android X=左ボタン → Switch Y)
+            KeyEvent.KEYCODE_BUTTON_Y      to 0x0008,   // X (Android Y=上ボタン → Switch X)
             KeyEvent.KEYCODE_BUTTON_L1     to 0x0010,   // L
             KeyEvent.KEYCODE_BUTTON_R1     to 0x0020,   // R
             KeyEvent.KEYCODE_BUTTON_L2     to 0x0040,   // ZL
@@ -169,9 +169,12 @@ class MainActivity : AppCompatActivity() {
                (src and InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK
     }
 
-    /** 軸値 (−1.0 〜 1.0)  →  スティック値 (0 〜 255) 、デッドゾーン 8% */
-    private fun axisToStick(value: Float): Int {
-        val dz = if (Math.abs(value) < 0.08f) 0f else value
+    /** 軸値 (−1.0 〜 1.0)  →  スティック値 (0 〜 255) 、デッドゾーン 8%
+     *  invert=true の場合は符号を反転してから変換する
+     *  （物理プロコンの軸方向が Android 標準と逆になっている場合の補正用） */
+    private fun axisToStick(value: Float, invert: Boolean = false): Int {
+        val v  = if (invert) -value else value
+        val dz = if (Math.abs(v) < 0.08f) 0f else v
         return ((dz + 1.0f) * 127.5f).toInt().coerceIn(0, 255)
     }
 
@@ -502,10 +505,10 @@ class MainActivity : AppCompatActivity() {
 
         /** スティック / Hat モーションイベントを処理してスロットリング付きで中継 */
         fun handleMotionEvent(event: MotionEvent) {
-            val lx  = axisToStick(event.getAxisValue(MotionEvent.AXIS_X))
-            val ly  = axisToStick(event.getAxisValue(MotionEvent.AXIS_Y))
-            val rx  = axisToStick(event.getAxisValue(MotionEvent.AXIS_Z))
-            val ry  = axisToStick(event.getAxisValue(MotionEvent.AXIS_RZ))
+            val lx  = axisToStick(event.getAxisValue(MotionEvent.AXIS_X))                       // 左右は正常 → 反転なし
+            val ly  = axisToStick(event.getAxisValue(MotionEvent.AXIS_Y),  invert = true)       // 上下が逆 → 反転
+            val rx  = axisToStick(event.getAxisValue(MotionEvent.AXIS_Z),  invert = true)       // 左右が逆 → 反転
+            val ry  = axisToStick(event.getAxisValue(MotionEvent.AXIS_RZ), invert = true)       // 上下が逆 → 反転
             val hat = hatAxisToHat(
                 event.getAxisValue(MotionEvent.AXIS_HAT_X),
                 event.getAxisValue(MotionEvent.AXIS_HAT_Y)
