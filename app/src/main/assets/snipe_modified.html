@@ -4135,7 +4135,7 @@ function initSwStickCanvas(id, side) {
   function posToStick(x, y) {
     return [
       Math.round(((x - 2) / (W - 4)) * 255).clamp(0, 255),
-      Math.round(((y - 2) / (H - 4)) * 255).clamp(0, 255)
+      (255 - Math.round(((y - 2) / (H - 4)) * 255)).clamp(0, 255)  // Y軸反転: 上=255=UP, 下=0=DOWN
     ];
   }
 
