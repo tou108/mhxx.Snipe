@@ -29,8 +29,8 @@ class MainActivity : AppCompatActivity() {
     companion object {
         // Android KeyCode → Switch HID ボタンビットマスク
         val PROCON_BUTTON_MAP = mapOf(
-            KeyEvent.KEYCODE_BUTTON_A      to 0x0004,   // A
-            KeyEvent.KEYCODE_BUTTON_B      to 0x0002,   // B
+            KeyEvent.KEYCODE_BUTTON_A      to 0x0002,   // A → Switch B（スマホコン: 南ボタン=Nintendo B）
+            KeyEvent.KEYCODE_BUTTON_B      to 0x0004,   // B → Switch A（スマホコン: 東ボタン=Nintendo A）
             KeyEvent.KEYCODE_BUTTON_X      to 0x0008,   // X
             KeyEvent.KEYCODE_BUTTON_Y      to 0x0001,   // Y
             KeyEvent.KEYCODE_BUTTON_L1     to 0x0010,   // L
@@ -502,10 +502,10 @@ class MainActivity : AppCompatActivity() {
 
         /** スティック / Hat モーションイベントを処理してスロットリング付きで中継 */
         fun handleMotionEvent(event: MotionEvent) {
-            val lx  = axisToStick(event.getAxisValue(MotionEvent.AXIS_X))
-            val ly  = axisToStick(event.getAxisValue(MotionEvent.AXIS_Y))
-            val rx  = axisToStick(event.getAxisValue(MotionEvent.AXIS_Z))
-            val ry  = axisToStick(event.getAxisValue(MotionEvent.AXIS_RZ))
+            val lx  = axisToStick(event.getAxisValue(MotionEvent.AXIS_Z))   // スマホコン: Lスティック横 = AXIS_Z
+            val ly  = axisToStick(event.getAxisValue(MotionEvent.AXIS_RZ))  // スマホコン: Lスティック縦 = AXIS_RZ
+            val rx  = axisToStick(event.getAxisValue(MotionEvent.AXIS_X))   // スマホコン: Rスティック横 = AXIS_X
+            val ry  = axisToStick(event.getAxisValue(MotionEvent.AXIS_Y))   // スマホコン: Rスティック縦 = AXIS_Y
             val hat = hatAxisToHat(
                 event.getAxisValue(MotionEvent.AXIS_HAT_X),
                 event.getAxisValue(MotionEvent.AXIS_HAT_Y)
