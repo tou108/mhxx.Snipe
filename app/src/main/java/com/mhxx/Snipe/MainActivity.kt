@@ -425,6 +425,7 @@ class MainActivity : AppCompatActivity() {
     // =========================================================
     // ML Kit Bridge（既存）
     // =========================================================
+    inner class MlKitBridge {
 
         @JavascriptInterface
         fun runMlKit(base64Image: String) {
