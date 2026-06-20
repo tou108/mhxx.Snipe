@@ -478,8 +478,20 @@ class MainActivity : AppCompatActivity() {
         private val PROTO_SYSBOTBASE = 1
 
         private val HAT_NAMES = arrayOf(
-            "DUP","DUP_RIGHT","DRIGHT","DDOWN_RIGHT",
-            "DDOWN","DDOWN_LEFT","DLEFT","DUP_LEFT","NONE"
+            "DUP","DDOWN","DLEFT","DRIGHT"
+        )
+        // hatIndex(0-7, 8=NEUTRAL) → 同時押しすべき方向ボタンのビットマスク
+        // sys-botbase は DUP_RIGHT のような斜め名を解釈できないため、
+        // DUP/DDOWN/DLEFT/DRIGHT の組み合わせ(同時 press)で表現する
+        private val HAT_DIR_MASK = intArrayOf(
+            0x1,       // 0 UP          -> DUP
+            0x1 or 0x8,// 1 UP_RIGHT    -> DUP + DRIGHT
+            0x8,       // 2 RIGHT       -> DRIGHT
+            0x2 or 0x8,// 3 DOWN_RIGHT  -> DDOWN + DRIGHT
+            0x2,       // 4 DOWN        -> DDOWN
+            0x2 or 0x4,// 5 DOWN_LEFT   -> DDOWN + DLEFT
+            0x4,       // 6 LEFT        -> DLEFT
+            0x1 or 0x4 // 7 UP_LEFT     -> DUP + DLEFT
         )
         private val BUTTON_NAMES = mapOf(
             0x0001 to "Y",    0x0002 to "B",    0x0004 to "A",    0x0008 to "X",
@@ -515,7 +527,7 @@ class MainActivity : AppCompatActivity() {
                     socket = s
                     _connected.set(true)
                     if (protocol == PROTO_SYSBOTBASE) {
-                        sendText("mainLoopSlotType 0\n")
+                        sendText("configure mainLoopSleepTime 50\n")
                         sendNeutralState()
                     }
                     notifyJs(true, "接続成功 ${ip}:${port}")
@@ -611,9 +623,13 @@ class MainActivity : AppCompatActivity() {
                 else                           sb.append("release $name\n")
             }
             if (hatState < 8) {
-                sb.append("press ${HAT_NAMES[hatState]}\n")
+                val dirMask = HAT_DIR_MASK[hatState]
+                HAT_NAMES.forEachIndexed { i, name ->
+                    if (dirMask and (1 shl i) != 0) sb.append("press $name\n")
+                    else                            sb.append("release $name\n")
+                }
             } else {
-                listOf("DUP","DDOWN","DLEFT","DRIGHT").forEach { sb.append("release $it\n") }
+                HAT_NAMES.forEach { sb.append("release $it\n") }
             }
             sendText(sb.toString())
         }
