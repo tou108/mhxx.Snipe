@@ -1,6 +1,7 @@
 package com.mhxx.snipe
 
 import android.annotation.SuppressLint
+import android.bluetooth.BluetoothDevice
 import android.graphics.BitmapFactory
 import android.os.Bundle
 import android.util.Base64
@@ -24,6 +25,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var webView: WebView
     private lateinit var tcpBridge: TcpBridge
     private lateinit var proConBridge: ProConBridge
+    private lateinit var bluetoothBridge: BluetoothBridge   // ← 追加: BT HID ブリッジ
 
     // ── Pro Controller ボタンマッピング ───────────────────────────────
     companion object {
@@ -59,6 +61,7 @@ class MainActivity : AppCompatActivity() {
 
         tcpBridge   = TcpBridge()
         proConBridge = ProConBridge()
+        bluetoothBridge = BluetoothBridge()             // ← 追加
 
         webView = WebView(this).apply {
             settings.apply {
@@ -80,6 +83,7 @@ class MainActivity : AppCompatActivity() {
             addJavascriptInterface(MlKitBridge(), "Android")
             addJavascriptInterface(tcpBridge,     "SwitchTCP")
             addJavascriptInterface(proConBridge,  "ProCon")   // ← 新規
+            addJavascriptInterface(bluetoothBridge, "SwitchBT") // ← 追加: BT HID
 
             webChromeClient = object : WebChromeClient() {
                 override fun onConsoleMessage(msg: ConsoleMessage): Boolean {
@@ -117,6 +121,7 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         tcpBridge.disconnect()
+        bluetoothBridge.cleanup()   // ← 追加
     }
 
     // ─────────────────────────────────────────────────────────────────
@@ -135,11 +140,13 @@ class MainActivity : AppCompatActivity() {
                         KeyEvent.ACTION_DOWN -> {
                             if (event.repeatCount == 0) {   // キーリピートは無視
                                 tcpBridge.pressButton(mask)
+                                bluetoothBridge.pressButton(mask)   // ← 追加: BT HID にも転送
                                 proConBridge.notifyButtonEvent(mask, true)
                             }
                         }
                         KeyEvent.ACTION_UP -> {
                             tcpBridge.releaseButton(mask)
+                            bluetoothBridge.releaseButton(mask)     // ← 追加: BT HID にも転送
                             proConBridge.notifyButtonEvent(mask, false)
                         }
                     }
@@ -216,6 +223,201 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // =========================================================
+    // Bluetooth HID Bridge（新規）
+    // BluetoothHIDController を JS/Activity から操作し、
+    // 物理プロコン入力を Switch に 0x30 Full Report として転送する
+    // =========================================================
+    @SuppressLint("MissingPermission")
+    inner class BluetoothBridge : BluetoothHIDController.ControllerListener {
+
+        private val hidController = BluetoothHIDController(this@MainActivity)
+
+        // ── HID 状態管理 ──────────────────────────────────────────────
+        /** ボタンビットマスク（PROCON_BUTTON_MAP 準拠の 16bit 統一形式）*/
+        @Volatile private var buttonMask  = 0
+        /** D-pad 方向インデックス（0–7, 8=NEUTRAL）*/
+        @Volatile private var hatIndex    = 8
+        /** スティック値（0–255, center=128）*/
+        @Volatile private var lxState     = 128
+        @Volatile private var lyState     = 128
+        @Volatile private var rxState     = 128
+        @Volatile private var ryState     = 128
+        /** 接続フラグ（ControllerListener コールバックで更新）*/
+        @Volatile private var btConnected = false
+
+        init { hidController.listener = this }
+
+        // ── JavaScript インターフェース ────────────────────────────────
+
+        /** Switch に Bluetooth HID として接続する */
+        @JavascriptInterface
+        fun connect(mac: String) = hidController.connectToSwitch(mac)
+
+        /** 切断 */
+        @JavascriptInterface
+        fun disconnect() = hidController.disconnect()
+
+        /** 接続状態を返す */
+        @JavascriptInterface
+        fun isConnected(): Boolean = btConnected
+
+        // ── Activity から呼ばれる内部 API ─────────────────────────────
+
+        /** ボタン押下（mask は PROCON_BUTTON_MAP 形式）*/
+        fun pressButton(mask: Int) {
+            buttonMask = buttonMask or mask
+            submitReport()
+        }
+
+        /** ボタン解放 */
+        fun releaseButton(mask: Int) {
+            buttonMask = buttonMask and mask.inv()
+            submitReport()
+        }
+
+        /**
+         * スティック更新（0–255, center=128）
+         * TCP 側と同じ値をそのまま受け取り、packStick12 内で Y 軸反転を行う
+         */
+        fun moveSticks(lx: Int, ly: Int, rx: Int, ry: Int) {
+            lxState = lx; lyState = ly; rxState = rx; ryState = ry
+            submitReport()
+        }
+
+        /** D-pad 更新（0–7, 8=NEUTRAL）*/
+        fun moveHat(hat: Int) {
+            hatIndex = hat
+            submitReport()
+        }
+
+        /** 全入力をニュートラルに戻す */
+        fun resetAll() {
+            buttonMask = 0; hatIndex = 8
+            lxState = 128; lyState = 128; rxState = 128; ryState = 128
+            submitReport()
+        }
+
+        fun cleanup() = hidController.cleanup()
+
+        // ── レポートビルド & 送信 ──────────────────────────────────────
+
+        private fun submitReport() {
+            // sendControllerInput 内部で connectedDevice を確認するため、未接続時は空振りになる
+            hidController.sendControllerInput(buildHidBytes())
+        }
+
+        /**
+         * PROCON_BUTTON_MAP 統一マスク → Nintendo Pro Controller 9バイト HID フォーマット
+         *
+         * buf[0] 右ボタン : Y=0x01, X=0x02, B=0x04, A=0x08, R=0x40, ZR=0x80
+         * buf[1] 中ボタン : MINUS=0x01, PLUS=0x02, RSTICK=0x04, LSTICK=0x08, HOME=0x10, CAPTURE=0x20
+         * buf[2] 左ボタン : DOWN=0x01, UP=0x02, RIGHT=0x04, LEFT=0x08, L=0x40, ZL=0x80
+         * buf[3–5] 左スティック 12bit LE
+         * buf[6–8] 右スティック 12bit LE
+         */
+        private fun buildHidBytes(): ByteArray {
+            val buf = ByteArray(9)
+            var b0 = 0; var b1 = 0; var b2 = 0
+            val m = buttonMask
+
+            // 右ボタン byte
+            if (m and 0x0001 != 0) b0 = b0 or 0x01   // Y
+            if (m and 0x0008 != 0) b0 = b0 or 0x02   // X
+            if (m and 0x0002 != 0) b0 = b0 or 0x04   // B
+            if (m and 0x0004 != 0) b0 = b0 or 0x08   // A
+            if (m and 0x0020 != 0) b0 = b0 or 0x40   // R
+            if (m and 0x0080 != 0) b0 = b0 or 0x80   // ZR
+            // 中ボタン byte
+            if (m and 0x0100 != 0) b1 = b1 or 0x01   // MINUS
+            if (m and 0x0200 != 0) b1 = b1 or 0x02   // PLUS
+            if (m and 0x0800 != 0) b1 = b1 or 0x04   // RSTICK
+            if (m and 0x0400 != 0) b1 = b1 or 0x08   // LSTICK
+            if (m and 0x1000 != 0) b1 = b1 or 0x10   // HOME
+            if (m and 0x2000 != 0) b1 = b1 or 0x20   // CAPTURE
+            // 左ボタン byte
+            if (m and 0x0010 != 0) b2 = b2 or 0x40   // L
+            if (m and 0x0040 != 0) b2 = b2 or 0x80   // ZL
+
+            // D-pad → 左ボタン byte のビット
+            when (hatIndex) {
+                0 ->                             b2 = b2 or 0x02           // UP
+                1 -> { b2 = b2 or 0x02;         b2 = b2 or 0x04 }         // UP+RIGHT
+                2 ->                             b2 = b2 or 0x04           // RIGHT
+                3 -> { b2 = b2 or 0x01;         b2 = b2 or 0x04 }         // DOWN+RIGHT
+                4 ->                             b2 = b2 or 0x01           // DOWN
+                5 -> { b2 = b2 or 0x01;         b2 = b2 or 0x08 }         // DOWN+LEFT
+                6 ->                             b2 = b2 or 0x08           // LEFT
+                7 -> { b2 = b2 or 0x02;         b2 = b2 or 0x08 }         // UP+LEFT
+                // 8 = NEUTRAL: nothing
+            }
+
+            buf[0] = b0.toByte()
+            buf[1] = b1.toByte()
+            buf[2] = b2.toByte()
+
+            // スティック変換（Y軸は反転: Nintendo フォーマット = 大→上）
+            packStick12(buf, 3, lxState, lyState)
+            packStick12(buf, 6, rxState, ryState)
+
+            return buf
+        }
+
+        /**
+         * スティック値（0–255）を 12bit 値へ変換し 3バイトにパックする
+         *   X: そのまま  0=左, 128=中立, 255=右
+         *   Y: 反転      Android AXIS_Y = -1.0(上) → 0(上) → Nintendo 上=大(0xFFF方向)
+         *      (255 - y255) << 4 にすることで中立 128 → 0x800 になる
+         *
+         * パック形式 (Nintendo LE 12bit×2 → 3bytes):
+         *   buf[o+0] = X[7:0]
+         *   buf[o+1] = X[11:8] | (Y[3:0] << 4)
+         *   buf[o+2] = Y[11:4]
+         */
+        private fun packStick12(buf: ByteArray, offset: Int, x255: Int, y255: Int) {
+            val x = (x255 shl 4) and 0xFFF
+            val y = ((255 - y255) shl 4) and 0xFFF   // Y軸反転
+            buf[offset]     = (x and 0xFF).toByte()
+            buf[offset + 1] = ((x shr 8) or ((y and 0x0F) shl 4)).toByte()
+            buf[offset + 2] = (y shr 4).toByte()
+        }
+
+        // ── ControllerListener 実装 ────────────────────────────────────
+
+        override fun onConnected(device: BluetoothDevice) {
+            btConnected = true
+            notifyBtJs("""{"event":"connected","address":"${device.address}"}""")
+        }
+
+        override fun onDisconnected() {
+            btConnected = false
+            notifyBtJs("""{"event":"disconnected"}""")
+        }
+
+        override fun onError(message: String) {
+            notifyBtJs("""{"event":"error","message":"${message.replace("\"", "'")}"}""")
+        }
+
+        override fun onStateChanged(state: String) {
+            notifyBtJs("""{"event":"state","state":"${state.replace("\"", "'")}"}""")
+        }
+
+        /** JS の receiveBtStatus(json) へ Base64 経由で通知 */
+        private fun notifyBtJs(json: String) {
+            val b64 = Base64.encodeToString(json.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
+            val js  = """
+                (function(){
+                    var b='$b64';
+                    var bin=atob(b);var u8=new Uint8Array(bin.length);
+                    for(var i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);
+                    var s=new TextDecoder('utf-8').decode(u8);
+                    if(typeof receiveBtStatus==='function')receiveBtStatus(s);
+                })();
+            """.trimIndent()
+            runOnUiThread { webView.evaluateJavascript(js, null) }
+        }
+    }
+
     override fun onBackPressed() {
         if (webView.canGoBack()) webView.goBack() else super.onBackPressed()
     }
@@ -223,7 +425,6 @@ class MainActivity : AppCompatActivity() {
     // =========================================================
     // ML Kit Bridge（既存）
     // =========================================================
-    inner class MlKitBridge {
 
         @JavascriptInterface
         fun runMlKit(base64Image: String) {
@@ -470,7 +671,10 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun setPassthrough(enabled: Boolean) {
             passthrough = enabled
-            if (!enabled) tcpBridge.resetAll()   // OFF 時はニュートラルに戻す
+            if (!enabled) {
+                tcpBridge.resetAll()         // TCP: ニュートラルに戻す
+                bluetoothBridge.resetAll()   // ← 追加: BT HID もニュートラルに戻す
+            }
             notifyState()
         }
 
@@ -522,10 +726,16 @@ class MainActivity : AppCompatActivity() {
                 if (stickMoved) {
                     tcpBridge.moveLeftStick(lx, ly)
                     tcpBridge.moveRightStick(rx, ry)
+                    bluetoothBridge.moveSticks(lx, ly, rx, ry)   // ← 追加: BT HID にも転送
                 }
                 if (hatMoved) {
-                    if (hat < 8) tcpBridge.pressHat(hat)
-                    else         tcpBridge.releaseHat()
+                    if (hat < 8) {
+                        tcpBridge.pressHat(hat)
+                        bluetoothBridge.moveHat(hat)              // ← 追加: BT HID にも転送
+                    } else {
+                        tcpBridge.releaseHat()
+                        bluetoothBridge.moveHat(8)                // ← 追加: BT HID にも転送 (NEUTRAL)
+                    }
                 }
                 lastLX = lx; lastLY = ly
                 lastRX = rx; lastRY = ry
