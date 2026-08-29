@@ -428,6 +428,29 @@ tr.clickable:hover td { background: #1e2538; }
   .timer-col { border-left: none; }
   .results-col { min-height: 300px; }
 
+  /* ===== OCRタブ: モバイルでスクロール ===== */
+  #tab-ocr.active {
+    display: block !important;
+    height: auto !important;
+    overflow-y: auto !important;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+  #ocrScrollArea {
+    flex: none !important;
+    min-height: 0 !important;
+    height: auto !important;
+    overflow-y: visible !important;
+    overflow-x: visible !important;
+  }
+  #ocrAutoSearchResultsWrap {
+    max-height: none !important;
+  }
+  #ocrAutoSearchResultsWrap > div + div {
+    max-height: none !important;
+    overflow-x: auto;
+  }
+
   /* ===== モバイルスクロール修正 ===== */
   /* 護石サーチタブ: ブロック表示にしてタブページ全体をスクロール可能に */
   /* NOTE: .active を必ず付けること。付けないと常に display:block になりタブ切替が壊れる */
@@ -467,20 +490,6 @@ tr.clickable:hover td { background: #1e2538; }
     height: auto !important;
     overflow: visible !important;
   }
-  /* コントローラータブも縦スクロール対応 */
-  #tab-controller {
-    overflow-y: auto;
-  }
-  #tab-controller .ctrl-layout {
-    height: auto !important;
-    overflow: visible !important;
-  }
-  #tab-controller .ctrl-left,
-  #tab-controller .ctrl-right {
-    height: auto !important;
-    overflow-y: visible !important;
-  }
-}
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: var(--panel); }
 ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
@@ -571,32 +580,6 @@ body.light-mode .app-header {
 
 
 /* ===== 全自動スナイプ (後方互換) ===== */
-/* ===== スナイプ実行パネル ===== */
-.snipe-run-section { background: rgba(32,201,151,0.04); border-left: 3px solid #20c997; }
-.snipe-run-log {
-  background: #070909; border: 1px solid var(--border); border-radius: 6px;
-  padding: 8px 10px; font-family: monospace; font-size: 11px;
-  min-height: 56px; max-height: 130px; overflow-y: auto; margin-top: 8px;
-  line-height: 1.7;
-}
-.snipe-run-target {
-  padding: 7px 10px; border-radius: 4px;
-  background: rgba(32,201,151,0.08); border: 1px solid rgba(32,201,151,0.3);
-  font-size: 11px; margin-bottom: 10px; color: var(--teal);
-}
-.snipe-exec-btn {
-  width: 100%; padding: 11px; border: none; border-radius: 5px;
-  background: linear-gradient(135deg, #0d5940, #20c997);
-  color: #000; font-size: 13px; font-weight: 700; cursor: pointer;
-  font-family: var(--font); letter-spacing: 1px;
-  box-shadow: 0 2px 12px rgba(32,201,151,0.3);
-  transition: all 0.15s;
-}
-.snipe-exec-btn:hover { background: linear-gradient(135deg, #20c997, #40ffb8); }
-.snipe-exec-btn:active { transform: scale(0.98); }
-.snipe-exec-btn:disabled { background: var(--border2); color: var(--text3); cursor: not-allowed; box-shadow: none; }
-/* OCR自動適用バッジ */
-.ocr-auto-badge { font-size:9px; background: var(--teal); color:#000; padding:1px 5px; border-radius:3px; margin-left:6px; font-weight:700; letter-spacing:1px; }
 .full-auto-section { background: rgba(0,180,216,.04); border-left: 3px solid #00b4d8; }
 .full-auto-charm-card {
   background: var(--panel2); border: 1px solid rgba(0,180,216,.35);
@@ -614,75 +597,18 @@ body.light-mode .app-header {
   font-size:11px; line-height:1.9; margin-bottom:8px;
 }
 
-/* ===== CONTROLLER TAB ===== */
-.ctrl-layout { display: flex; gap: 0; min-height: 0; height: 100%; overflow: hidden; }
-.ctrl-left { width: 460px; min-width: 320px; flex-shrink: 0; border-right: 1px solid var(--border); overflow-y: auto; height: 100%; }
-.ctrl-right { flex: 1; overflow-y: auto; min-width: 0; height: 100%; }
-.ctrl-section { padding: 12px 14px; border-bottom: 1px solid var(--border); }
-.ctrl-section-title { font-size: 11px; color: var(--steel2); letter-spacing: 1px; margin-bottom: 10px; font-weight: 600; }
-.stick-dir-btns { display: grid; grid-template-columns: repeat(3, 40px); gap: 4px; margin: 0 auto; width: fit-content; }
-.stick-dir-btn { width: 40px; height: 40px; background: var(--panel2); border: 1px solid var(--border2); color: var(--text2); border-radius: 6px; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; transition: all 0.1s; font-family: inherit; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
-.stick-dir-btn:hover, .stick-dir-btn:active { background: var(--accent); color: white; border-color: var(--accent2); }
-.stick-dir-btn.active { background: var(--accent); color: white; border-color: var(--accent2); }
-.ctrl-btn { padding: 9px 4px; border: 1px solid var(--border2); color: var(--text2); background: var(--panel2); border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; text-align: center; transition: all 0.1s; font-family: var(--font); width: 100%; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
-.ctrl-btn:hover, .ctrl-btn:active { background: var(--accent); color: white; border-color: var(--accent2); }
-.ctrl-btn.pressed { background: var(--gold-dim); color: var(--steel2); border-color: var(--steel2); transform: scale(0.95); }
-.ctrl-btn-grid { display: grid; gap: 6px; }
-.multi-btn-grid { display: flex; flex-wrap: wrap; gap: 5px; }
-.multi-chk { display: flex; align-items: center; gap: 4px; background: var(--panel2); border: 1px solid var(--border2); border-radius: 4px; padding: 6px 9px; cursor: pointer; font-size: 12px; user-select: none; touch-action: manipulation; }
-.multi-chk input { cursor: pointer; accent-color: var(--steel2); width: 14px; height: 14px; }
-.multi-chk.checked { border-color: var(--gold-dim); background: rgba(200,146,43,0.15); color: var(--steel2); }
-.macro-list { max-height: 340px; overflow-y: auto; border: 1px solid var(--border); border-radius: 4px; }
-.macro-item { display: flex; align-items: flex-start; gap: 6px; padding: 10px 10px; border-bottom: 1px solid var(--border); font-size: 11px; cursor: pointer; transition: background 0.1s; }
-.macro-item:hover, .macro-item:active { background: var(--panel2); }
-.macro-item.macro-selected { background: rgba(155,89,182,0.12); border-left: 3px solid var(--purple2); }
-.macro-step-badge { display: inline-flex; align-items: center; background: var(--panel2); border: 1px solid var(--border2); border-radius: 3px; padding: 1px 5px; font-size: 9px; color: var(--text2); margin: 1px; font-family: monospace; white-space: nowrap; }
-.macro-steps-preview { display: flex; flex-wrap: wrap; max-height: 28px; overflow: hidden; margin-top: 3px; }
-.macro-rec-indicator { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--red); margin-right: 4px; animation: pulse 0.8s infinite; }
-/* Visual Joystick */
-.vjoy-wrap { display: flex; flex-direction: column; align-items: center; gap: 8px; }
-.vjoy-canvas { border-radius: 50%; cursor: pointer; touch-action: none; display: block; }
-.vjoy-val { font-size: 10px; color: var(--accent2); font-family: monospace; text-align: center; min-width: 80px; }
-/* Face button ring */
-.face-btn-ring { position: relative; width: 120px; height: 120px; flex-shrink: 0; }
-.face-btn-ring .fbtn { position: absolute; width: 36px; height: 36px; border-radius: 50%; border: 2px solid; font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.1s; touch-action: manipulation; -webkit-tap-highlight-color: transparent; font-family: var(--font-en); }
-.face-btn-ring .fbtn:active { transform: scale(0.9); }
-.face-btn-ring .fbtn.pressed { transform: scale(0.9); filter: brightness(1.4); }
-.fbtn-A { right:0; top:50%; transform:translateY(-50%); background:rgba(220,50,50,0.15); border-color:#c04040; color:#ff6060; }
-.fbtn-B { bottom:0; left:50%; transform:translateX(-50%); background:rgba(220,180,50,0.15); border-color:#c09020; color:#ffe060; }
-.fbtn-X { top:0; left:50%; transform:translateX(-50%); background:rgba(80,130,220,0.15); border-color:#4060c0; color:#6090ff; }
-.fbtn-Y { left:0; top:50%; transform:translateY(-50%); background:rgba(50,180,80,0.15); border-color:#208040; color:#40c060; }
-.fbtn-A:active, .fbtn-A.pressed { background:rgba(220,50,50,0.5); }
-.fbtn-B:active, .fbtn-B.pressed { background:rgba(220,180,50,0.5); }
-.fbtn-X:active, .fbtn-X.pressed { background:rgba(80,130,220,0.5); }
-.fbtn-Y:active, .fbtn-Y.pressed { background:rgba(50,180,80,0.5); }
-/* D-pad cross */
-.dpad-cross { position: relative; width: 110px; height: 110px; flex-shrink: 0; }
-.dpad-cross .dpbtn { position: absolute; background: var(--panel2); border: 1px solid var(--border2); color: var(--text2); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; transition: all 0.1s; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
-.dpad-cross .dpbtn:active, .dpad-cross .dpbtn.pressed { background: var(--accent); color: white; }
-.dpbtn-up    { top:0; left:50%; transform:translateX(-50%); width:34px; height:34px; border-radius:4px 4px 0 0; }
-.dpbtn-down  { bottom:0; left:50%; transform:translateX(-50%); width:34px; height:34px; border-radius:0 0 4px 4px; }
-.dpbtn-left  { left:0; top:50%; transform:translateY(-50%); width:34px; height:34px; border-radius:4px 0 0 4px; }
-.dpbtn-right { right:0; top:50%; transform:translateY(-50%); width:34px; height:34px; border-radius:0 4px 4px 0; }
-.dpbtn-center { left:50%; top:50%; transform:translate(-50%,-50%); width:34px; height:34px; background:var(--panel); color:var(--text3); font-size:9px; cursor:default; }
-@media (max-width: 900px) {
-  .ctrl-layout { flex-direction: column; }
-  .ctrl-left { width: 100%; min-width: 0; border: none; border-bottom: 1px solid var(--border); }
-  .ctrl-right { width: 100%; }
-}
-
-/* ── CHAT AI ── */
-.chat-wrap { display:flex; flex-direction:column; height:100%; }
-.chat-messages { flex:1; overflow-y:auto; padding:10px 12px; display:flex; flex-direction:column; gap:8px; min-height:180px; max-height:340px; }
-.chat-msg { max-width:88%; padding:8px 12px; border-radius:12px; font-size:12px; line-height:1.6; white-space:pre-wrap; word-break:break-word; }
-.chat-msg.user { background:rgba(74,127,170,0.25); border:1px solid rgba(74,127,170,0.4); align-self:flex-end; border-bottom-right-radius:3px; color:var(--text); }
-.chat-msg.ai { background:rgba(90,100,130,0.15); border:1px solid rgba(140,160,200,0.25); align-self:flex-start; border-bottom-left-radius:3px; color:var(--steel2); }
-.chat-msg.system { background:rgba(32,201,151,0.1); border:1px solid rgba(32,201,151,0.2); align-self:center; color:var(--teal); font-size:10px; border-radius:6px; text-align:center; }
-.chat-input-row { display:flex; gap:6px; padding:8px 12px; border-top:1px solid var(--border); flex-shrink:0; }
-.chat-input { flex:1; background:var(--panel2); border:1px solid var(--border2); color:var(--text); border-radius:6px; padding:7px 10px; font-size:12px; font-family:var(--font); resize:none; height:36px; }
-.chat-input:focus { outline:none; border-color:var(--steel); }
-.chat-send-btn { padding:7px 14px; background:linear-gradient(135deg,#2c3040,#3e4a60,#5a6a80); border:1px solid #5a6a80; border-radius:6px; color:#d8e4f4; font-size:12px; font-weight:700; cursor:pointer; white-space:nowrap; box-shadow: inset 0 1px 0 rgba(200,215,240,0.12); }
-.chat-send-btn:hover { background: linear-gradient(135deg,#3a4055,#506080,#708aa0); border-color:#8898b8; }
+/* ── OCR 自動サーチ結果 ── */
+.ocr-auto-search-wrap { padding: 12px 14px; border-top: 1px solid var(--border); }
+.ocr-auto-search-status { padding: 9px 12px; border-radius: 5px; font-size: 12px; margin-bottom: 10px; display:none; }
+.ocr-auto-results-table { width:100%; border-collapse:collapse; font-size:11px; }
+.ocr-auto-results-table th { background:var(--panel2); color:var(--text2); padding:5px 6px; font-size:10px; border-bottom:1px solid var(--border); text-align:left; letter-spacing:1px; position:sticky;top:0; }
+.ocr-auto-results-table td { padding:5px 6px; border-bottom:1px solid var(--border); color:var(--text); }
+.ocr-auto-results-table tr:hover td { background:#1a1e28; cursor:pointer; }
+.ocr-auto-kind-badge { display:inline-block; padding:1px 5px; border-radius:3px; font-size:9px; font-weight:700; }
+.ocr-kind-0 { background:rgba(128,192,192,0.2); color:#80c0c0; border:1px solid rgba(128,192,192,0.4); }
+.ocr-kind-1 { background:rgba(192,64,64,0.2); color:#c07070; border:1px solid rgba(192,64,64,0.4); }
+.ocr-kind-2 { background:rgba(192,192,64,0.2); color:#c0c060; border:1px solid rgba(192,192,64,0.4); }
+.ocr-kind-3 { background:rgba(220,220,220,0.15); color:#ccc; border:1px solid rgba(220,220,220,0.3); }
 
 .ocr-progress { padding:8px 12px; font-size:11px; color:var(--teal); display:flex; align-items:center; gap:6px; }
 .ocr-progress-bar { flex:1; height:4px; background:var(--border2); border-radius:2px; overflow:hidden; }
@@ -690,143 +616,6 @@ body.light-mode .app-header {
 .region-debug { font-size:9px; color:var(--text3); font-family:monospace; margin-top:4px; padding:4px 8px; background:var(--panel); border-radius:3px; }
 .region-debug span { display:inline-block; margin-right:8px; }
 
-/* ===== カメラ撮影モーダル ===== */
-.camera-modal {
-  display: none;
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.92);
-  z-index: 9999;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
-.camera-modal.open { display: flex; }
-.camera-viewfinder {
-  position: relative;
-  width: 100%;
-  max-width: 480px;
-  background: #000;
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 0 40px rgba(32,201,151,0.2);
-}
-.camera-viewfinder video {
-  display: block;
-  width: 100%;
-  height: auto;
-  min-height: 240px;
-  object-fit: cover;
-  background: #000;
-}
-.camera-viewfinder canvas { display: none; }
-.camera-preview-img {
-  display: none;
-  width: 100%;
-  border-radius: 12px;
-  object-fit: contain;
-}
-.camera-corner {
-  position: absolute;
-  width: 24px; height: 24px;
-  border-color: var(--teal);
-  border-style: solid;
-  opacity: 0.7;
-}
-.camera-corner.tl { top:10px; left:10px; border-width:2px 0 0 2px; border-radius:4px 0 0 0; }
-.camera-corner.tr { top:10px; right:10px; border-width:2px 2px 0 0; border-radius:0 4px 0 0; }
-.camera-corner.bl { bottom:10px; left:10px; border-width:0 0 2px 2px; border-radius:0 0 0 4px; }
-.camera-corner.br { bottom:10px; right:10px; border-width:0 2px 2px 0; border-radius:0 0 4px 0; }
-.camera-guide {
-  position: absolute;
-  bottom: 10px; left: 0; right: 0;
-  text-align: center;
-  font-size: 11px;
-  color: rgba(255,255,255,0.6);
-  letter-spacing: 0.5px;
-}
-.camera-controls {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 20px;
-  padding: 20px 16px 8px;
-  width: 100%;
-  max-width: 480px;
-}
-.cam-btn {
-  border: none;
-  border-radius: 50%;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: transform 0.1s, box-shadow 0.1s;
-  -webkit-tap-highlight-color: transparent;
-}
-.cam-btn:active { transform: scale(0.92); }
-.cam-shutter {
-  width: 64px; height: 64px;
-  background: linear-gradient(135deg, #fff, #e0e0e0);
-  box-shadow: 0 0 0 4px rgba(255,255,255,0.3), 0 4px 16px rgba(0,0,0,0.5);
-  font-size: 22px;
-}
-.cam-shutter:active { box-shadow: 0 0 0 2px rgba(255,255,255,0.2); }
-.cam-flip {
-  width: 46px; height: 46px;
-  background: rgba(255,255,255,0.12);
-  border: 1px solid rgba(255,255,255,0.2);
-  font-size: 20px;
-  color: #fff;
-}
-.cam-close {
-  width: 46px; height: 46px;
-  background: rgba(220,53,69,0.18);
-  border: 1px solid rgba(220,53,69,0.4);
-  font-size: 20px;
-  color: #dc3545;
-}
-.cam-retake {
-  flex: 1;
-  max-width: 140px;
-  padding: 10px 0;
-  background: rgba(255,255,255,0.08);
-  border: 1px solid rgba(255,255,255,0.2);
-  border-radius: 8px;
-  color: #fff;
-  font-size: 12px;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-.cam-use {
-  flex: 1;
-  max-width: 140px;
-  padding: 10px 0;
-  background: linear-gradient(135deg, rgba(32,201,151,0.2), rgba(32,201,151,0.35));
-  border: 1px solid rgba(32,201,151,0.5);
-  border-radius: 8px;
-  color: var(--teal);
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-.camera-status {
-  font-size: 11px;
-  color: rgba(255,255,255,0.5);
-  padding: 6px 0 12px;
-  text-align: center;
-  min-height: 28px;
-  width: 100%;
-  max-width: 480px;
-}
-.camera-error {
-  color: #dc3545;
-  font-size: 12px;
-  padding: 16px;
-  text-align: center;
-  max-width: 360px;
-}
 /* ===== 統合タブ (OCR / BT / Arduino) ===== */
 .ctrl-section { padding: 12px 14px; border-bottom: 1px solid var(--border); }
 .ctrl-section-title { font-size: 11px; color: var(--steel2); letter-spacing: 1px; margin-bottom: 10px; font-weight: 600; }
@@ -846,10 +635,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed !important; }
 <!-- MAIN TABS -->
 <div class="main-tabs">
   <div class="main-tab active" data-tab="search" onclick="switchTab('search')">🔍 護石サーチ</div>
-  <div class="main-tab" data-tab="controller" onclick="switchTab('controller')">🎮 コントローラー</div>
   <div class="main-tab" data-tab="ocr" onclick="switchTab('ocr')">📸 OCR認識</div>
-  <div class="main-tab" data-tab="bt" onclick="switchTab('bt')">📶 Switch接続</div>
-
 </div>
 
 <!-- =================== TAB: SEARCH =================== -->
@@ -1140,55 +926,6 @@ button:disabled { opacity: 0.45; cursor: not-allowed !important; }
       </div>
     </div>
 
-    <!-- ★ SNIPE RUN PANEL -->
-    <div class="timer-section snipe-run-section" id="snipeRunSection">
-      <div class="timer-section-title" style="color:#20c997;">🎮 スナイプ実行<span class="auto-badge" style="margin-left:6px;">自動</span></div>
-
-      <div style="font-size:10px;color:var(--text3);margin-bottom:10px;line-height:1.9;">
-        ①護石を検索 → 結果行をクリックでタイマー自動セット<br>
-        ②「ソフトを選択して同時スタート」を押した瞬間に<br>
-        　タイマー開始 + Aボタンでコンテニュー画面までスキップ<br>
-        ③タイマーが0になった瞬間に「はい」を自動押下
-      </div>
-
-      <!-- 目標フレーム表示 -->
-      <div id="snipeRunTargetInfo" class="snipe-run-target" style="display:none;">
-        🎯 目標: <span id="snipeRunTargetFrame" style="font-weight:700;font-family:monospace;"></span>
-        &nbsp;|&nbsp;⏱ <span id="snipeRunTimerInfo" style="font-family:monospace;color:var(--text2);"></span>
-      </div>
-
-      <!-- 設定 -->
-      <div class="setting-row">
-        <span class="setting-label" style="width:145px;">コンテニューまでA回数</span>
-        <input type="number" id="snipeACount" value="3" min="0" max="30" style="width:52px;">
-        <span class="unit-label">回</span>
-      </div>
-      <div class="setting-row">
-        <span class="setting-label" style="width:145px;">A間隔</span>
-        <input type="number" id="snipeAInterval" value="1500" min="100" max="10000" style="width:62px;">
-        <span class="unit-label">ms</span>
-      </div>
-      <div class="setting-row">
-        <span class="setting-label" style="width:145px;">初回Aまでの遅延</span>
-        <input type="number" id="snipeAStartDelay" value="800" min="0" max="10000" style="width:62px;">
-        <span class="unit-label">ms</span>
-      </div>
-
-      <!-- 実行 / 停止ボタン -->
-      <div style="display:flex;gap:7px;margin-top:10px;">
-        <button id="snipeRunStartBtn" onclick="startSnipeRun()" class="snipe-exec-btn">
-          🎮 ソフトを選択して同時スタート
-        </button>
-        <button id="snipeRunStopBtn" onclick="stopSnipeRun()"
-          style="display:none;padding:10px 14px;background:rgba(220,53,69,0.15);border:1px solid var(--red);color:var(--red);border-radius:5px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);">
-          ⏹ 停止
-        </button>
-      </div>
-
-      <!-- 実行ログ -->
-      <div id="snipeRunLog" class="snipe-run-log" style="display:none;"></div>
-    </div>
-
     <!-- Countdown Timer -->
     <div class="timer-section" id="countdownSection">
       <div class="timer-section-title">カウントダウン</div>
@@ -1304,389 +1041,88 @@ button:disabled { opacity: 0.45; cursor: not-allowed !important; }
 </div>
 </div><!-- /tab-search -->
 
-<!-- =================== TAB: CONTROLLER =================== -->
-<div class="tab-page" id="tab-controller">
-<div class="ctrl-layout" style="width:100%;height:100%;overflow:hidden;">
-  <!-- LEFT: CONTROLLER INPUTS -->
-  <div class="ctrl-left" style="overflow-y:auto;height:100%;">
-    <!-- Hold duration -->
-    <div class="ctrl-section">
-      <div class="ctrl-section-title">⏱ ホールド時間</div>
-      <div style="display:flex;align-items:center;gap:8px;">
-        <span style="font-size:11px;color:var(--text2);">押下時間</span>
-        <input type="number" id="ctrlHoldDur" value="100" min="50" max="5000" style="width:70px;">
-        <span style="font-size:11px;color:var(--text2);">ms</span>
-      </div>
-    </div>
-    <!-- Face + D-Pad Row -->
-    <div class="ctrl-section">
-      <div class="ctrl-section-title">ボタン</div>
-      <div style="display:flex;justify-content:space-around;align-items:center;gap:10px;flex-wrap:wrap;">
-        <!-- Face buttons -->
-        <div class="face-btn-ring">
-          <button class="fbtn fbtn-Y" id="cbtn-Y" onclick="pressCtrlBtn('Y')">Y</button>
-          <button class="fbtn fbtn-X" id="cbtn-X" onclick="pressCtrlBtn('X')">X</button>
-          <button class="fbtn fbtn-A" id="cbtn-A" onclick="pressCtrlBtn('A')">A</button>
-          <button class="fbtn fbtn-B" id="cbtn-B" onclick="pressCtrlBtn('B')">B</button>
-        </div>
-        <!-- D-pad -->
-        <div class="dpad-cross">
-          <button class="dpbtn dpbtn-up" id="cbtn-DPAD_UP" onclick="pressCtrlBtn('DPAD_UP')">↑</button>
-          <button class="dpbtn dpbtn-left" id="cbtn-DPAD_LEFT" onclick="pressCtrlBtn('DPAD_LEFT')">←</button>
-          <div class="dpbtn dpbtn-center"></div>
-          <button class="dpbtn dpbtn-right" id="cbtn-DPAD_RIGHT" onclick="pressCtrlBtn('DPAD_RIGHT')">→</button>
-          <button class="dpbtn dpbtn-down" id="cbtn-DPAD_DOWN" onclick="pressCtrlBtn('DPAD_DOWN')">↓</button>
-        </div>
-        <!-- System buttons -->
-        <div style="display:flex;flex-direction:column;gap:5px;">
-          <button class="ctrl-btn" style="width:50px;height:28px;font-size:11px;" id="cbtn-MINUS" onclick="pressCtrlBtn('MINUS')">−</button>
-          <button class="ctrl-btn" style="width:50px;height:28px;font-size:11px;" id="cbtn-PLUS" onclick="pressCtrlBtn('PLUS')">＋</button>
-          <button class="ctrl-btn" style="width:50px;height:28px;font-size:10px;color:var(--teal);" id="cbtn-HOME" onclick="pressCtrlBtn('HOME')">HOME</button>
-          <button class="ctrl-btn" style="width:50px;height:28px;font-size:10px;" id="cbtn-CAPTURE" onclick="pressCtrlBtn('CAPTURE')">CAP</button>
-        </div>
-      </div>
-    </div>
-    <!-- Shoulder buttons -->
-    <div class="ctrl-section">
-      <div class="ctrl-section-title">ショルダー / ZR・ZL</div>
-      <div class="ctrl-btn-grid" style="grid-template-columns:1fr 1fr;gap:6px;">
-        <button class="ctrl-btn" id="cbtn-ZL" onclick="pressCtrlBtn('ZL')">ZL</button>
-        <button class="ctrl-btn" id="cbtn-ZR" onclick="pressCtrlBtn('ZR')">ZR</button>
-        <button class="ctrl-btn" id="cbtn-L" onclick="pressCtrlBtn('L')">L</button>
-        <button class="ctrl-btn" id="cbtn-R" onclick="pressCtrlBtn('R')">R</button>
-        <button class="ctrl-btn" style="color:var(--accent2);" id="cbtn-L_STICK" onclick="pressCtrlBtn('L_STICK')">L3</button>
-        <button class="ctrl-btn" style="color:var(--purple2);" id="cbtn-R_STICK" onclick="pressCtrlBtn('R_STICK')">R3</button>
-      </div>
-    </div>
-    <!-- Sticks -->
-    <div class="ctrl-section">
-      <div class="ctrl-section-title">スティック</div>
-      <div style="display:flex;justify-content:space-around;gap:8px;flex-wrap:wrap;">
-        <div class="vjoy-wrap">
-          <div style="font-size:10px;color:var(--accent2);margin-bottom:4px;font-weight:600;">L スティック</div>
-          <canvas id="ljoy-canvas" class="vjoy-canvas" width="90" height="90"></canvas>
-          <div class="vjoy-val" id="lstick-val">X:0 Y:0</div>
-          <div style="display:flex;gap:3px;align-items:center;margin-top:3px;">
-            <input type="number" id="lstick-x" value="0" style="width:46px;font-size:10px;" oninput="updateJoyCanvas('L')">
-            <input type="number" id="lstick-y" value="0" style="width:46px;font-size:10px;" oninput="updateJoyCanvas('L')">
-            <button onclick="tiltStick('L',0,0)" style="padding:2px 5px;font-size:10px;background:var(--panel2);border:1px solid var(--border2);color:var(--text2);border-radius:3px;cursor:pointer;font-family:var(--font);">中立</button>
-          </div>
-          <div style="display:flex;align-items:center;gap:3px;margin-top:2px;">
-            <input type="number" id="lstick-dur" value="500" style="width:50px;font-size:10px;">
-            <span style="font-size:10px;color:var(--text2);">ms</span>
-            <button onclick="sendStickCustom('L')" style="padding:2px 7px;font-size:10px;background:var(--accent);border:1px solid var(--accent2);color:white;border-radius:3px;cursor:pointer;font-family:var(--font);">送信</button>
-          </div>
-          <!-- Directional quick buttons -->
-          <div class="stick-dir-btns" style="margin-top:5px;">
-            <div></div><button class="stick-dir-btn" onclick="tiltStick('L',0,-1)">↑</button><div></div>
-            <button class="stick-dir-btn" onclick="tiltStick('L',-1,0)">←</button>
-            <button class="stick-dir-btn" onclick="tiltStick('L',0,0)">○</button>
-            <button class="stick-dir-btn" onclick="tiltStick('L',1,0)">→</button>
-            <div></div><button class="stick-dir-btn" onclick="tiltStick('L',0,1)">↓</button><div></div>
-          </div>
-        </div>
-        <div class="vjoy-wrap">
-          <div style="font-size:10px;color:var(--purple2);margin-bottom:4px;font-weight:600;">R スティック</div>
-          <canvas id="rjoy-canvas" class="vjoy-canvas" width="90" height="90"></canvas>
-          <div class="vjoy-val" id="rstick-val">X:0 Y:0</div>
-          <div style="display:flex;gap:3px;align-items:center;margin-top:3px;">
-            <input type="number" id="rstick-x" value="0" style="width:46px;font-size:10px;" oninput="updateJoyCanvas('R')">
-            <input type="number" id="rstick-y" value="0" style="width:46px;font-size:10px;" oninput="updateJoyCanvas('R')">
-            <button onclick="tiltStick('R',0,0)" style="padding:2px 5px;font-size:10px;background:var(--panel2);border:1px solid var(--border2);color:var(--text2);border-radius:3px;cursor:pointer;font-family:var(--font);">中立</button>
-          </div>
-          <div style="display:flex;align-items:center;gap:3px;margin-top:2px;">
-            <input type="number" id="rstick-dur" value="500" style="width:50px;font-size:10px;">
-            <span style="font-size:10px;color:var(--text2);">ms</span>
-            <button onclick="sendStickCustom('R')" style="padding:2px 7px;font-size:10px;background:var(--purple);border:1px solid var(--purple2);color:white;border-radius:3px;cursor:pointer;font-family:var(--font);">送信</button>
-          </div>
-          <div class="stick-dir-btns" style="margin-top:5px;">
-            <div></div><button class="stick-dir-btn" onclick="tiltStick('R',0,-1)">↑</button><div></div>
-            <button class="stick-dir-btn" onclick="tiltStick('R',-1,0)">←</button>
-            <button class="stick-dir-btn" onclick="tiltStick('R',0,0)">○</button>
-            <button class="stick-dir-btn" onclick="tiltStick('R',1,0)">→</button>
-            <div></div><button class="stick-dir-btn" onclick="tiltStick('R',0,1)">↓</button><div></div>
-          </div>
-        </div>
-      </div>
-    </div>
-    <!-- Multi-press -->
-    <div class="ctrl-section">
-      <div class="ctrl-section-title">⚡ 同時押し</div>
-      <div id="multiBtnGrid" class="multi-btn-grid"></div>
-      <div style="display:flex;align-items:center;gap:7px;margin-top:8px;flex-wrap:wrap;">
-        <span style="font-size:11px;color:var(--text2);">時間</span>
-        <input type="number" id="multiHoldDur" value="100" style="width:58px;">
-        <span style="font-size:11px;color:var(--text2);">ms</span>
-        <button onclick="pressMultiBtn()" style="flex:1;min-width:80px;padding:7px;background:var(--accent);border:1px solid var(--accent2);color:white;border-radius:4px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);">⚡ 同時押し</button>
-        <button onclick="clearMultiBtn()" style="padding:7px 10px;background:var(--panel2);border:1px solid var(--border2);color:var(--text2);border-radius:4px;font-size:11px;cursor:pointer;font-family:var(--font);">クリア</button>
-      </div>
-    </div>
-  </div>
 
-  <!-- RIGHT: MACRO + CHAT -->
-  <div class="ctrl-right" style="overflow-y:auto;height:100%;">
-    <!-- Macro recording -->
-    <div class="ctrl-section">
-      <div class="ctrl-section-title">🔴 マクロ記録</div>
-      <div style="display:flex;gap:8px;">
-        <button id="macroRecBtn" onclick="startMacroRec()" style="flex:1;padding:8px;background:rgba(220,53,69,0.15);border:1px solid var(--red);color:var(--red);border-radius:4px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);">⏺ 記録開始</button>
-        <button id="macroStopRecBtn" onclick="stopMacroRec()" style="display:none;flex:1;padding:8px;background:rgba(220,53,69,0.4);border:1px solid var(--red);color:#fff;border-radius:4px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);">⏹ 停止</button>
-      </div>
-      <div id="macroRecStatus" style="display:none;margin-top:6px;padding:6px 10px;background:rgba(220,53,69,0.1);border:1px solid rgba(220,53,69,0.3);border-radius:4px;font-size:11px;">
-        <span class="macro-rec-indicator"></span> 記録中... <span id="macroRecStepCount">0</span> ステップ
-      </div>
-      <div id="macroCurrentPreview" style="display:none;margin-top:8px;">
-        <div style="font-size:10px;color:var(--text2);margin-bottom:4px;">記録内容:</div>
-        <div id="macroCurrentSteps" class="macro-steps-preview" style="max-height:none;"></div>
-      </div>
-      <div id="macroSaveArea" style="display:none;margin-top:8px;">
-        <div style="display:flex;gap:6px;flex-wrap:wrap;">
-          <input type="text" id="macroSaveName" placeholder="マクロ名" style="flex:1;min-width:0;">
-          <button onclick="saveMacroRec()" style="padding:7px 12px;background:var(--teal);border:none;color:#000;border-radius:4px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);">💾</button>
-          <button onclick="discardMacroRec()" style="padding:7px 10px;background:var(--panel2);border:1px solid var(--border2);color:var(--text2);border-radius:4px;font-size:11px;cursor:pointer;font-family:var(--font);">✕</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Saved macros -->
-    <div class="ctrl-section">
-      <div class="ctrl-section-title" style="display:flex;justify-content:space-between;align-items:center;">
-        <span>💾 保存済みマクロ</span>
-        <div style="display:flex;gap:5px;">
-          <button onclick="importMacroJson()" style="padding:3px 7px;background:var(--panel2);border:1px solid var(--border2);color:var(--text2);border-radius:3px;font-size:10px;cursor:pointer;font-family:var(--font);">📥 読込</button>
-          <button onclick="exportMacroJson()" style="padding:3px 7px;background:var(--panel2);border:1px solid var(--border2);color:var(--text2);border-radius:3px;font-size:10px;cursor:pointer;font-family:var(--font);">📤 書出</button>
-        </div>
-      </div>
-      <div id="macroListEl" class="macro-list"></div>
-    </div>
-
-    <!-- Macro playback -->
-    <div id="macroPlaySection" class="ctrl-section" style="display:none;">
-      <div class="ctrl-section-title">▶ マクロ再生</div>
-      <div id="macroPlayInfo" style="font-size:11px;color:var(--text2);margin-bottom:8px;"></div>
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
-        <span style="font-size:11px;color:var(--text2);">回数</span>
-        <input type="number" id="macroPlayLoops" value="1" min="1" style="width:55px;">
-        <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);cursor:pointer;">
-          <input type="checkbox" id="macroPlayInfinite"> ∞ ループ
-        </label>
-      </div>
-      <div style="display:flex;gap:8px;">
-        <button id="macroPlayBtn" onclick="playSelectedMacro()" style="flex:1;padding:8px;background:rgba(40,167,69,0.2);border:1px solid var(--green);color:var(--green);border-radius:4px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);">▶ 実行</button>
-        <button id="macroStopPlayBtn" onclick="stopMacroPlay()" style="display:none;flex:1;padding:8px;background:rgba(220,53,69,0.2);border:1px solid var(--red);color:var(--red);border-radius:4px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);">⏹ 停止</button>
-      </div>
-      <div id="macroPlayStatus" style="display:none;margin-top:6px;font-size:11px;"></div>
-    </div>
-
-    <!-- JSON macro editor -->
-    <div class="ctrl-section">
-      <div class="ctrl-section-title">📋 JSONマクロ</div>
-      <input type="text" id="macroJsonName" placeholder="マクロ名" style="width:100%;margin-bottom:6px;">
-      <textarea id="macroJsonEditor" style="width:100%;height:80px;background:var(--panel);border:1px solid var(--border2);color:var(--text);border-radius:4px;padding:6px;font-family:monospace;font-size:11px;resize:vertical;" placeholder='[{"type":"press","button":"A","duration":100}]'></textarea>
-      <div style="display:flex;gap:6px;margin-top:6px;">
-        <button onclick="executeJsonMacro()" style="flex:1;padding:7px;background:rgba(40,167,69,0.15);border:1px solid var(--green);color:var(--green);border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;font-family:var(--font);">▶ 実行</button>
-        <button onclick="saveJsonMacro()" style="flex:1;padding:7px;background:rgba(32,201,151,0.15);border:1px solid var(--teal);color:var(--teal);border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;font-family:var(--font);">💾 保存</button>
-      </div>
-    </div>
-
-    <!-- AI Chat -->
-    <div class="ctrl-section" style="display:flex;flex-direction:column;">
-      <div class="ctrl-section-title" style="color:var(--teal);">🤖 AIチャット検索</div>
-      <div class="chat-wrap">
-        <div id="chatMessages" class="chat-messages">
-          <div class="chat-msg system">💬 スキル名と数値でお守りを検索できます<br>例:「連撃+4 痛撃+5 3スロの風化は？」</div>
-        </div>
-        <div class="chat-input-row">
-          <textarea id="chatInput" class="chat-input" placeholder="スキル条件を入力..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat();}"></textarea>
-          <button class="chat-send-btn" onclick="sendChat()">送信</button>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-</div><!-- /tab-controller -->
 
 <!-- =================== TAB: OCR =================== -->
 <div class="tab-page" id="tab-ocr" style="flex-direction:column;overflow:hidden;">
-  <div style="flex:1;overflow-y:auto;padding:0;">
+  <div id="ocrScrollArea" style="flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding:0;-webkit-overflow-scrolling:touch;">
     <div class="sec-title"><span class="dot"></span>OCR 画像認識</div>
     <div class="ctrl-section">
-      <div class="ctrl-section-title">画像を選択 / カメラ撮影</div>
-      <!-- ★ 入力方法選択ボタン群 -->
-      <div style="display:flex;gap:8px;margin-bottom:12px;">
-        <button onclick="openCameraModal()" class="search-btn"
-          style="flex:1;background:linear-gradient(135deg,rgba(32,201,151,0.1),rgba(32,201,151,0.2));border-color:rgba(32,201,151,0.4);color:var(--teal);font-size:13px;padding:12px 0;">
-          📷 カメラで撮影
-        </button>
-        <button onclick="document.getElementById('ocrImageInput').click()" class="search-btn"
-          style="flex:1;font-size:12px;padding:12px 0;">
-          🖼 ファイルから選択
-        </button>
-      </div>
-      <input type="file" id="ocrImageInput" accept="image/*" onchange="handleImageSelect(event)" style="display:none;">
-      <!-- ドロップゾーン（PCブラウザ向け） -->
-      <div id="ocrDropArea"
-           ondragover="event.preventDefault();this.style.borderColor='var(--steel)'"
-           ondragleave="this.style.borderColor='var(--border2)'"
-           ondrop="handleImageDrop(event)"
-           style="border:2px dashed var(--border2);border-radius:8px;padding:14px;text-align:center;background:var(--panel);transition:border-color 0.2s;">
-        <p style="font-size:11px;color:var(--text3);">📂 ここに画像をドロップ（PC）</p>
+      <div class="ctrl-section-title">画像を選択</div>
+      <div id="ocrDropArea" onclick="document.getElementById('ocrImageInput').click()"
+           style="border:2px dashed var(--border2);border-radius:8px;padding:24px;text-align:center;cursor:pointer;transition:border-color 0.2s;background:var(--panel);"
+           onmouseover="this.style.borderColor='var(--steel)'" onmouseout="this.style.borderColor='var(--border2)'">
+        <input type="file" id="ocrImageInput" accept="image/*" onchange="handleImageSelect(event)" style="display:none;">
+        <div style="font-size:36px;margin-bottom:8px;">📸</div>
+        <p style="font-weight:600;color:var(--text);font-size:13px;">クリックして画像を選択</p>
+        <p style="font-size:11px;color:var(--text2);margin-top:4px;">PNG / JPG に対応</p>
       </div>
       <div id="ocrPreviewContainer" style="display:none;margin-top:12px;">
         <img id="ocrImagePreview" alt="preview" style="max-width:100%;border-radius:6px;margin-bottom:10px;border:1px solid var(--border);">
         <button onclick="recognizeImage()" class="search-btn" style="margin-top:0;">🔍 OCR認識を実行</button>
-        <!-- ★ 自動護石サーチ オプション -->
-        <label style="display:flex;align-items:center;gap:7px;margin-top:10px;font-size:12px;color:var(--text2);cursor:pointer;padding:8px 10px;background:rgba(32,201,151,0.07);border:1px solid rgba(32,201,151,0.25);border-radius:5px;">
-          <input type="checkbox" id="ocrAutoApply" checked style="cursor:pointer;accent-color:var(--teal);width:15px;height:15px;">
-          <span>認識後に自動で護石サーチ</span>
-          <span class="ocr-auto-badge">AUTO</span>
-        </label>
       </div>
     </div>
     <div id="ocrStatus" style="display:none;padding:10px 14px;border-radius:6px;margin:10px 14px;font-size:12px;"></div>
     <div id="ocrResult" style="display:none;">
-      <div class="sec-title"><span class="dot"></span>認識結果</div>
-      <div class="ctrl-section">
-        <textarea id="ocrText" readonly style="width:100%;height:160px;background:var(--panel);border:1px solid var(--border2);color:var(--text);border-radius:4px;padding:8px;font-family:monospace;font-size:12px;resize:vertical;"></textarea>
-        <div style="display:flex;gap:8px;margin-top:8px;">
-          <button onclick="copyOCRResult()" class="search-btn" style="flex:1;">📋 テキストをコピー</button>
-          <button onclick="applyOcrToSearch()" class="search-btn" style="flex:1;background:linear-gradient(135deg,rgba(32,201,151,0.12),rgba(32,201,151,0.22));border-color:rgba(32,201,151,0.45);color:var(--teal);">🔍 護石サーチに適用</button>
+      <!-- 認識されたお守りのサマリーカード -->
+      <div class="ctrl-section" style="padding:14px 14px 10px;">
+        <div id="ocrCharmCard" style="display:none;background:var(--panel2);border:1px solid var(--border2);border-radius:6px;padding:12px 14px;"></div>
+      </div>
+      <!-- 生テキスト（内部処理用・非表示） -->
+      <textarea id="ocrText" style="display:none;"></textarea>
+
+      <!-- ━━━ 自動サーチ設定パネル ━━━ -->
+      <div id="ocrAutoSearchConfig" style="display:none;padding:10px 14px;border-top:1px solid var(--border);">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">
+          <span style="font-size:11px;color:var(--text2);white-space:nowrap;">検索範囲</span>
+          <input type="number" id="ocrSearchRange" value="1000000" min="10000" max="10000000"
+                 style="width:100px;padding:4px 6px;font-size:12px;background:var(--panel2);border:1px solid var(--border2);color:var(--text);border-radius:4px;">
+          <span style="font-size:11px;color:var(--text2);">F</span>
+          <label style="font-size:11px;color:var(--text2);display:flex;align-items:center;gap:4px;cursor:pointer;">
+            <input type="checkbox" id="ocrExactMatch" style="cursor:pointer;accent-color:var(--steel);">完全一致
+          </label>
         </div>
-        <div id="ocrApplyStatus" style="display:none;margin-top:8px;font-size:11px;color:var(--teal);"></div>
+        <div style="display:flex;gap:8px;">
+          <button id="ocrAutoSearchBtn" onclick="autoOcrSearch()" class="search-btn" style="flex:1;font-size:12px;padding:9px;">🔍 全フレームをサーチ</button>
+          <button id="ocrStopBtn" onclick="stopOcrSearch()" class="search-btn" style="flex:1;font-size:12px;padding:9px;background:linear-gradient(135deg,#6a1020,var(--red));border-color:var(--red);color:#fff;display:none;">⏹ 停止</button>
+        </div>
+      </div>
+
+      <!-- ━━━ 進捗バー ━━━ -->
+      <div id="ocrSearchProgressWrap" style="display:none;padding:6px 14px 2px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="flex:1;height:5px;background:var(--border2);border-radius:3px;overflow:hidden;">
+            <div id="ocrSearchProgressInner" style="height:100%;width:0%;background:linear-gradient(90deg,var(--teal),#40ffb8);border-radius:3px;transition:width 0.3s;"></div>
+          </div>
+          <span id="ocrSearchProgressLabel" style="font-size:10px;color:var(--text3);white-space:nowrap;min-width:80px;text-align:right;">0%</span>
+        </div>
+      </div>
+
+      <!-- ━━━ 自動サーチ ステータス ━━━ -->
+      <div id="ocrAutoSearchStatus" style="display:none;margin:6px 14px 0;padding:9px 12px;border-radius:5px;font-size:12px;"></div>
+
+      <!-- ━━━ 自動サーチ 結果テーブル ━━━ -->
+      <div id="ocrAutoSearchResultsWrap" style="display:none;padding:6px 14px 20px;">
+        <div style="font-size:10px;color:var(--text3);margin-bottom:5px;text-align:right;">
+          行をクリック → タイマーにセット &amp; サーチタブへ移動
+        </div>
+        <div style="overflow-x:auto;border:1px solid var(--border);border-radius:5px;">
+          <div id="ocrAutoSearchResults"></div>
+        </div>
       </div>
     </div>
   </div>
 </div><!-- /tab-ocr -->
 
-<!-- =================== カメラ撮影モーダル =================== -->
-<div class="camera-modal" id="cameraModal">
-  <!-- ビューファインダー / プレビュー -->
-  <div class="camera-viewfinder" id="cameraViewfinder">
-    <video id="cameraVideo" autoplay playsinline muted></video>
-    <canvas id="cameraCanvas"></canvas>
-    <img id="capturedPreview" class="camera-preview-img" alt="captured">
-    <!-- 四隅ガイド -->
-    <div class="camera-corner tl"></div>
-    <div class="camera-corner tr"></div>
-    <div class="camera-corner bl"></div>
-    <div class="camera-corner br"></div>
-    <div class="camera-guide" id="cameraGuide">護石画面を枠内に収めてシャッターを押してください</div>
-  </div>
 
-  <!-- カメラ操作ボタン (撮影前) -->
-  <div class="camera-controls" id="cameraShootControls">
-    <button class="cam-btn cam-close" onclick="closeCameraModal()" title="閉じる">✕</button>
-    <button class="cam-btn cam-shutter" onclick="shootCamera()" title="シャッター">📸</button>
-    <button class="cam-btn cam-flip" onclick="flipCameraFacing()" title="カメラ切替">🔄</button>
-  </div>
 
-  <!-- 確認ボタン (撮影後) -->
-  <div class="camera-controls" id="cameraConfirmControls" style="display:none;">
-    <button class="cam-retake" onclick="retakeCamera()">🔙 撮り直す</button>
-    <button class="cam-use" onclick="useCapturedImage()">✅ この画像で認識</button>
-  </div>
 
-  <div class="camera-status" id="cameraStatus">カメラを起動中...</div>
-</div>
 
-<!-- =================== TAB: BLUETOOTH / SWITCH =================== -->
-<div class="tab-page" id="tab-bt" style="flex-direction:column;overflow:hidden;">
-  <div style="flex:1;overflow-y:auto;padding:0;max-width:600px;width:100%;">
-    <div class="sec-title"><span class="dot"></span>Switch 接続</div>
 
-    <div class="ctrl-section">
-      <div class="ctrl-section-title">接続状態</div>
-      <div id="btStatus" style="padding:12px 14px;border-radius:6px;background:rgba(220,53,69,0.08);border:1px solid rgba(220,53,69,0.3);color:var(--red);text-align:center;font-size:12px;font-weight:600;">
-        <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--red);margin-right:6px;vertical-align:middle;"></span>切断
-      </div>
-    </div>
 
-    <div class="ctrl-section">
-      <div class="ctrl-section-title">接続設定</div>
-      <div style="margin-bottom:12px;">
-        <label class="form-label">Switch の MAC アドレス</label>
-        <input type="text" id="btMacAddress" placeholder="例: AA:BB:CC:DD:EE:FF" style="width:100%;font-family:monospace;">
-        <div style="font-size:10px;color:var(--text3);margin-top:4px;">Switch の設定画面から MAC アドレスを確認してください</div>
-      </div>
-      <div style="display:flex;gap:8px;">
-        <button onclick="connectToSwitch()" class="search-btn" style="flex:1;">🔗 接続</button>
-        <button onclick="disconnectFromSwitch()" id="btDisconnectBtn" disabled
-                style="flex:1;padding:10px;background:rgba(220,53,69,0.1);border:1px solid rgba(220,53,69,0.35);color:var(--red);border-radius:4px;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font);opacity:0.5;">切断</button>
-      </div>
-    </div>
-
-    <div class="ctrl-section">
-      <div class="ctrl-section-title">コントローラー入力テスト</div>
-      <div style="margin-bottom:10px;">
-        <label class="form-label">ボタン入力 (16進数)</label>
-        <input type="text" id="btButtonInput" value="00 00 7f 7f" placeholder="例: 01 00 7f 7f" style="width:100%;font-family:monospace;">
-      </div>
-      <button onclick="sendControllerInput()" class="search-btn">📤 送信</button>
-    </div>
-  </div>
-</div><!-- /tab-bt -->
 
 <script>
 'use strict';
-
-// =====================================================================
-// ANDROID BRIDGE HELPER
-// snipe.html は index.html の <iframe> 内で動作する。
-// Android WebView は addJavascriptInterface をすべてのフレームに注入するため
-// window.AndroidBridge に直接アクセス可能。
-// =====================================================================
-function _parentAb(method) {
-  var args = Array.prototype.slice.call(arguments, 1);
-
-  // pressButtons の第1引数が JS Array のとき JSON 文字列に変換
-  if (method === 'pressButtons' && Array.isArray(args[0])) {
-    args[0] = JSON.stringify(args[0]);
-  }
-
-  // ① 自フレームの AndroidBridge（Android WebView は iframe にも注入する）
-  if (window.AndroidBridge && typeof window.AndroidBridge[method] === 'function') {
-    try { return window.AndroidBridge[method].apply(window.AndroidBridge, args); } catch(e) {}
-  }
-
-  // ② 親フレームの AndroidBridge（同一オリジン file:// ならアクセス可）
-  try {
-    if (window.parent && window.parent !== window &&
-        window.parent.AndroidBridge &&
-        typeof window.parent.AndroidBridge[method] === 'function') {
-      return window.parent.AndroidBridge[method].apply(window.parent.AndroidBridge, args);
-    }
-  } catch(e) {}
-
-  // ③ postMessage フォールバック（親フレームへ委譲）
-  // ① ② どちらも届かなかった場合、親フレームに構造化メッセージを送る。
-  // 親フレーム側で window.addEventListener('message', ...) を実装していれば受け取れる。
-  try {
-    if (window.parent && window.parent !== window) {
-      // メソッド名 → postMessage ペイロードへのマッピング
-      var msg = { type: method };
-      if (method === 'pressButton') {
-        msg.button   = args[0];
-        msg.duration = args[1];
-      } else if (method === 'pressButtons') {
-        // args[0] は既に JSON 文字列化済みなので配列に戻す
-        msg.buttons  = typeof args[0] === 'string' ? JSON.parse(args[0]) : args[0];
-        msg.duration = args[1];
-      } else if (method === 'setStick') {
-        msg.side = args[0]; msg.x = args[1]; msg.y = args[2];
-      } else if (method === 'tiltStick') {
-        msg.side = args[0]; msg.x = args[1]; msg.y = args[2]; msg.duration = args[3];
-      } else if (method === 'connectSwitch') {
-        msg.ip = args[0]; msg.port = args[1];
-      } else if (method === 'disconnectSwitch') {
-        // 引数なし
-      } else {
-        // 未知メソッドは args をそのまま乗せる
-        msg.args = args;
-      }
-      window.parent.postMessage(msg, '*');
-    }
-  } catch(e) {}
-}
 
 // =====================================================================
 // SKILL DATA
@@ -2271,26 +1707,6 @@ function setTimerFromFrame(frame) {
   document.getElementById('acFrame').value = frame;
   onAcFrameInput();
 
-  // ★ スナイプ実行パネルに目標フレームを表示
-  const targetInfo = document.getElementById('snipeRunTargetInfo');
-  const targetFrameEl = document.getElementById('snipeRunTargetFrame');
-  const timerInfoEl = document.getElementById('snipeRunTimerInfo');
-  if (targetInfo && targetFrameEl) {
-    targetFrameEl.textContent = frame.toLocaleString() + ' F';
-    targetInfo.style.display = 'block';
-    if (timerInfoEl) {
-      if (frame > 700) {
-        const T = calcTitleScreenMethod(frame);
-        const wMin = Math.floor(T.waitSec / 60);
-        const wSec = (T.waitSec % 60).toFixed(1);
-        timerInfoEl.textContent = `待機 ${wMin}分 ${wSec}秒`;
-      } else {
-        const totalSec = Math.floor(frame / 30);
-        timerInfoEl.textContent = `待機 ${Math.floor(totalSec/60)}分 ${totalSec%60}秒`;
-      }
-    }
-  }
-
   if (frame > 700) {
     // タイトル画面待機法の計算式を適用
     const T = calcTitleScreenMethod(frame);
@@ -2661,7 +2077,6 @@ function runCountdown() {
       countdownLastBeepedSecond = 11;
     } else if (countdownPhase === "active") {
       playBeep(660, 0.6);
-      onSnipeTimerEnd(); // ★ スナイプ実行フック: タイマー0でキャラ選択「はい」を押す
       if (document.getElementById('countdownLoopEnable').checked) {
         initAndStartCountdown();
       } else {
@@ -3369,8 +2784,6 @@ function stopStopwatch() {
   document.getElementById('swStartBtn').style.display = '';
   document.getElementById('swStopBtn').style.display = 'none';
   document.getElementById('swLapBtn').style.display = 'none';
-  initMultiBtnGrid();
-  renderMacroList();
 }
 function lapStopwatch() {
   if (!swRunning) return;
@@ -3388,537 +2801,9 @@ function resetStopwatch() {
   document.getElementById('swStartBtn').style.display = '';
   document.getElementById('swStopBtn').style.display = 'none';
   document.getElementById('swLapBtn').style.display = 'none';
-  initMultiBtnGrid();
-  renderMacroList();
+
 }
 
-// =====================================================================
-// CONTROLLER TAB
-// =====================================================================
-
-
-// =====================================================================
-// INIT
-// =====================================================================
-
-// =====================================================================
-// CONTROLLER TAB
-// =====================================================================
-function ctrlDur() { return parseInt(document.getElementById('ctrlHoldDur').value) || 100; }
-
-function pressCtrlBtn(btn) {
-  const dur = ctrlDur();
-  _parentAb('pressButton', btn, dur);
-  // Also send via postMessage for cross-origin parents
-  try { window.parent.postMessage({ type: 'pressButton', button: btn, duration: dur }, '*'); } catch(e) {}
-  const el = document.getElementById('cbtn-' + btn);
-  if (el) { el.classList.add('pressed'); setTimeout(() => el.classList.remove('pressed'), dur + 60); }
-  macroRecordStep({ type: 'press', button: btn, duration: dur });
-  showToast('🎮 ' + btn + ' (' + dur + 'ms)');
-}
-
-function tiltStick(side, x, y) {
-  const sid = side.toLowerCase();
-  const dur = parseInt(document.getElementById(sid + 'stick-dur').value) || 500;
-  _parentAb('tiltStick', side, x, y, dur);
-  try { window.parent.postMessage({ type: 'tiltStick', side: side, x: x, y: y, duration: dur }, '*'); } catch(e) {}
-  document.getElementById(sid + 'stick-x').value = Math.round(x * 100);
-  document.getElementById(sid + 'stick-y').value = Math.round(y * 100);
-  updateStickDisplay(side);
-  // Flash visual joystick
-  if (_vjoy[side]) {
-    _vjoy[side].draw(x, y);
-    setTimeout(function() { if (_vjoy[side]) _vjoy[side].draw(0, 0); }, dur);
-  }
-  macroRecordStep({ type: 'stick', side: side, x: x, y: y, duration: dur });
-  const dirStr = (x === 0 && y === 0) ? '中立' : '(' + x.toFixed(1) + ', ' + y.toFixed(1) + ')';
-  showToast('🕹 ' + side + 'スティック ' + dirStr + ' (' + dur + 'ms)');
-}
-
-function sendStickCustom(side) {
-  const sid = side.toLowerCase();
-  const xraw = parseInt(document.getElementById(sid + 'stick-x').value) || 0;
-  const yraw = parseInt(document.getElementById(sid + 'stick-y').value) || 0;
-  const x = xraw / 100, y = yraw / 100;
-  const dur = parseInt(document.getElementById(sid + 'stick-dur').value) || 500;
-  _parentAb('tiltStick', side, x, y, dur);
-  try { window.parent.postMessage({ type: 'tiltStick', side: side, x: x, y: y, duration: dur }, '*'); } catch(e) {}
-  macroRecordStep({ type: 'stick', side: side, x: x, y: y, duration: dur });
-  showToast('🕹 ' + side + 'スティック (' + x.toFixed(2) + ', ' + y.toFixed(2) + ') ' + dur + 'ms');
-}
-
-function updateStickDisplay(side) {
-  const sid = side.toLowerCase();
-  const xv = parseInt(document.getElementById(sid + 'stick-x').value) || 0;
-  const yv = parseInt(document.getElementById(sid + 'stick-y').value) || 0;
-  document.getElementById(sid + 'stick-xval') && (document.getElementById(sid + 'stick-xval').textContent = xv);
-  document.getElementById(sid + 'stick-yval') && (document.getElementById(sid + 'stick-yval').textContent = yv);
-  const vEl = document.getElementById(sid + 'stick-val');
-  if (vEl) vEl.textContent = 'X:' + xv + ' Y:' + yv;
-}
-
-// =====================================================================
-// VISUAL JOYSTICK (Canvas)
-// =====================================================================
-var _vjoy = {};
-
-function initJoyCanvas(side) {
-  const cid = (side === 'L' ? 'l' : 'r') + 'joy-canvas';
-  const canvas = document.getElementById(cid);
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  const isL = side === 'L';
-  const color = isL ? '#4a7faa' : '#9b59b6';
-  const colorGlow = isL ? 'rgba(74,127,170,0.4)' : 'rgba(155,89,182,0.4)';
-
-  function draw(nx, ny) { // nx,ny in [-1,1]
-    const w = canvas.width, h = canvas.height;
-    const cx = w / 2, cy = h / 2;
-    const r = w / 2 - 4;
-    const knobR = r * 0.32;
-    const kx = cx + nx * (r - knobR);
-    const ky = cy + ny * (r - knobR);
-    ctx.clearRect(0, 0, w, h);
-    // Outer ring
-    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.strokeStyle = color; ctx.lineWidth = 2;
-    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-    grad.addColorStop(0, 'rgba(0,0,0,0)');
-    grad.addColorStop(1, isL ? 'rgba(74,127,170,0.08)' : 'rgba(155,89,182,0.08)');
-    ctx.fillStyle = grad; ctx.fill(); ctx.stroke();
-    // Center dot
-    ctx.beginPath(); ctx.arc(cx, cy, 3, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.fill();
-    // Cross guides
-    ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(cx - r, cy); ctx.lineTo(cx + r, cy); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(cx, cy - r); ctx.lineTo(cx, cy + r); ctx.stroke();
-    // Line from center to knob
-    if (nx !== 0 || ny !== 0) {
-      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(kx, ky);
-      ctx.strokeStyle = colorGlow; ctx.lineWidth = 2; ctx.stroke();
-    }
-    // Knob
-    ctx.beginPath(); ctx.arc(kx, ky, knobR, 0, Math.PI * 2);
-    const kg = ctx.createRadialGradient(kx - knobR*0.3, ky - knobR*0.3, 1, kx, ky, knobR);
-    kg.addColorStop(0, isL ? '#7ab0d0' : '#c090e0');
-    kg.addColorStop(1, color);
-    ctx.fillStyle = kg; ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 1.5; ctx.stroke();
-  }
-
-  function getPos(e) {
-    const rect = canvas.getBoundingClientRect();
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-    const cx = canvas.width / 2, cy = canvas.height / 2;
-    const r = canvas.width / 2 - 4;
-    let dx = (clientX - rect.left) * (canvas.width / rect.width) - cx;
-    let dy = (clientY - rect.top) * (canvas.height / rect.height) - cy;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist > r) { dx = dx / dist * r; dy = dy / dist * r; }
-    return { nx: dx / r, ny: dy / r };
-  }
-
-  function onMove(e) {
-    e.preventDefault();
-    const { nx, ny } = getPos(e);
-    draw(nx, ny);
-    const xv = Math.round(nx * 100);
-    const yv = Math.round(ny * 100);
-    const sid = side.toLowerCase();
-    document.getElementById(sid + 'stick-x').value = xv;
-    document.getElementById(sid + 'stick-y').value = yv;
-    updateStickDisplay(side);
-  }
-
-  function onEnd(e) {
-    e.preventDefault();
-    draw(0, 0);
-    const sid = side.toLowerCase();
-    const dur = parseInt(document.getElementById(sid + 'stick-dur').value) || 500;
-    const xv = parseInt(document.getElementById(sid + 'stick-x').value) / 100;
-    const yv = parseInt(document.getElementById(sid + 'stick-y').value) / 100;
-    if (xv !== 0 || yv !== 0) {
-      _parentAb('tiltStick', side, xv, yv, dur);
-      try { window.parent.postMessage({ type: 'tiltStick', side: side, x: xv, y: yv, duration: dur }, '*'); } catch(_) {}
-      macroRecordStep({ type: 'stick', side: side, x: xv, y: yv, duration: dur });
-    }
-    document.getElementById(sid + 'stick-x').value = 0;
-    document.getElementById(sid + 'stick-y').value = 0;
-    updateStickDisplay(side);
-  }
-
-  canvas.addEventListener('touchstart', onMove, { passive: false });
-  canvas.addEventListener('touchmove', onMove, { passive: false });
-  canvas.addEventListener('touchend', onEnd, { passive: false });
-  canvas.addEventListener('mousedown', function(e) {
-    onMove(e);
-    const mm = function(ev) { onMove(ev); };
-    const mu = function(ev) { onEnd(ev); document.removeEventListener('mousemove', mm); document.removeEventListener('mouseup', mu); };
-    document.addEventListener('mousemove', mm);
-    document.addEventListener('mouseup', mu);
-  });
-
-  draw(0, 0);
-  _vjoy[side] = { draw };
-}
-
-function updateJoyCanvas(side) {
-  if (!_vjoy[side]) return;
-  const sid = side.toLowerCase();
-  const xv = parseInt(document.getElementById(sid + 'stick-x').value) / 100;
-  const yv = parseInt(document.getElementById(sid + 'stick-y').value) / 100;
-  _vjoy[side].draw(xv, yv);
-}
-
-function initMultiBtnGrid() {
-  const allBtns = [
-    {btn:'A', label:'A', style:'color:#ff6060;border-color:#c04040;'},
-    {btn:'B', label:'B', style:'color:#ffe060;border-color:#c09020;'},
-    {btn:'X', label:'X', style:'color:#6090ff;border-color:#4060c0;'},
-    {btn:'Y', label:'Y', style:'color:#40c060;border-color:#208040;'},
-    {btn:'L', label:'L', style:''},
-    {btn:'R', label:'R', style:''},
-    {btn:'ZL', label:'ZL', style:''},
-    {btn:'ZR', label:'ZR', style:''},
-    {btn:'PLUS', label:'＋', style:''},
-    {btn:'MINUS', label:'−', style:''},
-    {btn:'HOME', label:'HOME', style:'color:var(--teal);'},
-    {btn:'CAPTURE', label:'CAP', style:''},
-    {btn:'DPAD_UP', label:'↑', style:''},
-    {btn:'DPAD_DOWN', label:'↓', style:''},
-    {btn:'DPAD_LEFT', label:'←', style:''},
-    {btn:'DPAD_RIGHT', label:'→', style:''},
-    {btn:'L_STICK', label:'L3', style:'color:var(--accent2);'},
-    {btn:'R_STICK', label:'R3', style:'color:var(--purple2);'},
-  ];
-  const grid = document.getElementById('multiBtnGrid');
-  if (!grid) return; // コントローラーUIが未実装の場合はスキップ
-  grid.innerHTML = allBtns.map(b =>
-    '<label class="multi-chk" id="multichk-' + b.btn + '" onclick="toggleMultiChk(this)">' +
-    '<input type="checkbox" value="' + b.btn + '"> <span style="' + b.style + '">' + b.label + '</span></label>'
-  ).join('');
-}
-
-function toggleMultiChk(el) {
-  const cb = el.querySelector('input');
-  el.classList.toggle('checked', cb.checked);
-}
-
-function pressMultiBtn() {
-  const dur = parseInt(document.getElementById('multiHoldDur').value) || 100;
-  const checked = [...document.querySelectorAll('#multiBtnGrid input:checked')].map(el => el.value);
-  if (!checked.length) { showToast('⚠ ボタンを選択してください'); return; }
-  _parentAb('pressButtons', checked, dur);
-  try { window.parent.postMessage({ type: 'pressButtons', buttons: checked, duration: dur }, '*'); } catch(e) {}
-  checked.forEach(btn => {
-    const el = document.getElementById('cbtn-' + btn);
-    if (el) { el.classList.add('pressed'); setTimeout(() => el.classList.remove('pressed'), dur + 60); }
-  });
-  macroRecordStep({ type: 'multipress', buttons: [...checked], duration: dur });
-  showToast('⚡ 同時押し: ' + checked.join('+') + ' (' + dur + 'ms)');
-}
-
-function clearMultiBtn() {
-  document.querySelectorAll('#multiBtnGrid input').forEach(el => { el.checked = false; });
-  document.querySelectorAll('.multi-chk').forEach(el => el.classList.remove('checked'));
-}
-
-// =====================================================================
-// MACRO RECORDING
-// =====================================================================
-var macroRecording = false;
-var macroRecSteps = [];
-var macroRecLastTime = 0;
-var savedMacros = [];
-var selectedMacroIdx = -1;
-var macroPlayActive = false;
-var macroPlayTimers = [];
-
-function _mEl(id) { return document.getElementById(id); }
-function _mShow(id, v) { var e=_mEl(id); if(e) e.style.display = v===undefined?'':v; }
-function _mHide(id) { var e=_mEl(id); if(e) e.style.display='none'; }
-function _mText(id, t) { var e=_mEl(id); if(e) e.textContent=t; }
-
-function startMacroRec() {
-  macroRecording = true;
-  macroRecSteps = [];
-  macroRecLastTime = Date.now();
-  _mHide('macroRecBtn'); _mShow('macroStopRecBtn'); _mShow('macroRecStatus');
-  _mText('macroRecStepCount', '0');
-  _mHide('macroCurrentPreview'); _mHide('macroSaveArea');
-  showToast('⏺ マクロ記録開始！コントローラーを操作してください');
-}
-
-function stopMacroRec() {
-  macroRecording = false;
-  _mShow('macroRecBtn'); _mHide('macroStopRecBtn'); _mHide('macroRecStatus');
-  if (macroRecSteps.length === 0) { showToast('⚠ 記録ステップが0です'); return; }
-  _mShow('macroCurrentPreview');
-  renderMacroPreview(macroRecSteps, 'macroCurrentSteps');
-  _mShow('macroSaveArea');
-  var d = new Date();
-  var sn = _mEl('macroSaveName');
-  if (sn) sn.value = 'マクロ_' + d.getHours().toString().padStart(2,'0') + d.getMinutes().toString().padStart(2,'0') + d.getSeconds().toString().padStart(2,'0');
-  showToast('⏹ 記録停止: ' + macroRecSteps.length + 'ステップ');
-}
-
-function macroRecordStep(step) {
-  if (!macroRecording) return;
-  var now = Date.now();
-  var elapsed = now - macroRecLastTime;
-  if (elapsed > 60 && macroRecSteps.length > 0) {
-    macroRecSteps.push({ type: 'wait', ms: elapsed });
-  }
-  macroRecLastTime = now;
-  macroRecSteps.push(step);
-  _mText('macroRecStepCount', macroRecSteps.length);
-}
-
-function renderMacroPreview(steps, elId) {
-  var el = document.getElementById(elId);
-  if (!el) return;
-  el.innerHTML = steps.map(function(s) {
-    if (s.type === 'press') return '<span class="macro-step-badge" style="color:var(--steel2);">' + s.button + '</span>';
-    if (s.type === 'multipress') return '<span class="macro-step-badge" style="color:#ff8040;">[' + s.buttons.join('+') + ']</span>';
-    if (s.type === 'stick') return '<span class="macro-step-badge" style="color:var(--teal);">' + s.side + '(' + s.x.toFixed(1) + ',' + s.y.toFixed(1) + ')</span>';
-    if (s.type === 'wait') return '<span class="macro-step-badge" style="color:var(--text3);">⏱' + s.ms + 'ms</span>';
-    return '<span class="macro-step-badge">' + s.type + '</span>';
-  }).join('');
-}
-
-function saveMacroRec() {
-  var sn = _mEl('macroSaveName');
-  var name = (sn ? sn.value.trim() : '') || ('マクロ_' + (savedMacros.length + 1));
-  savedMacros.push({ name: name, steps: macroRecSteps.slice(), createdAt: Date.now() });
-  macroRecSteps = [];
-  _mHide('macroCurrentPreview'); _mHide('macroSaveArea');
-  renderMacroList();
-  showToast('💾 "' + name + '" を保存しました');
-}
-
-function discardMacroRec() {
-  macroRecSteps = [];
-  _mHide('macroCurrentPreview'); _mHide('macroSaveArea');
-  showToast('✕ 記録を破棄しました');
-}
-
-function renderMacroList() {
-  var el = document.getElementById('macroListEl');
-  if (!el) return; // マクロUI未実装時はスキップ
-  if (!savedMacros.length) {
-    el.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text3);font-size:11px;">保存済みマクロはありません</div>';
-    var ps = document.getElementById('macroPlaySection');
-    if (ps) ps.style.display = 'none';
-    return;
-  }
-  el.innerHTML = savedMacros.map(function(m, i) {
-    var preview = m.steps.slice(0, 10).map(function(s) {
-      if (s.type === 'press') return '<span class="macro-step-badge" style="color:var(--steel2);">' + s.button + '</span>';
-      if (s.type === 'multipress') return '<span class="macro-step-badge" style="color:#ff8040;">[' + s.buttons.join('+') + ']</span>';
-      if (s.type === 'stick') return '<span class="macro-step-badge" style="color:var(--teal);">' + s.side + '🕹</span>';
-      if (s.type === 'wait') return '<span class="macro-step-badge" style="color:var(--text3);">⏱</span>';
-      return '';
-    }).join('') + (m.steps.length > 10 ? '<span class="macro-step-badge" style="color:var(--text3);">+' + (m.steps.length-10) + '</span>' : '');
-    return '<div class="macro-item' + (i === selectedMacroIdx ? ' macro-selected' : '') + '" onclick="selectMacro(' + i + ')">' +
-      '<div style="flex:1;">' +
-        '<div style="font-weight:600;color:var(--text);">' + m.name + '</div>' +
-        '<div style="font-size:10px;color:var(--text3);">' + m.steps.length + 'ステップ</div>' +
-        '<div class="macro-steps-preview">' + preview + '</div>' +
-      '</div>' +
-      '<div style="display:flex;flex-direction:column;gap:3px;flex-shrink:0;">' +
-        '<button onclick="event.stopPropagation();deleteMacro(' + i + ')" style="padding:3px 8px;background:var(--panel2);border:1px solid var(--border2);color:var(--red);border-radius:3px;font-size:10px;cursor:pointer;font-family:var(--font);">✕</button>' +
-        '<button onclick="event.stopPropagation();duplicateMacro(' + i + ')" style="padding:3px 8px;background:var(--panel2);border:1px solid var(--border2);color:var(--text2);border-radius:3px;font-size:10px;cursor:pointer;font-family:var(--font);">⧉</button>' +
-      '</div>' +
-    '</div>';
-  }).join('');
-}
-
-function selectMacro(idx) {
-  selectedMacroIdx = idx;
-  renderMacroList();
-  var m = savedMacros[idx];
-  if (!m) return;
-  var playSection = document.getElementById('macroPlaySection');
-  if (playSection) playSection.style.display = '';
-  var infoEl = document.getElementById('macroPlayInfo');
-  if (infoEl) {
-    infoEl.innerHTML = '<strong style="color:var(--purple2);">' + m.name + '</strong> &nbsp; <span style="color:var(--text3);">' + m.steps.length + 'ステップ</span><br>';
-    renderMacroPreview(m.steps, 'macroPlayInfo');
-  }
-  var je = document.getElementById('macroJsonEditor'); if (je) je.value = JSON.stringify(m.steps, null, 2);
-  var jn = document.getElementById('macroJsonName'); if (jn) jn.value = m.name + '_コピー';
-}
-
-function deleteMacro(idx) {
-  var name = savedMacros[idx].name;
-  savedMacros.splice(idx, 1);
-  if (selectedMacroIdx >= savedMacros.length) selectedMacroIdx = savedMacros.length - 1;
-  if (selectedMacroIdx < 0) _mHide('macroPlaySection');
-  renderMacroList();
-  showToast('🗑 "' + name + '" を削除しました');
-}
-
-function duplicateMacro(idx) {
-  var m = savedMacros[idx];
-  savedMacros.push({ name: m.name + '_コピー', steps: m.steps.slice(), createdAt: Date.now() });
-  renderMacroList();
-  showToast('⧉ "' + m.name + '" を複製しました');
-}
-
-// =====================================================================
-// MACRO PLAYBACK
-// =====================================================================
-function executeMacroSteps(steps, loops) {
-  if (macroPlayActive) return;
-  macroPlayActive = true;
-  macroPlayTimers = [];
-  document.getElementById('macroPlayBtn') && (document.getElementById('macroPlayBtn').style.display = 'none');
-  document.getElementById('macroStopPlayBtn') && (document.getElementById('macroStopPlayBtn').style.display = '');
-  var statusEl = document.getElementById('macroPlayStatus');
-  if (statusEl) statusEl.style.display = '';
-  var loopsDone = 0;
-  var isInf = (loops === Infinity);
-
-  function runOnce(loopN) {
-    if (!macroPlayActive) return;
-    if (statusEl) statusEl.innerHTML = '<span style="color:var(--purple2);">▶ ループ ' + loopN + '/' + (isInf ? '∞' : loops) + ' 実行中...</span>';
-    var t = 0;
-    steps.forEach(function(step) {
-      var tid = setTimeout((function(s){ return function() { if (macroPlayActive) executeStep(s); }; })(step), t);
-      macroPlayTimers.push(tid);
-      t += getStepDuration(step);
-    });
-    var tid2 = setTimeout(function() {
-      if (!macroPlayActive) return;
-      loopsDone++;
-      if (isInf || loopsDone < loops) {
-        runOnce(loopsDone + 1);
-      } else {
-        finishMacroPlay(true);
-      }
-    }, t + 100);
-    macroPlayTimers.push(tid2);
-  }
-  runOnce(1);
-}
-
-function executeStep(step) {
-  if (step.type === 'press') {
-    _parentAb('pressButton', step.button, step.duration || 100);
-    try { window.parent.postMessage({ type: 'pressButton', button: step.button, duration: step.duration || 100 }, '*'); } catch(e) {}
-    var el = document.getElementById('cbtn-' + step.button);
-    if (el) { el.classList.add('pressed'); setTimeout(function(){ el.classList.remove('pressed'); }, (step.duration||100) + 60); }
-  } else if (step.type === 'multipress') {
-    _parentAb('pressButtons', step.buttons, step.duration || 100);
-    try { window.parent.postMessage({ type: 'pressButtons', buttons: step.buttons, duration: step.duration || 100 }, '*'); } catch(e) {}
-    step.buttons.forEach(function(b) {
-      var el = document.getElementById('cbtn-' + b);
-      if (el) { el.classList.add('pressed'); setTimeout(function(){ el.classList.remove('pressed'); }, (step.duration||100) + 60); }
-    });
-  } else if (step.type === 'stick') {
-    _parentAb('tiltStick', step.side, step.x || 0, step.y || 0, step.duration || 500);
-    try { window.parent.postMessage({ type: 'tiltStick', side: step.side, x: step.x||0, y: step.y||0, duration: step.duration||500 }, '*'); } catch(e) {}
-  }
-}
-
-function getStepDuration(step) {
-  if (step.type === 'wait') return step.ms || 100;
-  if (step.type === 'press') return (step.duration || 100) + 30;
-  if (step.type === 'multipress') return (step.duration || 100) + 30;
-  if (step.type === 'stick') return (step.duration || 500) + 30;
-  return 100;
-}
-
-function playSelectedMacro() {
-  if (selectedMacroIdx < 0 || !savedMacros[selectedMacroIdx]) { showToast('⚠ マクロを選択してください'); return; }
-  var m = savedMacros[selectedMacroIdx];
-  var isInf = (_mEl('macroPlayInfinite') || {checked:false}).checked;
-  var loops = isInf ? Infinity : (parseInt((_mEl('macroPlayLoops')||{value:'1'}).value) || 1);
-  executeMacroSteps(m.steps, loops);
-  showToast('▶ "' + m.name + '" 実行開始 (' + (isInf ? '∞' : loops) + '回)');
-}
-
-function stopMacroPlay() {
-  macroPlayActive = false;
-  macroPlayTimers.forEach(function(id){ clearTimeout(id); });
-  macroPlayTimers = [];
-  finishMacroPlay(false);
-  showToast('⏹ マクロ実行停止');
-}
-
-function finishMacroPlay(completed) {
-  macroPlayActive = false;
-  var btn = document.getElementById('macroPlayBtn');
-  var stopBtn = document.getElementById('macroStopPlayBtn');
-  if (btn) btn.style.display = '';
-  if (stopBtn) stopBtn.style.display = 'none';
-  var statusEl = document.getElementById('macroPlayStatus');
-  if (statusEl) statusEl.innerHTML = completed
-    ? '<span style="color:var(--teal);">✅ 実行完了</span>'
-    : '<span style="color:var(--text2);">⏹ 停止しました</span>';
-}
-
-function saveJsonMacro() {
-  var jnEl = _mEl('macroJsonName'), jeEl = _mEl('macroJsonEditor');
-  var name = (jnEl ? jnEl.value.trim() : '') || ('JSONマクロ_' + (savedMacros.length + 1));
-  var jsonStr = jeEl ? jeEl.value.trim() : '';
-  try {
-    var steps = JSON.parse(jsonStr);
-    if (!Array.isArray(steps)) throw new Error('配列ではありません');
-    savedMacros.push({ name: name, steps: steps, createdAt: Date.now() });
-    renderMacroList();
-    showToast('💾 "' + name + '" を保存しました');
-  } catch(e) { showToast('❌ JSONパースエラー: ' + e.message); }
-}
-
-function executeJsonMacro() {
-  var jeEl = _mEl('macroJsonEditor');
-  var jsonStr = jeEl ? jeEl.value.trim() : '';
-  try {
-    var steps = JSON.parse(jsonStr);
-    if (!Array.isArray(steps)) throw new Error('配列ではありません');
-    executeMacroSteps(steps, 1);
-    showToast('▶ JSONマクロ実行中 (' + steps.length + 'ステップ)');
-  } catch(e) { showToast('❌ JSONパースエラー: ' + e.message); }
-}
-
-function importMacroJson() {
-  var input = document.createElement('input');
-  input.type = 'file'; input.accept = '.json';
-  input.onchange = function(e) {
-    var file = e.target.files[0]; if (!file) return;
-    var reader = new FileReader();
-    reader.onload = function(ev) {
-      try {
-        var data = JSON.parse(ev.target.result);
-        if (Array.isArray(data)) {
-          if (data.length && data[0].name && data[0].steps) {
-            data.forEach(function(m) { savedMacros.push({ name: m.name, steps: m.steps, createdAt: Date.now() }); });
-          } else {
-            savedMacros.push({ name: file.name.replace('.json',''), steps: data, createdAt: Date.now() });
-          }
-        }
-        renderMacroList();
-        showToast('📥 ' + file.name + ' インポート完了');
-      } catch(e2) { showToast('❌ インポートエラー: ' + e2.message); }
-    };
-    reader.readAsText(file);
-  };
-  input.click();
-}
-
-function exportMacroJson() {
-  if (!savedMacros.length) { showToast('⚠ 保存済みマクロがありません'); return; }
-  var data = savedMacros.map(function(m) { return { name: m.name, steps: m.steps }; });
-  var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-  var url = URL.createObjectURL(blob);
-  var a = document.createElement('a');
-  a.href = url; a.download = 'macros.json'; a.click();
-  URL.revokeObjectURL(url);
-  showToast('📤 マクロをエクスポートしました');
-}
 
 
 // ---- Find SKILL global index from raw OCR string using SKILL_ALIASES ----
@@ -3947,312 +2832,20 @@ function findSkillIdxByOcr(rawName) {
 }
 
 // =====================================================================
-// AIチャット検索
+// OCR 機能
 // =====================================================================
-
-// チャットメッセージを追加
-function addChatMsg(text, role = 'ai') {
-  const container = document.getElementById('chatMessages');
-  if (!container) return;
-  const div = document.createElement('div');
-  div.className = `chat-msg ${role}`;
-  div.textContent = text;
-  container.appendChild(div);
-  container.scrollTop = container.scrollHeight;
-}
-
-// AI音声出力（SpeechSynthesis）は廃止
-
-// チャット送信 → NLPパース → 検索実行
-function sendChat() {
-  const input = document.getElementById('chatInput');
-  const text = (input.value || '').trim();
-  if (!text) return;
-  input.value = '';
-  addChatMsg(text, 'user');
-
-  // 少し待ってから返答（UX向け）
-  setTimeout(() => processChatCommand(text), 120);
-}
-
-// ── NLPルールベース処理 ──
-function processChatCommand(text) {
-  const norm = text.replace(/[　\s]+/g, ' ').replace(/[！？。、]/g, '');
-
-  // ヘルプ
-  if (/ヘルプ|使い方|何ができ|how/.test(norm)) {
-    const msg = `使い方:
-・「連撃+4 痛撃+5 3スロのフレームは？」
-・「千里眼3 のお守りを探して」
-・「氷耐性+3 スロット1 風化を検索」
-・スキル名 + 数値の条件を自由に組み合わせてください`;
-    addChatMsg(msg, 'ai');
-    return;
-  }
-
-  // リセット
-  if (/リセット|クリア|最初から|clear/.test(norm)) {
-    addChatMsg('🔄 検索条件をリセットしました', 'ai');
-    document.getElementById('skill1Select').value = '-1';
-    document.getElementById('skill2Select').value = '-1';
-    updateSkill1Pts(); updateSkill2Pts();
-    setSlot(0);
-    return;
-  }
-
-  // 護石種別の検出
-  let kind = currentKind;
-  if (/風化/.test(norm))    kind = 0;
-  else if (/古びた/.test(norm)) kind = 1;
-  else if (/光る/.test(norm))   kind = 2;
-  else if (/なぞ/.test(norm))   kind = 3;
-
-  // スロット数の検出
-  let slots = -1;
-  const slotM = norm.match(/([0-3１２３])\s*スロ|スロット?\s*([0-3１２３])/);
-  if (slotM) {
-    const sv = slotM[1] || slotM[2];
-    slots = parseInt(sv.replace('０','0').replace('１','1').replace('２','2').replace('３','3'));
-  }
-  if (/スロなし|スロット?なし|0スロ/.test(norm)) slots = 0;
-
-  // スキル名と数値の抽出（「連撃+4」「痛撃5」「千里眼 3」等）
-  const skillMatches = [];
-  // パターン1: スキル名+数値が連続
-  const re1 = /([ぁ-んァ-ン一-龥々〆〇ー]{2,6})[+＋]?(\d+)/g;
-  let m;
-  while ((m = re1.exec(norm)) !== null) {
-    const rawName = m[1];
-    const pts = parseInt(m[2]);
-    const gIdx = findSkillIdxByOcr(rawName);
-    if (gIdx >= 0 && pts >= 1 && pts <= 20) {
-      skillMatches.push({ gIdx, pts, name: SKILL[gIdx], rawName });
-    }
-  }
-  // パターン2: スキル名 スペース 数値
-  const re2 = /([ぁ-んァ-ン一-龥々〆〇ー]{2,6})\s+(\d+)/g;
-  while ((m = re2.exec(norm)) !== null) {
-    const rawName = m[1];
-    const pts = parseInt(m[2]);
-    if (pts < 1 || pts > 20) continue;
-    const gIdx = findSkillIdxByOcr(rawName);
-    if (gIdx >= 0 && !skillMatches.some(s => s.gIdx === gIdx)) {
-      skillMatches.push({ gIdx, pts, name: SKILL[gIdx], rawName });
-    }
-  }
-
-  if (skillMatches.length === 0) {
-    addChatMsg('⚠ スキル名を認識できませんでした。\n例：「連撃+4 痛撃+5 3スロット」のように入力してください。', 'ai');
-    return;
-  }
-
-  // KIND DATA でマッチング
-  setKind(kind);
-  const kd = KIND_DATA[kind];
-
-  let s1Applied = false, s2Applied = false;
-  for (const sk of skillMatches) {
-    const lIdx1 = kd.skill1.indexOf(sk.gIdx);
-    if (!s1Applied && lIdx1 >= 0) {
-      document.getElementById('skill1Select').value = String(lIdx1);
-      updateSkill1Pts();
-      const el = document.getElementById('skill1Pts');
-      if (el) { const [mn,mx] = kd.sp1[lIdx1]; el.value = Math.max(mn, Math.min(mx, sk.pts)); }
-      s1Applied = true;
-      continue;
-    }
-    const lIdx2 = kd.skill2.indexOf(sk.gIdx);
-    if (!s2Applied && lIdx2 >= 0 && s1Applied) {
-      document.getElementById('skill2Select').value = String(lIdx2);
-      updateSkill2Pts();
-      const el = document.getElementById('skill2Pts');
-      if (el) { const [mn,mx] = kd.sp2[lIdx2]; el.value = Math.max(mn, Math.min(mx, sk.pts)); }
-      s2Applied = true;
-    }
-  }
-
-  if (slots >= 0) setSlot(slots);
-
-  setSearchMode('skill');
-  doSearch();
-
-  // 結果サマリを表示
-  const kindNames = ['風化','古びた','光る','なぞの'];
-  const slotsDesc = slots < 0 ? '' : `スロット${slots} `;
-  const skillDesc = skillMatches.slice(0,2).map(s => `${s.name}+${s.pts}`).join(' / ');
-  const reply = `🔍 検索条件を設定しました\n護石: ${kindNames[kind]}\nスキル: ${skillDesc}\n${slotsDesc}\n→「スキルから検索」タブで結果を確認してください`;
-  addChatMsg(reply, 'ai');
-}
-
-
-// =====================================================================
-// OCR 機能 (カメラ撮影 + ファイル選択 統合版)
-// =====================================================================
-
-// ---- カメラ状態管理 ----
-const _cam = {
-  stream: null,
-  facing: 'environment',   // 'environment'=背面, 'user'=前面
-  captured: null,          // 撮影済みbase64
-};
-
-// ---- カメラモーダルを開く ----
-async function openCameraModal() {
-  const modal = document.getElementById('cameraModal');
-  modal.classList.add('open');
-  _camSetStatus('カメラを起動中...');
-  _camShowShootMode();
-  document.getElementById('capturedPreview').style.display = 'none';
-  document.getElementById('cameraVideo').style.display = 'block';
-  await _camStartStream();
-}
-
-// ---- カメラモーダルを閉じる ----
-function closeCameraModal() {
-  _camStopStream();
-  document.getElementById('cameraModal').classList.remove('open');
-}
-
-// ---- カメラ映像ストリーム開始 ----
-async function _camStartStream() {
-  _camStopStream();
-  try {
-    const constraints = {
-      video: {
-        facingMode: { ideal: _cam.facing },
-        width:  { ideal: 1280 },
-        height: { ideal: 720 }
-      },
-      audio: false
-    };
-    _cam.stream = await navigator.mediaDevices.getUserMedia(constraints);
-    const video = document.getElementById('cameraVideo');
-    video.srcObject = _cam.stream;
-    await video.play();
-    _camSetStatus(_cam.facing === 'environment' ? '📷 背面カメラ' : '🤳 前面カメラ');
-  } catch (err) {
-    console.error('Camera error:', err);
-    let msg = 'カメラを起動できませんでした';
-    if (err.name === 'NotAllowedError')  msg = 'カメラの権限が拒否されました。アプリの権限設定を確認してください';
-    if (err.name === 'NotFoundError')    msg = 'カメラが見つかりません';
-    if (err.name === 'NotReadableError') msg = '別のアプリがカメラを使用中です';
-    _camSetStatus('⚠ ' + msg);
-  }
-}
-
-// ---- ストリームを止める ----
-function _camStopStream() {
-  if (_cam.stream) {
-    _cam.stream.getTracks().forEach(t => t.stop());
-    _cam.stream = null;
-  }
-  const video = document.getElementById('cameraVideo');
-  if (video) video.srcObject = null;
-}
-
-// ---- 前面/背面切り替え ----
-function flipCameraFacing() {
-  _cam.facing = (_cam.facing === 'environment') ? 'user' : 'environment';
-  _camStartStream();
-}
-
-// ---- シャッター：映像フレームを静止画にキャプチャ ----
-function shootCamera() {
-  const video  = document.getElementById('cameraVideo');
-  const canvas = document.getElementById('cameraCanvas');
-  if (!video.videoWidth) {
-    _camSetStatus('⚠ カメラ映像を取得できていません');
-    return;
-  }
-  canvas.width  = video.videoWidth;
-  canvas.height = video.videoHeight;
-  const ctx = canvas.getContext('2d');
-  // 前面カメラは左右反転して自然に見せる
-  if (_cam.facing === 'user') {
-    ctx.translate(canvas.width, 0);
-    ctx.scale(-1, 1);
-  }
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-  if (_cam.facing === 'user') ctx.setTransform(1,0,0,1,0,0);
-
-  const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
-  _cam.captured = dataUrl.split(',')[1];
-
-  // プレビュー表示に切り替え
-  const preview = document.getElementById('capturedPreview');
-  preview.src = dataUrl;
-  preview.style.display = 'block';
-  document.getElementById('cameraVideo').style.display = 'none';
-  document.getElementById('cameraGuide').textContent = '画像を確認して「この画像で認識」を押してください';
-  _camShowConfirmMode();
-  _camSetStatus('撮影完了 — 確認後に認識を実行してください');
-}
-
-// ---- 撮り直し ----
-function retakeCamera() {
-  _cam.captured = null;
-  document.getElementById('capturedPreview').style.display = 'none';
-  document.getElementById('cameraVideo').style.display = 'block';
-  document.getElementById('cameraGuide').textContent = '護石画面を枠内に収めてシャッターを押してください';
-  _camShowShootMode();
-  _camStartStream();
-}
-
-// ---- 撮影画像をOCRに渡す ----
-function useCapturedImage() {
-  if (!_cam.captured) return;
-  const dataUrl = 'data:image/jpeg;base64,' + _cam.captured;
-  // OCRプレビューに反映
-  document.getElementById('ocrImagePreview').src = dataUrl;
-  document.getElementById('ocrPreviewContainer').style.display = 'block';
-  document.getElementById('ocrResult').style.display = 'none';
-  window.currentImageBase64 = _cam.captured;
-  // モーダルを閉じてOCR実行
-  closeCameraModal();
-  _showOcrStatus('info', '📷 カメラ画像をOCRで認識中...');
-  recognizeImage();
-}
-
-// ---- UI 状態ヘルパー ----
-function _camShowShootMode() {
-  document.getElementById('cameraShootControls').style.display   = 'flex';
-  document.getElementById('cameraConfirmControls').style.display = 'none';
-}
-function _camShowConfirmMode() {
-  document.getElementById('cameraShootControls').style.display   = 'none';
-  document.getElementById('cameraConfirmControls').style.display = 'flex';
-}
-function _camSetStatus(msg) {
-  const el = document.getElementById('cameraStatus');
-  if (el) el.textContent = msg;
-}
-
-// ---- ドラッグ＆ドロップ対応 ----
-function handleImageDrop(event) {
-  event.preventDefault();
-  document.getElementById('ocrDropArea').style.borderColor = 'var(--border2)';
-  const file = event.dataTransfer.files[0];
-  if (file && file.type.startsWith('image/')) {
-    _loadImageFile(file);
-  }
-}
-
-// ---- ファイル選択 (input) ----
 function handleImageSelect(event) {
   const file = event.target.files[0];
   if (!file) return;
-  _loadImageFile(file);
-}
-
-// ---- ファイル→base64変換 (共通) ----
-function _loadImageFile(file) {
   const reader = new FileReader();
   reader.onload = (e) => {
     const base64 = e.target.result.split(',')[1];
-    document.getElementById('ocrImagePreview').src = e.target.result;
+    document.getElementById('ocrImagePreview').src = 'data:image/jpeg;base64,' + base64;
     document.getElementById('ocrPreviewContainer').style.display = 'block';
     document.getElementById('ocrResult').style.display = 'none';
     window.currentImageBase64 = base64;
+    // 自動サーチ結果をリセット
+    _resetAutoSearch();
   };
   reader.readAsDataURL(file);
 }
@@ -4276,12 +2869,22 @@ function receiveMlKitResult(jsonStr) {
     if (result.error) { _showOcrStatus('error', result.error); return; }
     document.getElementById('ocrText').value = result.text;
     document.getElementById('ocrResult').style.display = 'block';
-    _showOcrStatus('success', '✅ 認識完了');
-    // ★ 自動護石サーチ: チェックONなら自動で applyOcrToSearch を実行
-    const autoApplyChk = document.getElementById('ocrAutoApply');
-    if (autoApplyChk && autoApplyChk.checked) {
-      _showOcrStatus('info', '🔍 護石サーチに自動適用中...');
-      setTimeout(() => applyOcrToSearch(), 400);
+    // 認識内容を解析してカードに表示
+    const parsed = parseOcrCharm(result.text);
+    // スキル判明時に種別が不明なら推定
+    if (parsed.kind < 0 && parsed.skills.length > 0) {
+      parsed.kind = inferKindFromSkills(parsed);
+    }
+    _showOcrCharmCard(parsed);
+    // 設定パネルを表示
+    const cfgEl = document.getElementById('ocrAutoSearchConfig');
+    if (cfgEl) cfgEl.style.display = 'block';
+    if (parsed.skills.length > 0) {
+      _showOcrStatus('success', '✅ 認識完了 — 全フレームを自動サーチ中...');
+      // 認識完了後、自動で全フレームサーチを実行（タブ切替なし）
+      setTimeout(() => autoOcrSearch(), 300);
+    } else {
+      _showOcrStatus('error', '⚠ スキルを認識できませんでした。OCR結果を確認してください。');
     }
   } catch (e) {
     _showOcrStatus('error', '解析エラー: ' + e.message);
@@ -4293,24 +2896,460 @@ function copyOCRResult() {
   navigator.clipboard.writeText(text).then(() => showToast('📋 クリップボードにコピーしました'));
 }
 
-// OCR認識結果を護石サーチに適用する
+// =====================================================================
+// OCR テキスト → お守りパラメータ抽出
+// =====================================================================
+function parseOcrCharm(text) {
+  const norm = text.replace(/[　\s]+/g, ' ').replace(/[！？。、]/g, '').trim();
+  // 行ごとに分割して前後の空白を除去
+  const lines = text.split(/[\n\r]+/).map(l => l.trim()).filter(Boolean);
+
+  // 護石種別の検出
+  let kind = -1;
+  // ── 直接種別名 ──
+  if      (/風化/.test(norm))       kind = 0;
+  else if (/古びた/.test(norm))     kind = 1;
+  else if (/光る護石/.test(norm))   kind = 2;
+  else if (/なぞ|謎の護石/.test(norm)) kind = 3;
+  // ── RARE番号から逆算 (天の護石 RARE 10 等) ──
+  if (kind < 0) {
+    const rareM = norm.match(/RARE[\s*]?(\d+)/i) || norm.match(/レア[\s*]?(\d+)/);
+    if (rareM) {
+      const r = parseInt(rareM[1]);
+      if      (r >= 8) kind = 0; // RARE 8-10 → 風化した護石
+      else if (r >= 5) kind = 1; // RARE 5-7  → 古びた護石
+      else if (r >= 3) kind = 2; // RARE 3-4  → 光る護石
+      else             kind = 3; // RARE 1-2  → なぞの護石
+    }
+  }
+
+  // スロット数の検出
+  // OCRで○○○→000 と読まれることを考慮し、○/O/0 の個数をカウントする
+  let slots = -1;
+  if (/スロなし|スロット?なし/.test(norm)) {
+    slots = 0;
+  } else {
+    // スロット + 複数の○/O/0 → その数がスロット数
+    const multiCircleM = norm.match(/スロット?\s*([○◯Oo0]{1,3})/);
+    if (multiCircleM) {
+      slots = multiCircleM[1].length; // ○○○→3, ○○→2, ○→1
+    }
+    // "Nスロ" 形式（数字+スロ）
+    if (slots < 0) {
+      const numSlotM = norm.match(/([1-3])\s*スロ/);
+      if (numSlotM) slots = parseInt(numSlotM[1]);
+    }
+    // 0スロ
+    if (slots < 0 && /0\s*スロ/.test(norm)) slots = 0;
+  }
+
+  // スキル名と数値の抽出
+  const skillMatches = [];
+  let m;
+
+  // ======== Strategy 1: 同一行パターン "スキル名+数値" / "スキル名 数値" ========
+  // 例: "連撃+4", "痛撃 5"
+  const re1 = /([ぁ-んァ-ン一-龥々〆〇ー]{2,6})[+＋](\d+)/g;
+  while ((m = re1.exec(norm)) !== null) {
+    const rawName = m[1];
+    const pts = parseInt(m[2]);
+    const gIdx = findSkillIdxByOcr(rawName);
+    if (gIdx >= 0 && pts >= 1 && pts <= 20) {
+      if (!skillMatches.some(s => s.gIdx === gIdx))
+        skillMatches.push({ gIdx, pts, name: SKILL[gIdx], rawName });
+    }
+  }
+  const re2 = /([ぁ-んァ-ン一-龥々〆〇ー]{2,6})\s+(\d+)/g;
+  while ((m = re2.exec(norm)) !== null) {
+    const rawName = m[1];
+    const pts = parseInt(m[2]);
+    if (pts < 1 || pts > 20) continue;
+    if (/固有スキル|国有スキル|スロット|護石|スナイプ|鑑定/.test(rawName)) continue;
+    const gIdx = findSkillIdxByOcr(rawName);
+    if (gIdx >= 0 && !skillMatches.some(s => s.gIdx === gIdx)) {
+      skillMatches.push({ gIdx, pts, name: SKILL[gIdx], rawName });
+    }
+  }
+
+  // ======== Strategy 2: 行をまたいだマッチング ========
+  // 例: OCRが "連撃\n痛撃\n+4\n+5" の形式で出力する場合
+  if (skillMatches.length === 0) {
+    const foundNames = [];  // 認識されたスキル名
+    const foundPts   = [];  // 認識されたポイント値
+
+    for (const line of lines) {
+      // UIラベル行をスキップ
+      if (/固有スキル|国有スキル|スロット|護石|スナイプ|鑑定|ボック/.test(line)) continue;
+
+      // 行全体がスキル名（2〜6文字の漢字/かな）か確認
+      const pureNameM = line.match(/^([ぁ-んァ-ン一-龥々〆〇ー]{2,6})$/);
+      if (pureNameM) {
+        const gIdx = findSkillIdxByOcr(pureNameM[1]);
+        if (gIdx >= 0) {
+          foundNames.push({ gIdx, name: SKILL[gIdx], rawName: pureNameM[1] });
+          continue;
+        }
+      }
+
+      // 行に "スキル名 +N" が含まれる場合（行単位の同一行パターン）
+      const inlineM = line.match(/([ぁ-んァ-ン一-龥々〆〇ー]{2,6})\s*[+＋](\d+)/);
+      if (inlineM) {
+        const gIdx = findSkillIdxByOcr(inlineM[1]);
+        const pts  = parseInt(inlineM[2]);
+        if (gIdx >= 0 && pts >= 1 && pts <= 20) {
+          if (!skillMatches.some(s => s.gIdx === gIdx))
+            skillMatches.push({ gIdx, pts, name: SKILL[gIdx], rawName: inlineM[1] });
+        }
+        continue;
+      }
+
+      // 行が数値のみ（"+4" / "4" 形式）
+      const ptsM = line.match(/^[+＋]?(\d+)$/);
+      if (ptsM) {
+        const pts = parseInt(ptsM[1]);
+        if (pts >= 1 && pts <= 20) foundPts.push(pts);
+      }
+    }
+
+    // スキル名リストとポイントリストを順番に対応付け
+    const pairCount = Math.min(foundNames.length, foundPts.length);
+    for (let i = 0; i < pairCount; i++) {
+      if (!skillMatches.some(s => s.gIdx === foundNames[i].gIdx)) {
+        skillMatches.push({ ...foundNames[i], pts: foundPts[i] });
+      }
+    }
+  }
+
+  return { kind, slots, skills: skillMatches };
+}
+
+// スキルが見つかっているが種別が不明な場合、KIND_DATAから種別を推定する
+function inferKindFromSkills(parsed) {
+  if (parsed.kind >= 0 || parsed.skills.length === 0) return parsed.kind;
+  const s1gIdx = parsed.skills[0].gIdx;
+  const s2gIdx = parsed.skills[1] ? parsed.skills[1].gIdx : -1;
+  for (let k = 0; k < 4; k++) {
+    const kd = KIND_DATA[k];
+    if (!kd.skill1.includes(s1gIdx)) continue;
+    if (s2gIdx < 0) return k; // スキル1だけで一致
+    if (kd.skill1.includes(s2gIdx) || kd.skill2.includes(s2gIdx)) return k;
+  }
+  return -1;
+}
+
+// =====================================================================
+// OCR 護石サーチへ適用（サーチタブに切替して設定）
+// =====================================================================
 function applyOcrToSearch() {
   const text = document.getElementById('ocrText').value.trim();
-  if (!text) { showToast('⚠ 認識テキストがありません'); return; }
+  if (!text) { _showOcrStatus('error', '⚠ 認識テキストがありません'); return; }
 
-  const statusEl = document.getElementById('ocrApplyStatus');
+  const parsed = parseOcrCharm(text);
+  if (parsed.skills.length === 0) {
+    _showOcrStatus('error', '⚠ スキルを認識できませんでした。お守り画面の画像を確認してください。');
+    return;
+  }
 
-  // processChatCommand は内部で addChatMsg / doSearch を呼ぶ
-  // スキル名が検出できなかった場合でもフォールバックメッセージが出る
-  switchTab('search');  // 先に検索タブへ切替
-  setTimeout(() => {
-    processChatCommand(text);
-    // OCRタブに戻ってステータス表示（次回OCRのため）
-    if (statusEl) {
-      statusEl.textContent = '✅ 護石サーチに検索条件を適用しました';
-      statusEl.style.display = 'block';
+  const kind = parsed.kind >= 0 ? parsed.kind : currentKind;
+  setKind(kind);
+  const kd = KIND_DATA[kind];
+
+  let s1Applied = false, s2Applied = false;
+  for (const sk of parsed.skills) {
+    if (!s1Applied) {
+      const lIdx1 = kd.skill1.indexOf(sk.gIdx);
+      if (lIdx1 >= 0) {
+        document.getElementById('skill1Select').value = String(lIdx1);
+        updateSkill1Pts();
+        const el = document.getElementById('skill1Pts');
+        if (el) { const [mn,mx] = kd.sp1[lIdx1]; el.value = Math.max(mn, Math.min(mx, sk.pts)); }
+        s1Applied = true;
+        continue;
+      }
     }
-  }, 150);
+    if (s1Applied && !s2Applied) {
+      const lIdx2 = kd.skill2.indexOf(sk.gIdx);
+      if (lIdx2 >= 0) {
+        document.getElementById('skill2Select').value = String(lIdx2);
+        updateSkill2Pts();
+        const el = document.getElementById('skill2Pts');
+        if (el) { const [mn,mx] = kd.sp2[lIdx2]; el.value = Math.max(mn, Math.min(mx, sk.pts)); }
+        s2Applied = true;
+      }
+    }
+  }
+
+  if (parsed.slots >= 0) setSlot(parsed.slots);
+
+  setSearchMode('skill');
+  switchTab('search');
+  setTimeout(() => doSearch(), 100);
+}
+
+// =====================================================================
+// OCR 全フレーム自動サーチ (全4種別 × 2入手方法)
+// =====================================================================
+let _ocrWorkers = [];
+
+function _resetAutoSearch() {
+  stopOcrSearch();
+  const statusEl  = document.getElementById('ocrAutoSearchStatus');
+  const resultsEl = document.getElementById('ocrAutoSearchResults');
+  const progWrap  = document.getElementById('ocrSearchProgressWrap');
+  const wrapEl    = document.getElementById('ocrAutoSearchResultsWrap');
+  const cfgEl     = document.getElementById('ocrAutoSearchConfig');
+  if (statusEl)  { statusEl.style.display = 'none'; statusEl.textContent = ''; }
+  if (resultsEl) { resultsEl.style.display = 'none'; resultsEl.innerHTML = ''; }
+  if (progWrap)  progWrap.style.display = 'none';
+  if (wrapEl)    wrapEl.style.display = 'none';
+  if (cfgEl)     cfgEl.style.display = 'none';
+}
+
+function stopOcrSearch() {
+  _ocrWorkers.forEach(w => { try { w.terminate(); } catch(e){} });
+  _ocrWorkers = [];
+  const stopBtn = document.getElementById('ocrStopBtn');
+  const searchBtn = document.getElementById('ocrAutoSearchBtn');
+  if (stopBtn)   stopBtn.style.display = 'none';
+  if (searchBtn) searchBtn.style.display = '';
+  const progWrap = document.getElementById('ocrSearchProgressWrap');
+  if (progWrap) progWrap.style.display = 'none';
+}
+
+function autoOcrSearch() {
+  const text = document.getElementById('ocrText').value.trim();
+  if (!text) { _showAutoSearchStatus('error', '⚠ 認識テキストがありません'); return; }
+
+  const parsed = parseOcrCharm(text);
+  if (parsed.skills.length === 0) {
+    _showAutoSearchStatus('error', '⚠ スキルを認識できませんでした。OCR結果を確認してください。');
+    return;
+  }
+
+  stopOcrSearch();
+
+  const skill1    = parsed.skills[0];
+  const skill2    = parsed.skills[1] || null;
+  const toF       = Math.min(10000000, Math.max(10000, parseInt(document.getElementById('ocrSearchRange').value) || 1000000));
+  const exactMode = document.getElementById('ocrExactMatch').checked;
+  const kindNames = ['風化','古びた','光る','なぞの'];
+  const origNames = ['マカ錬金','炭鉱採掘'];
+
+  // 検索対象種別: OCRで種別が判明していればそれのみ、なければ全4種
+  const kindsToSearch = parsed.kind >= 0 ? [parsed.kind] : [0, 1, 2, 3];
+
+  // 進捗管理
+  let totalWorkers = 0;
+  let doneWorkers  = 0;
+  let allResults   = [];
+  const workerProg = {};   // key: `${kind}-${origin}` → progress 0-100
+
+  const progWrap  = document.getElementById('ocrSearchProgressWrap');
+  const progInner = document.getElementById('ocrSearchProgressInner');
+  const progLabel = document.getElementById('ocrSearchProgressLabel');
+  const stopBtn   = document.getElementById('ocrStopBtn');
+  const searchBtn = document.getElementById('ocrAutoSearchBtn');
+
+  progWrap.style.display = 'block';
+  progInner.style.width  = '0%';
+  if (stopBtn)   stopBtn.style.display   = '';
+  if (searchBtn) searchBtn.style.display = 'none';
+
+  const resultsEl = document.getElementById('ocrAutoSearchResults');
+  resultsEl.style.display = 'none';
+  resultsEl.innerHTML     = '';
+
+  // スキル情報をサマリ表示
+  const skillDesc = parsed.skills.slice(0, 2).map(s => `${s.name}+${s.pts}`).join(' / ');
+  const slotDesc  = parsed.slots >= 0 ? ` スロット${parsed.slots}` : '';
+  const kindDesc  = parsed.kind >= 0  ? ` [${kindNames[parsed.kind]}]` : ' [全種別]';
+  _showAutoSearchStatus('info',
+    `🔍 サーチ中 — ${skillDesc}${slotDesc}${kindDesc} (F1〜F${toF.toLocaleString()}, ${exactMode?'完全一致':'部分一致'})`);
+
+  function updateTotalProgress() {
+    const progValues = Object.values(workerProg);
+    if (progValues.length === 0) return;
+    const avg = progValues.reduce((a,b) => a+b, 0) / progValues.length;
+    progInner.style.width = avg.toFixed(0) + '%';
+    progLabel.textContent = `${avg.toFixed(0)}% 完了 (${doneWorkers}/${totalWorkers} 完了)`;
+  }
+
+  function onAllDone() {
+    stopBtn.style.display   = 'none';
+    searchBtn.style.display = '';
+    progWrap.style.display  = 'none';
+    _ocrWorkers = [];
+
+    allResults.sort((a, b) => a.frame - b.frame);
+
+    if (allResults.length === 0) {
+      _showAutoSearchStatus('error', '❌ 一致するフレームが見つかりませんでした（検索範囲を広げてみてください）');
+      // エラー時もスクロールして見せる
+      setTimeout(() => {
+        const statusEl = document.getElementById('ocrAutoSearchStatus');
+        if (statusEl) statusEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 100);
+      return;
+    }
+    _showAutoSearchStatus('success',
+      `✅ ${allResults.length.toLocaleString()} 件のフレームが見つかりました — 行クリックでタイマーにセット`);
+    _renderOcrAutoResults(allResults, kindNames, origNames);
+  }
+
+  for (const kindIdx of kindsToSearch) {
+    const kd = KIND_DATA[kindIdx];
+
+    for (let origin = 0; origin <= 1; origin++) {
+      // skill1 がこの種別に存在するか確認
+      const s1Idx = kd.skill1.indexOf(skill1.gIdx);
+      if (s1Idx < 0) continue;   // このkindにはスキル1がない → スキップ
+
+      const [mn1, mx1] = kd.sp1[s1Idx];
+      const s1Pts = Math.max(mn1, Math.min(mx1, skill1.pts));
+
+      let s2Idx = -1, s2Pts = 1, hasS2 = false;
+      if (skill2) {
+        const lIdx2 = kd.skill2.indexOf(skill2.gIdx);
+        if (lIdx2 >= 0) {
+          const [mn2, mx2] = kd.sp2[lIdx2];
+          s2Idx = lIdx2;
+          s2Pts = Math.max(mn2, Math.min(mx2, skill2.pts));
+          hasS2 = true;
+        }
+      }
+
+      const workerKey = `${kindIdx}-${origin}`;
+      workerProg[workerKey] = 0;
+      totalWorkers++;
+
+      const blob = new Blob([buildWorkerCode()], { type: 'application/javascript' });
+      const url  = URL.createObjectURL(blob);
+      const w    = new Worker(url);
+      _ocrWorkers.push(w);
+
+      const _kindIdx  = kindIdx;
+      const _origin   = origin;
+
+      w.onmessage = function(e) {
+        if (e.data.type === 'progress') {
+          workerProg[workerKey] = e.data.prog;
+          updateTotalProgress();
+        } else if (e.data.type === 'done') {
+          URL.revokeObjectURL(url);
+          workerProg[workerKey] = 100;
+          doneWorkers++;
+
+          const wResults = e.data.results.map(r => ({
+            ...r, kindIdx: _kindIdx, origin: _origin
+          }));
+          allResults = allResults.concat(wResults);
+
+          updateTotalProgress();
+          if (doneWorkers >= totalWorkers) onAllDone();
+        }
+      };
+
+      w.onerror = function() {
+        URL.revokeObjectURL(url);
+        workerProg[workerKey] = 100;
+        doneWorkers++;
+        updateTotalProgress();
+        if (doneWorkers >= totalWorkers) onAllDone();
+      };
+
+      w.postMessage({
+        fromF:    1,
+        toF:      toF,
+        kindIdx:  kindIdx,
+        origin:   origin,
+        s1Idx:    s1Idx,
+        s2Idx:    s2Idx,
+        s1Pts:    s1Pts,
+        s2Pts:    s2Pts,
+        minSlot:  parsed.slots >= 0 ? parsed.slots : 0,
+        maxN:     2000,
+        hasS1:    true,
+        hasS2:    hasS2,
+        exactSlot: parsed.slots >= 0 ? parsed.slots : -1,
+        exactPts:  exactMode,
+        mode:     'normal'
+      });
+    }
+  }
+
+  if (totalWorkers === 0) {
+    stopBtn.style.display   = 'none';
+    searchBtn.style.display = '';
+    progWrap.style.display  = 'none';
+    _showAutoSearchStatus('error',
+      '⚠ 認識されたスキルはいずれの護石種別にも存在しません。OCR結果を確認してください。');
+  }
+}
+
+function _showAutoSearchStatus(type, message) {
+  const el = document.getElementById('ocrAutoSearchStatus');
+  if (!el) return;
+  const styles = {
+    success: 'background:rgba(40,167,69,0.1);border:1px solid rgba(40,167,69,0.4);color:#28a745;',
+    error:   'background:rgba(220,53,69,0.1);border:1px solid rgba(220,53,69,0.4);color:#dc3545;',
+    info:    'background:rgba(74,127,170,0.1);border:1px solid rgba(74,127,170,0.4);color:#7a9ab8;'
+  };
+  el.style.cssText = 'display:block;padding:9px 12px;border-radius:5px;font-size:12px;margin:6px 14px 0;' + (styles[type] || '');
+  el.textContent = message;
+}
+
+function _renderOcrAutoResults(results, kindNames, origNames) {
+  const el = document.getElementById('ocrAutoSearchResults');
+  const wrapEl = document.getElementById('ocrAutoSearchResultsWrap');
+  const kindColors = ['#80c0c0','#c07070','#c0c060','#cccccc'];
+
+  let html = `<table class="ocr-auto-results-table">
+    <thead><tr>
+      <th>種別</th><th>入手</th><th>フレーム</th><th>時間</th>
+      <th>スキル1</th><th class="center">Pt</th>
+      <th>スキル2</th><th class="center">Pt</th>
+      <th class="center">S</th>
+    </tr></thead><tbody>`;
+
+  for (const { frame, charm, kindIdx, origin } of results) {
+    const s1name   = charm.s1 >= 0 ? (SKILL[charm.s1] || '?') : '--';
+    const s2name   = charm.s2 >= 0 ? (SKILL[charm.s2] || '?') : '';
+    const slotChar = ['---','○','○○','○○○'][charm.slot];
+    const kColor   = kindColors[kindIdx] || '#aaa';
+    html += `<tr onclick="setTimerFromFrame(${frame});switchTab('search');showToast('📺 F${frame.toLocaleString()}をタイマーにセット');">
+      <td><span class="ocr-auto-kind-badge ocr-kind-${kindIdx}">${kindNames[kindIdx]}</span></td>
+      <td style="color:var(--text3);font-size:10px;">${origNames[origin]}</td>
+      <td style="font-family:monospace;color:var(--accent2);font-weight:600;">${frame.toLocaleString()}</td>
+      <td style="font-size:10px;color:var(--text2);font-family:monospace;">${frameToTime(frame)}</td>
+      <td>${s1name}</td>
+      <td class="center" style="color:var(--steel2);font-weight:700;">${charm.p1}</td>
+      <td style="color:var(--text2);">${s2name || '<span style="color:var(--text3)">なし</span>'}</td>
+      <td class="center" style="color:var(--steel2);font-weight:700;">${charm.s2 >= 0 ? charm.p2 : '<span style="color:var(--text3)">-</span>'}</td>
+      <td class="center slot-${charm.slot}">${slotChar}</td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  el.innerHTML = html;
+  el.style.display = 'block';
+  if (wrapEl) {
+    wrapEl.style.display = 'block';
+    // 結果が見えるように自動スクロール
+    setTimeout(() => {
+      // 方法1: scrollIntoView（デスクトップ/新しいWebView）
+      try { wrapEl.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch(e) {}
+      // 方法2: 外側スクロールエリアを直接スクロール（Android WebView対応）
+      const scrollArea = document.getElementById('ocrScrollArea') ||
+                         document.querySelector('#tab-ocr > div');
+      if (scrollArea) {
+        scrollArea.scrollTop = scrollArea.scrollHeight;
+      }
+      // 方法3: tab-ocr自体がblock+overflow:autoの場合（モバイルCSS適用時）
+      const tabEl = document.getElementById('tab-ocr');
+      if (tabEl && getComputedStyle(tabEl).overflowY !== 'hidden') {
+        tabEl.scrollTop = tabEl.scrollHeight;
+      }
+    }, 200);
+  }
 }
 
 function _showOcrStatus(type, message) {
@@ -4325,386 +3364,37 @@ function _showOcrStatus(type, message) {
   el.textContent = message;
 }
 
-// =====================================================================
-// Bluetooth / Switch 接続 (snipe_integrated より統合)
-// =====================================================================
-function connectToSwitch() {
-  const mac = document.getElementById('btMacAddress').value.trim();
-  if (!mac) { showToast('⚠ MAC アドレスを入力してください'); return; }
-  showToast('📶 接続中...');
-  if (window.Android && Android.connectBluetoothSwitch) {
-    Android.connectBluetoothSwitch(mac);
-  }
-}
-
-function disconnectFromSwitch() {
-  if (window.Android && Android.disconnectBluetoothSwitch) {
-    Android.disconnectBluetoothSwitch();
-  }
-}
-
-function sendControllerInput() {
-  const input = document.getElementById('btButtonInput').value.trim();
-  if (!input) { showToast('⚠ ボタン入力を指定してください'); return; }
-  try {
-    const bytes = input.split(/\s+/).map(h => parseInt(h, 16));
-    const data = JSON.stringify({ data: bytes.join(',') });
-    if (window.Android && Android.sendControllerInput) {
-      Android.sendControllerInput(data);
-    }
-    showToast('✅ コントローラー入力を送信しました');
-  } catch (e) {
-    showToast('❌ 入力形式エラー: ' + e.message);
-  }
-}
-
-function bluetoothStatus(jsonStr) {
-  try { _updateBtStatus(JSON.parse(jsonStr)); } catch (e) {}
-}
-
-function _updateBtStatus(data) {
-  const statusDiv = document.getElementById('btStatus');
-  const disconnectBtn = document.getElementById('btDisconnectBtn');
-  if (!statusDiv) return;
-  if (data.status === 'connected') {
-    statusDiv.style.cssText = 'padding:12px 14px;border-radius:6px;background:rgba(40,167,69,0.1);border:1px solid rgba(40,167,69,0.3);color:#28a745;text-align:center;font-size:12px;font-weight:600;';
-    statusDiv.innerHTML = '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#28a745;margin-right:6px;vertical-align:middle;"></span>接続中: ' + (data.device || '');
-    if (disconnectBtn) { disconnectBtn.disabled = false; disconnectBtn.style.opacity = '1'; }
-  } else {
-    statusDiv.style.cssText = 'padding:12px 14px;border-radius:6px;background:rgba(220,53,69,0.08);border:1px solid rgba(220,53,69,0.3);color:#dc3545;text-align:center;font-size:12px;font-weight:600;';
-    statusDiv.innerHTML = '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#dc3545;margin-right:6px;vertical-align:middle;"></span>切断';
-    if (disconnectBtn) { disconnectBtn.disabled = true; disconnectBtn.style.opacity = '0.5'; }
-  }
-}
-
-// =====================================================================
-// Switch マクロ管理 (⚙ マクロタブ)
-// =====================================================================
-
-var _macroMgrSelected = null;
-
-/** マクロ一覧をAndroidから読み込んで描画する */
-function macroMgrRefresh() {
-  if (!window.Android || !Android.getMacros) {
-    document.getElementById('macroMgrList').innerHTML =
-      '<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px;">Androidブリッジ未接続</div>';
-    return;
-  }
-  try {
-    const macros = JSON.parse(Android.getMacros());
-    _renderMacroMgrList(macros);
-  } catch(e) { showToast('❌ マクロ一覧の取得に失敗: ' + e.message); }
-}
-
-function _renderMacroMgrList(macros) {
-  const listDiv = document.getElementById('macroMgrList');
-  if (!listDiv) return;
-  if (!macros || macros.length === 0) {
-    listDiv.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px;">マクロがまだ保存されていません<br><span style="font-size:10px;">「➕ 新規」ボタンで作成できます</span></div>';
-    const playSection = document.getElementById('macroMgrPlaySection');
-    if (playSection) playSection.style.display = 'none';
-    _macroMgrSelected = null;
-    return;
-  }
-  listDiv.innerHTML = macros.map(function(m) {
-    const esc = m.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-    const stepCount = m.steps ? m.steps.length : 0;
-    const isSel = _macroMgrSelected === m.name;
-    return '<div style="padding:10px 12px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:8px;cursor:pointer;' +
-      (isSel ? 'background:rgba(155,89,182,0.12);border-left:3px solid var(--purple2);' : '') +
-      '" onclick="macroMgrSelect(\'' + esc + '\')">' +
-      '<div style="flex:1;overflow:hidden;">' +
-        '<div style="font-weight:600;color:var(--text);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">🎮 ' + m.name + '</div>' +
-        '<div style="font-size:10px;color:var(--text3);margin-top:2px;">' + stepCount + ' ステップ</div>' +
-      '</div>' +
-      '<div style="display:flex;gap:5px;flex-shrink:0;">' +
-        '<button onclick="event.stopPropagation();macroMgrEdit(\'' + esc + '\')" style="padding:5px 10px;background:rgba(32,201,151,0.12);border:1px solid var(--teal);color:var(--teal);border-radius:3px;font-size:11px;cursor:pointer;font-family:var(--font);">編集</button>' +
-        '<button onclick="event.stopPropagation();macroMgrDelete(\'' + esc + '\')" style="padding:5px 10px;background:rgba(220,53,69,0.08);border:1px solid rgba(220,53,69,0.4);color:#dc3545;border-radius:3px;font-size:11px;cursor:pointer;font-family:var(--font);">削除</button>' +
-      '</div>' +
-    '</div>';
-  }).join('');
-}
-
-function macroMgrSelect(name) {
-  _macroMgrSelected = name;
-  macroMgrRefresh();
-  const playSection = document.getElementById('macroMgrPlaySection');
-  if (playSection) {
-    playSection.style.display = 'block';
-    const infoEl = document.getElementById('macroMgrPlayInfo');
-    if (infoEl) infoEl.textContent = '🎮 選択中: ' + name;
-  }
-}
-
-function macroMgrNew() {
-  const nameEl = document.getElementById('macroMgrName');
-  const stepsEl = document.getElementById('macroMgrSteps');
-  if (nameEl) nameEl.value = '';
-  if (stepsEl) stepsEl.value = JSON.stringify([
-    {"type":"press","button":"A","duration":100},
-    {"type":"wait","ms":500}
-  ], null, 2);
-  const editorSection = document.getElementById('macroMgrEditorSection');
-  if (editorSection) editorSection.style.display = 'block';
-  if (nameEl) setTimeout(function() { nameEl.focus(); }, 100);
-}
-
-function macroMgrEdit(name) {
-  if (!window.Android || !Android.getMacroContent) { showToast('⚠ Androidブリッジ未接続'); return; }
-  try {
-    const json = Android.getMacroContent(name);
-    if (!json || json.startsWith('ERROR')) { showToast('❌ マクロの取得に失敗'); return; }
-    const macro = JSON.parse(json);
-    const nameEl = document.getElementById('macroMgrName');
-    const stepsEl = document.getElementById('macroMgrSteps');
-    if (nameEl) nameEl.value = macro.name || name;
-    if (stepsEl) stepsEl.value = JSON.stringify(macro.steps || [], null, 2);
-    const editorSection = document.getElementById('macroMgrEditorSection');
-    if (editorSection) editorSection.style.display = 'block';
-  } catch(e) { showToast('❌ ' + e.message); }
-}
-
-function macroMgrInsertTemplate() {
-  const templates = [
-    { label: '🔘 Aボタン×5回', steps: [
-      {"type":"press","button":"A","duration":80},{"type":"wait","ms":300},
-      {"type":"press","button":"A","duration":80},{"type":"wait","ms":300},
-      {"type":"press","button":"A","duration":80},{"type":"wait","ms":300},
-      {"type":"press","button":"A","duration":80},{"type":"wait","ms":300},
-      {"type":"press","button":"A","duration":80}
-    ]},
-    { label: '⬆ 前進 1 秒', steps: [
-      {"type":"stick","side":"L","x":0,"y":-1,"duration":1000},
-      {"type":"wait","ms":200}
-    ]},
-    { label: '📦 採取ループ (A→A→B)', steps: [
-      {"type":"press","button":"A","duration":80},{"type":"wait","ms":600},
-      {"type":"press","button":"A","duration":80},{"type":"wait","ms":600},
-      {"type":"press","button":"B","duration":80},{"type":"wait","ms":1000}
-    ]},
-    { label: '⚔ 連続攻撃 ZR×3', steps: [
-      {"type":"press","button":"ZR","duration":100},{"type":"wait","ms":120},
-      {"type":"press","button":"ZR","duration":100},{"type":"wait","ms":120},
-      {"type":"press","button":"ZR","duration":100},{"type":"wait","ms":400}
-    ]},
-    { label: '🔄 スティックぐるぐる', steps: [
-      {"type":"stick","side":"L","x":1,"y":0,"duration":300},
-      {"type":"stick","side":"L","x":0,"y":1,"duration":300},
-      {"type":"stick","side":"L","x":-1,"y":0,"duration":300},
-      {"type":"stick","side":"L","x":0,"y":-1,"duration":300},
-      {"type":"wait","ms":200}
-    ]}
-  ];
-  const tmpl = templates[Math.floor(Math.random() * templates.length)];
-  const stepsEl = document.getElementById('macroMgrSteps');
-  if (stepsEl) {
-    stepsEl.value = JSON.stringify(tmpl.steps, null, 2);
-    showToast('📋 テンプレート挿入: ' + tmpl.label);
-  }
-}
-
-function macroMgrSave() {
-  const nameEl = document.getElementById('macroMgrName');
-  const stepsEl = document.getElementById('macroMgrSteps');
-  const name = nameEl ? nameEl.value.trim() : '';
-  const stepsText = stepsEl ? stepsEl.value.trim() : '';
-  if (!name) { showToast('⚠ マクロ名を入力してください'); if (nameEl) nameEl.focus(); return; }
-  try { JSON.parse(stepsText); } catch(e) { showToast('❌ JSONが無効です: ' + e.message); return; }
-  if (!window.Android || !Android.saveMacro) { showToast('⚠ Androidブリッジ未接続'); return; }
-  const result = Android.saveMacro(name, stepsText);
-  if (result) {
-    showToast('✓ 保存しました: ' + name);
-    const editorSection = document.getElementById('macroMgrEditorSection');
-    if (editorSection) editorSection.style.display = 'none';
-    _macroMgrLog('💾 保存: ' + name);
-    macroMgrRefresh();
-  } else {
-    showToast('❌ 保存に失敗しました');
-  }
-}
-
-function macroMgrCancel() {
-  const editorSection = document.getElementById('macroMgrEditorSection');
-  if (editorSection) editorSection.style.display = 'none';
-}
-
-function macroMgrDelete(name) {
-  if (!confirm('"' + name + '" を削除してもいいですか?')) return;
-  if (!window.Android || !Android.deleteMacro) return;
-  const result = Android.deleteMacro(name);
-  if (result) {
-    _macroMgrLog('🗑 削除: ' + name);
-    if (_macroMgrSelected === name) {
-      _macroMgrSelected = null;
-      const playSection = document.getElementById('macroMgrPlaySection');
-      if (playSection) playSection.style.display = 'none';
-    }
-    macroMgrRefresh();
-  }
-}
-
-function macroMgrPlay() {
-  if (!_macroMgrSelected) { showToast('⚠ マクロをタップして選択してください'); return; }
-  if (!window.Android || !Android.executeMacro) { showToast('⚠ Androidブリッジ未接続'); return; }
-  const infiniteEl = document.getElementById('macroMgrInfinite');
-  const infinite = infiniteEl && infiniteEl.checked;
-  const loops = infinite ? 0 : (parseInt(document.getElementById('macroMgrLoops').value) || 1);
-  Android.executeMacro(_macroMgrSelected, loops);
-}
-
-function macroMgrStop() {
-  if (window.Android && Android.stopMacro) {
-    Android.stopMacro();
-    _macroMgrLog('⏹ 停止リクエスト送信');
-  }
-}
-
-/** Android側からのマクロイベントコールバック */
-function macroEvent(jsonStr) {
-  try {
-    const d = JSON.parse(jsonStr);
-    const playBtn = document.getElementById('macroMgrPlayBtn');
-    const stopBtn = document.getElementById('macroMgrStopBtn');
-    switch (d.type) {
-      case 'executionStart':
-        _macroMgrLog('▶ 実行開始: ' + d.macroName);
-        if (playBtn) playBtn.style.display = 'none';
-        if (stopBtn) stopBtn.style.display = 'block';
-        break;
-      case 'executionStop':
-        _macroMgrLog('■ 実行終了: ' + d.macroName);
-        if (playBtn) playBtn.style.display = 'block';
-        if (stopBtn) stopBtn.style.display = 'none';
-        break;
-      case 'executionError':
-        _macroMgrLog('✗ エラー: ' + d.message, true);
-        if (playBtn) playBtn.style.display = 'block';
-        if (stopBtn) stopBtn.style.display = 'none';
-        break;
-      case 'stepProgress':
-        if (d.stepIndex % 5 === 0 || d.stepIndex === d.total)
-          _macroMgrLog('  ステップ ' + d.stepIndex + ' / ' + d.total);
-        break;
-    }
-  } catch(e) {}
-}
-
-function _macroMgrLog(msg, isError) {
-  const con = document.getElementById('macroMgrLog');
-  if (!con) return;
-  const line = document.createElement('div');
-  line.style.cssText = 'margin:2px 0;word-wrap:break-word;' + (isError ? 'color:#ff5555;' : '');
-  const ts = new Date().toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
-  line.textContent = '[' + ts + '] ' + msg;
-  con.appendChild(line);
-  con.scrollTop = con.scrollHeight;
-}
-
-// =====================================================================
-// ★ スナイプ実行パネル  (ソフト選択同時スタート + コンテニュースキップ + はい自動押下)
-// =====================================================================
-let snipeRunActive = false;
-let snipeRunTimers = [];
-
-/**
- * 「ソフトを選択して同時スタート」ボタンの処理
- *  1. カウントダウンタイマーを即時スタート
- *  2. 設定した回数だけ A ボタンを連打 → コンテニュー画面まで進める
- *  3. タイマーが 0 になったら onSnipeTimerEnd() が呼ばれ「はい」を押す
- */
-function startSnipeRun() {
-  const m = parseFloat(document.getElementById('countdownMin').value  || 0);
-  const s = parseFloat(document.getElementById('countdownSec').value  || 0);
-  const dm = parseFloat(document.getElementById('countdownDelayMin').value || 0);
-  const ds = parseFloat(document.getElementById('countdownDelaySec').value || 0);
-  if (m === 0 && s === 0 && dm === 0 && ds === 0) {
-    showToast('⚠ 先に護石を検索して結果をクリックし、タイマーをセットしてください');
-    return;
-  }
-
-  snipeRunActive = true;
-  snipeRunTimers.forEach(t => clearTimeout(t));
-  snipeRunTimers = [];
-
-  const logEl = document.getElementById('snipeRunLog');
-  if (logEl) { logEl.innerHTML = ''; logEl.style.display = 'block'; }
-
-  _logSnipe('🎮 ソフト選択を検出 → カウントダウン開始');
-
-  // ─── ① カウントダウンタイマーを同時スタート ───
-  initAndStartCountdown();
-
-  // ─── ② コンテニュー画面まで A ボタン連打 ───
-  const aPresses    = parseInt(document.getElementById('snipeACount').value      || 3);
-  const aInterval   = parseInt(document.getElementById('snipeAInterval').value   || 1500);
-  const aStartDelay = parseInt(document.getElementById('snipeAStartDelay').value || 800);
-
-  if (aPresses > 0) {
-    _logSnipe(`⏯ Aボタン×${aPresses}回でコンテニュー画面へ (初回${aStartDelay}ms後, 間隔${aInterval}ms)`);
-    for (let i = 0; i < aPresses; i++) {
-      const t = setTimeout(() => {
-        if (!snipeRunActive) return;
-        pressCtrlBtn('A');
-        _logSnipe(`  [${i + 1}/${aPresses}] ▶ A を押しました`);
-      }, aStartDelay + i * aInterval);
-      snipeRunTimers.push(t);
-    }
-  } else {
-    _logSnipe('⏩ Aボタンスキップなし (0回設定)');
-  }
-
-  _logSnipe('⏳ タイマー 0 でキャラ選択「はい」を自動押下します...');
-  _updateSnipeRunUI(true);
-}
-
-/** 手動停止 */
-function stopSnipeRun() {
-  snipeRunActive = false;
-  snipeRunTimers.forEach(t => clearTimeout(t));
-  snipeRunTimers = [];
-  stopCountdownTimer();
-  _logSnipe('⏹ 手動停止しました');
-  _updateSnipeRunUI(false);
-}
-
-/**
- * カウントダウンの active フェーズ終了時に runCountdown() から呼ばれる。
- * snipeRunActive が true の場合のみ A ボタン（はい）を押す。
- */
-function onSnipeTimerEnd() {
-  if (!snipeRunActive) return;
-  pressCtrlBtn('A'); // キャラ選択 → 「はい」
-  _logSnipe('✅ タイマー終了 → キャラ選択「はい」(A) を押しました！');
-  showToast('✅ スナイプ実行完了！ 🎯');
-  snipeRunActive = false;
-  setTimeout(() => _updateSnipeRunUI(false), 1000);
-}
-
-/** スナイプ実行ログに1行追加 */
-function _logSnipe(msg) {
-  const el = document.getElementById('snipeRunLog');
+function _showOcrCharmCard(parsed) {
+  const el = document.getElementById('ocrCharmCard');
   if (!el) return;
-  const now = new Date();
-  const ts  = `${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}.${String(now.getMilliseconds()).padStart(3,'0')}`;
-  const div = document.createElement('div');
-  div.style.lineHeight = '1.7';
-  div.style.color = msg.startsWith('✅') ? '#28a745'
-    : msg.startsWith('⚠')  ? '#e0a800'
-    : msg.startsWith('⏹')  ? '#dc3545'
-    : msg.startsWith('  [') ? '#60d0a0'
-    : '#80c8e0';
-  div.textContent = `[${ts}] ${msg}`;
-  el.appendChild(div);
-  el.scrollTop = el.scrollHeight;
+  const kindNames = ['風化した護石','古びた護石','光る護石','なぞの護石'];
+  const slotStr = parsed.slots >= 0 ? ['---','○','○○','○○○'][parsed.slots] : '不明';
+  const kindStr = parsed.kind >= 0 ? kindNames[parsed.kind] : '不明（全種別をサーチ）';
+  const kindColor = parsed.kind >= 0 ? ['#80c0c0','#c07070','#c0c060','#cccccc'][parsed.kind] : 'var(--text3)';
+
+  let skillHtml = '';
+  if (parsed.skills.length === 0) {
+    skillHtml = `<div style="color:var(--red);font-size:12px;">スキル認識失敗</div>`;
+  } else {
+    for (const sk of parsed.skills.slice(0, 2)) {
+      skillHtml += `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--border);">
+        <span style="color:var(--steel2);font-weight:600;">${sk.name}</span>
+        <span style="color:var(--teal);font-weight:700;font-size:14px;">+${sk.pts}</span>
+      </div>`;
+    }
+  }
+
+  el.innerHTML = `
+    <div style="font-size:11px;color:var(--text3);letter-spacing:1px;margin-bottom:6px;">認識されたお守り</div>
+    <div style="font-size:13px;font-weight:700;margin-bottom:8px;color:${kindColor};">${kindStr}</div>
+    ${skillHtml}
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;margin-top:2px;">
+      <span style="color:var(--text2);font-size:11px;">スロット</span>
+      <span style="color:var(--accent2);font-weight:700;letter-spacing:2px;">${slotStr}</span>
+    </div>`;
+  el.style.display = 'block';
 }
 
-/** 実行中 / 待機中の UI 切替 */
-function _updateSnipeRunUI(running) {
-  const startBtn = document.getElementById('snipeRunStartBtn');
-  const stopBtn  = document.getElementById('snipeRunStopBtn');
-  if (startBtn) startBtn.style.display = running ? 'none' : '';
-  if (stopBtn)  stopBtn.style.display  = running ? '' : 'none';
-}
 
 window.onload = function() {
   rebuildSkillDropdowns();
@@ -4712,15 +3402,10 @@ window.onload = function() {
   resetStopwatch();
   updateRewardSlots();
   document.getElementById('swLapBtn').style.display = 'none';
-  initMultiBtnGrid();
-  renderMacroList();
   document.getElementById('stopBtn').style.display = 'none';
   document.getElementById('startCountdownBtn').addEventListener('click', initAndStartCountdown);
   document.getElementById('stopCountdownBtn').addEventListener('click', stopCountdownTimer);
   document.getElementById('resetCountdownBtn').addEventListener('click', resetCountdownTimer);
-  // Init visual joysticks
-  initJoyCanvas('L');
-  initJoyCanvas('R');
 };
 </script>
 </body>
